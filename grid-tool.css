@@ -254,8 +254,6 @@ button.danger:hover{background:var(--red);color:#000;}
 
 /* PRESET BAR */
 #preset-bar{flex-shrink:0;border-top:1px solid var(--border);padding:6px 8px;display:flex;gap:5px;align-items:center;}
-#preset-select{flex:1;font-size:9px;font-family:monospace;padding:3px 5px;background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:3px;min-width:0;}
-#preset-select optgroup{color:var(--text3);font-size:8px;}
 
 /* CONTEXT MENU */
 #ctx-menu{position:fixed;background:#1a1a1a;border:1px solid #333;border-radius:5px;padding:4px 0;z-index:9999;display:none;min-width:160px;box-shadow:0 4px 20px rgba(0,0,0,.8);}
@@ -315,6 +313,27 @@ button.danger:hover{background:var(--red);color:#000;}
 .fl-tile-label{font-size:8px;color:#aaa;text-align:center;padding:3px 4px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .fl-tile:hover .fl-tile-label{color:#4466ff;}
 
+
+/* Preset browser panel */
+#preset-browse{font-size:9px;padding:3px 10px;background:rgba(255,210,63,.07);color:#ffd23f;border:1px solid #5a4a1a;border-radius:4px;cursor:pointer;max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+#preset-browse:hover{border-color:#ffd23f;}
+#preset-panel{position:fixed;z-index:600;width:320px;max-height:68vh;background:#0e0e12;border:1px solid #333;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.85);display:flex;flex-direction:column;overflow:hidden;}
+#preset-panel-head{display:flex;gap:6px;padding:7px;border-bottom:1px solid #222;background:#121218;}
+#preset-search{flex:1;font-size:10px;font-family:monospace;background:#08080a;color:#ddd;border:1px solid #2a2a2a;border-radius:4px;padding:4px 8px;outline:none;}
+#preset-search:focus{border-color:#ffd23f55;}
+#preset-panel-close{font-size:10px;padding:2px 8px;background:#1a1a1a;color:#888;border:1px solid #2a2a2a;border-radius:4px;cursor:pointer;}
+#preset-panel-list{overflow-y:auto;padding:4px 0 8px;}
+.preset-cat-hdr{font-size:8px;font-family:monospace;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffd23f;padding:8px 10px 3px;position:sticky;top:0;background:#0e0e12;}
+.preset-row{display:flex;align-items:baseline;gap:7px;padding:4px 10px;cursor:pointer;border-left:2px solid transparent;}
+.preset-row:hover{background:#16161e;border-left-color:#ffd23f;}
+.preset-name{font-size:10px;color:#ddd;font-weight:600;white-space:nowrap;}
+.preset-tip{font-size:8px;color:#666;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.preset-meta{font-size:7px;color:#444;font-family:monospace;flex-shrink:0;}
+.preset-row .preset-del{font-size:8px;padding:0 5px;background:none;color:#664444;border:1px solid #332222;border-radius:3px;cursor:pointer;}
+.preset-row .preset-del:hover{color:#ff6655;border-color:#663333;}
+/* Filter preset stacks */
+.fl-stack-tile .fl-tile-label{color:#ffd23f;}
+.fl-stack-badge{position:absolute;top:3px;right:4px;font-size:7px;font-family:monospace;color:#ffd23f;background:rgba(0,0,0,.6);border-radius:3px;padding:0 4px;pointer-events:none;}
 
 /* Mask presets + aim */
 .mask-preset{font-size:8px;padding:3px 6px;background:#101418;color:#88aacc;border:1px solid #24343a;border-radius:4px;cursor:pointer;}

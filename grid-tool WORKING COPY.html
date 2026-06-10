@@ -2355,11 +2355,18 @@ FARBE</textarea></div>
   </div><!-- end panel-body -->
 
   <div id="preset-bar">
-    <select id="preset-select"><option value="">— presets —</option></select>
+    <button id="preset-browse" title="Browse presets — categorized looks for every layer type">★ presets</button>
     <button id="btn-save-preset" title="Save current state as preset">+</button>
     <button id="btn-export-presets" title="Export saved presets to file" style="font-size:9px;padding:3px 6px;">↓</button>
     <button id="btn-import-presets" title="Import presets from file" style="font-size:9px;padding:3px 6px;">↑</button>
     <input id="btn-import-file" type="file" accept=".json" style="display:none;">
+    <div id="preset-panel" style="display:none;">
+      <div id="preset-panel-head">
+        <input id="preset-search" type="text" placeholder="search presets…">
+        <button id="preset-panel-close">✕</button>
+      </div>
+      <div id="preset-panel-list"></div>
+    </div>
     <button id="btn-rand" title="Randomize selected params">⟳ randomize</button>
     <div id="rand-popup" style="display:none;position:absolute;bottom:44px;left:8px;background:#111;border:1px solid #333;border-radius:6px;padding:10px;z-index:500;min-width:260px;max-height:70vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);">
       <div style="font-family:monospace;font-size:8px;color:#666;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;">randomize params — select what to randomize</div>

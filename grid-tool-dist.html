@@ -2355,11 +2355,18 @@ FARBE</textarea></div>
   </div><!-- end panel-body -->
 
   <div id="preset-bar">
-    <select id="preset-select"><option value="">— presets —</option></select>
+    <button id="preset-browse" title="Browse presets — categorized looks for every layer type">★ presets</button>
     <button id="btn-save-preset" title="Save current state as preset">+</button>
     <button id="btn-export-presets" title="Export saved presets to file" style="font-size:9px;padding:3px 6px;">↓</button>
     <button id="btn-import-presets" title="Import presets from file" style="font-size:9px;padding:3px 6px;">↑</button>
     <input id="btn-import-file" type="file" accept=".json" style="display:none;">
+    <div id="preset-panel" style="display:none;">
+      <div id="preset-panel-head">
+        <input id="preset-search" type="text" placeholder="search presets…">
+        <button id="preset-panel-close">✕</button>
+      </div>
+      <div id="preset-panel-list"></div>
+    </div>
     <button id="btn-rand" title="Randomize selected params">⟳ randomize</button>
     <div id="rand-popup" style="display:none;position:absolute;bottom:44px;left:8px;background:#111;border:1px solid #333;border-radius:6px;padding:10px;z-index:500;min-width:260px;max-height:70vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);">
       <div style="font-family:monospace;font-size:8px;color:#666;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;">randomize params — select what to randomize</div>
@@ -16185,13 +16192,75 @@ const DEFAULT_PRESETS=[
       swirlArms:3,spinSpeed:1.2,twist:0.35,highlight:0.35}]}]},
 ];
 
+// ── preset categories (existing presets mapped by name; new presets carry cat inline) ──
+const PRESET_CAT_ORDER=['blobby & ink','motion looks','mono & op-art','color & fields','math curves','symmetry & tiling','type & layout','scenes & reference','saved'];
+const PRESET_CATS={
+  'barcode':'mono & op-art','waveform':'mono & op-art','op-art sine':'mono & op-art','hourglass':'mono & op-art','radial rings':'mono & op-art','checker grad':'mono & op-art','diagonal bands':'mono & op-art','dither dots':'mono & op-art',
+  'star field':'color & fields','petals':'color & fields','fire+bloom':'color & fields','feedback loop':'color & fields','glitch sort':'color & fields','kaleidoscope':'color & fields','curl magnitude':'color & fields','curl angle':'color & fields',
+  'lissajous 3:2':'math curves','lissajous 5:4':'math curves','fourier crystal':'math curves','fourier+noise':'math curves',
+  'p4m tiles':'symmetry & tiling','p6m hex':'symmetry & tiling','pmm mirror':'symmetry & tiling','p4g glide':'symmetry & tiling','p6 spin':'symmetry & tiling','seamless noise':'symmetry & tiling','cm wallpaper':'symmetry & tiling',
+  'text: stay tuned':'type & layout','ref C · justified type fill':'type & layout','ref D · word cluster (physics)':'type & layout','ref 1 · spectrum extrusion':'type & layout',
+};
+// ── NEW PRESETS — showcasing blobby/marble/gesture layers, masks, filter stacks ──
+DEFAULT_PRESETS.push(
+  {cat:'blobby & ink',name:'lava lamp',tip:'drifting SDF blobs with gloss shading',layers:[{...defaultLayerParams(),name:'lava',layerType:'blobby',bg:'#00000000',blobBgOn:true,blobBg:'#0b0614',
+    blobs:[
+      {id:'lv1',seed:11,pts:[{x:0.32,y:0.7,r:0.13},{x:0.38,y:0.55,r:0.1},{x:0.35,y:0.42,r:0.08}],merge:0.95,shape:'blob',wobble:0.35,roundness:0.4,fillMode:'gradient',color:'#ff5a3c',color2:'#ff2d78',gradAngle:90,shade:0.75,shadeAngle:120,drift:0.7,pulse:0.45,speed:0.7,jiggle:0.4},
+      {id:'lv2',seed:29,pts:[{x:0.65,y:0.3,r:0.11},{x:0.7,y:0.46,r:0.09}],merge:0.9,shape:'blob',wobble:0.4,roundness:0.5,fillMode:'gradient',color:'#ffb13c',color2:'#ff5a3c',gradAngle:60,shade:0.7,shadeAngle:120,drift:0.9,pulse:0.5,speed:0.55,jiggle:0.3},
+      {id:'lv3',seed:47,pts:[{x:0.52,y:0.82,r:0.07}],merge:0.8,shape:'blob',wobble:0.45,roundness:0.5,fillMode:'solid',color:'#ff2d78',shade:0.6,shadeAngle:120,drift:1,pulse:0.6,speed:0.9}]}]},
+  {cat:'blobby & ink',name:'blob poster',tip:'autofit type flowing inside an organic region',layers:[{...defaultLayerParams(),name:'poster',layerType:'blobby',bg:'#00000000',blobBgOn:true,blobBg:'#f2ecdf',
+    blobs:[
+      {id:'bp1',seed:5,pts:[{x:0.45,y:0.4,r:0.2},{x:0.6,y:0.52,r:0.17},{x:0.42,y:0.62,r:0.14}],merge:0.8,shape:'blob',wobble:0.4,roundness:0.5,fillMode:'solid',color:'#16161c',
+       text:'THE SHAPE OF THINGS TO COME',textColor:'#f2ecdf',textFit:'autofit',textAlign:'justify',textVAlign:'center',textInset:0.07,textLeading:1.05,textWeight:'800',textCase:'upper'},
+      {id:'bp2',seed:31,pts:[{x:0.78,y:0.22,r:0.08}],merge:0.5,shape:'blob',wobble:0.5,roundness:0.4,fillMode:'solid',color:'#e2412e',shade:0.6,shadeAngle:130},
+      {id:'bp3',seed:77,pts:[{x:0.2,y:0.8,r:0.06}],merge:0.5,shape:'blob',wobble:0.5,roundness:0.4,fillMode:'solid',color:'#2e6fe2',shade:0.6,shadeAngle:130}]}]},
+  {cat:'blobby & ink',name:'ink bath',tip:'marbled inks combed into feathers',layers:[{...defaultLayerParams(),name:'bath',layerType:'marble',bg:'#00000000',marbleBgOn:true,marbleBg:'#0d0c12',
+    marbleOps:(()=>{const ops=[];const inks=['#ff5a5f','#ffd166','#4ecdc4','#f7f0e8'];
+      for(let i=0;i<16;i++){const a=i/16*6.283;ops.push({t:'drop',x:0.5+Math.cos(a)*(0.1+0.017*i),y:0.5+Math.sin(a)*(0.1+0.014*i),r:0.05+0.012*Math.sin(i*2.7),color:inks[i%4]});}
+      ops.push({t:'chev',x:0.5,y:0.5,ux:0,uy:1,a:0.45,per:0.1});
+      ops.push({t:'comb',x:0.5,y:0.5,ux:1,uy:0,a:0.3,f:0.08,sp:0.09});
+      return ops;})()}]},
+  {cat:'blobby & ink',name:'living marble',tip:'a bath that never stops swirling',layers:[{...defaultLayerParams(),name:'live bath',layerType:'marble',bg:'#00000000',marbleBgOn:true,marbleBg:'#101418',
+    marbleMotion:'vortex',marbleMotionAmt:0.6,marbleMotionSpeed:0.8,marbleDetail:0.8,
+    marbleOps:(()=>{const ops=[];const inks=['#5ad1ff','#3c6eff','#e8f4ff','#ffd166'];
+      for(let r=0;r<3;r++)for(let c=0;c<5;c++)ops.push({t:'drop',x:0.16+c*0.17,y:0.25+r*0.25,r:0.07,color:inks[(r+c)%4]});
+      ops.push({t:'chev',x:0.5,y:0.5,ux:1,uy:0.2,a:0.4,per:0.13});
+      return ops;})()}]},
+  {cat:'motion looks',name:'comet orbits',tip:'gesture loops — recorded motion that replays forever',layers:[{...defaultLayerParams(),name:'orbits',layerType:'gesture',bg:'#00000000',gestBgOn:true,gestBg:'#05060c',
+    gestures:(()=>{const mk=(fn,n,dur,style,color,color2,extra)=>{const pts=[];for(let i=0;i<=n;i++){const f=i/n,p=fn(f);pts.push({x:p[0],y:p[1],t:f*dur});}
+        let len=0,cx=0,cy=0;pts.forEach((p,i)=>{cx+=p.x;cy+=p.y;if(i)len+=Math.hypot(p.x-pts[i-1].x,p.y-pts[i-1].y);});
+        return Object.assign({id:'g'+((Math.random()*1e6)|0),seed:(Math.random()*999)|0,pts,rawDur:dur,pathLen:len,cx:cx/pts.length,cy:cy/pts.length,phase:0,
+          style,shape:'circle',char:'✺',color,color2,colorMode:'duo',size:0.028,taper:0.7,trail:0.42,glow:0.8,stampSpacing:0.06,rotFollow:true,
+          echoes:2,echoFade:0.55,speed:1,dir:'fwd',sync:'free',jitter:0,spin:0,orbit:0},extra||{});};
+      return [
+        mk(f=>[0.5+0.28*Math.cos(f*6.283),0.5+0.28*Math.sin(f*6.283)],60,2600,'comet','#7af0ff','#ff7ae0',{echoes:3}),
+        mk(f=>[0.5+0.3*Math.sin(f*6.283),0.5+0.17*Math.sin(f*12.566)],80,3400,'ribbon','#ffd166','#ff5a5f',{trail:0.55,phase:0.4}),
+        mk(f=>[0.18+0.64*f,0.78+0.1*Math.sin(f*18.85)],50,2000,'stamps',  '#9dff70','#3cff9d',{shape:'star',stampSpacing:0.05,phase:0.7,dir:'pingpong'})];})()}]},
+  {cat:'motion looks',name:'stencil inferno',tip:'fire seen through a text-stencil mask',layers:[{...defaultLayerParams(),name:'fire text',orient:'v',ns:0.05,oct:4,thresh:0.45,yFlow:-0.8,speed:0.015,cmode:'palette',palette:'fire',gdir:'y',bg:'#000000',
+    mask:{...defaultMask(),enabled:true,source:'text',maskText:'HEAT',maskTextSize:0.62,feather:0.015,motionPulse:0.25}}]},
+  {cat:'motion looks',name:'cloud reveal',tip:'boiling noise-mask eats a kaleidoscope',layers:[{...defaultLayerParams(),name:'kaleido clouds',cmode:'hsl',hueShift:0,hueRange:300,sat:90,gdir:'radial',kaleido:8,kaleidoSpin:0.005,bloom:0.3,bloomThresh:120,
+    mask:{...defaultMask(),enabled:true,source:'noise',noiseScale:2.4,feather:0.18,motionBoil:1.2,motionScroll:0.3}}]},
+  {cat:'motion looks',name:'droste dive',tip:'the whole grid falls into itself forever',layers:[{...defaultLayerParams(),name:'dive',cols:60,rows:60,gap:1,shape:'rect',sizeMap:0.8,ns:0.08,oct:2,contrast:10,thresh:0.5,speed:0.008,cmode:'gradient',cA:'#0a0a2a',cB:'#ffd23f',gdir:'radial',
+    filterChain:[{id:'fs1',type:'droste',on:true,blend:0,mix:1,uniforms:{zoom:1.4,twist:0.7,rings:2,speed:0.5}},{id:'fs2',type:'bloom',on:true,blend:0,mix:1,uniforms:{threshold:0.55,amount:0.7,radius:3}}]}]},
+  {cat:'motion looks',name:'matrix grid',tip:'green rain streaming off a bright grid',layers:[{...defaultLayerParams(),name:'matrix',cols:90,rows:50,gap:1,orient:'v',contrast:12,speed:0.02,cmode:'gradient',cA:'#001505',cB:'#9dffb0',gdir:'noise',bg:'#000000',
+    filterChain:[{id:'fm1',type:'gradientmap',on:true,blend:0,mix:1,uniforms:{hueLo:0.38,hueMid:0.36,hueHi:0.3,satur:0.9}},{id:'fm2',type:'rain',on:true,blend:0,mix:1,uniforms:{len:0.25,thresh:0.45,tint:0.9,amount:1.4,speed:1.2}},{id:'fm3',type:'scanlines',on:true,blend:0,mix:1,uniforms:{count:380,intensity:0.35,speed:0.6}}]}]},
+  {cat:'motion looks',name:'riso bloom',tip:'organic field printed as a 2-ink riso poster',layers:[{...defaultLayerParams(),name:'riso',shape:'circle',sizeMap:0.8,ns:0.06,oct:3,contrast:6,speed:0.006,cmode:'gradient',cA:'#101030',cB:'#ffffff',gdir:'noise',
+    filterChain:[{id:'fr1',type:'riso',on:true,blend:0,mix:1,uniforms:{hueA:0.55,hueB:0.97,misreg:0.008,grain:0.45,levels:3,paper:0.95}},{id:'fr2',type:'vignettegr',on:true,blend:0,mix:1,uniforms:{vignette:0.35,grain:0.12}}]}]}
+);
+
 let userPresets=[];
 try{userPresets=JSON.parse(localStorage.getItem('grid-v7-presets')||'[]');}catch(e){}
 
 function applyPresetData(pd){
   layers=pd.layers.map(l=>{
     const merged={...defaultLayerParams(),...l,_t:0,_tz:0};
-    if(!merged.mask) merged.mask=defaultMask(); // backward compat
+    merged.mask=merged.mask?JSON.parse(JSON.stringify(merged.mask)):defaultMask();
+    // deep-copy object arrays so live edits never mutate the preset definition
+    ['blobs','blobConnectors','marbleOps','gestures','filterChain','fxChain'].forEach(k=>{
+      if(Array.isArray(merged[k])) merged[k]=JSON.parse(JSON.stringify(merged[k]));
+    });
+    // never carry runtime caches from a preset
+    delete merged._maskCache; delete merged._mCache; delete merged._sdf;
     // deep-copy graphic elements so presets aren't mutated, and give fresh ids
     if(Array.isArray(merged.gfxElements)){
       merged.gfxElements=merged.gfxElements.map(el=>{
@@ -16206,44 +16275,80 @@ function applyPresetData(pd){
   selectedLayer=0;renderLayerList();syncLayerUI();buildDitherPreview();renderLfoList();
 }
 
-function renderPresets(){
-  const sel=document.getElementById('preset-select');
-  // Save current selected index
-  const prev=sel.value;
-  sel.innerHTML='<option value="">— presets —</option>';
-  // Built-in group
-  const builtinGrp=document.createElement('optgroup');
-  builtinGrp.label='Built-in';
-  DEFAULT_PRESETS.forEach((p,i)=>{
-    const opt=document.createElement('option');opt.value='b'+i;opt.textContent=p.name;
-    builtinGrp.appendChild(opt);
-  });
-  sel.appendChild(builtinGrp);
-  if(userPresets.length>0){
-    const userGrp=document.createElement('optgroup');userGrp.label='Saved';
-    userPresets.forEach((p,i)=>{
-      const opt=document.createElement('option');opt.value='u'+i;opt.textContent=p.name;
-      userGrp.appendChild(opt);
-    });
-    sel.appendChild(userGrp);
-  }
-  sel.value=prev;
+// ── PRESET BROWSER — categorized list panel ──
+function _presetCat(p){ return p.cat || PRESET_CATS[p.name] || 'scenes & reference'; }
+function _presetSetLabel(name){
+  const b=document.getElementById('preset-browse');
+  if(b) b.innerHTML='★ '+(name?('<span style="color:#fff;">'+name+'</span>'):'presets');
 }
-
-document.getElementById('preset-select').addEventListener('change',e=>{
-  const v=e.target.value;if(!v) return;
-  const p=v[0]==='b'?DEFAULT_PRESETS[parseInt(v.slice(1))]:userPresets[parseInt(v.slice(1))];
-  if(p) applyPresetData(p);
+function renderPresets(){
+  const list=document.getElementById('preset-panel-list'); if(!list) return;
+  const search=(document.getElementById('preset-search')?.value||'').toLowerCase();
+  list.innerHTML='';
+  // group built-ins by category, in fixed order
+  const byCat={};
+  DEFAULT_PRESETS.forEach((p,i)=>{
+    if(search && !p.name.toLowerCase().includes(search) && !(p.tip||'').toLowerCase().includes(search)) return;
+    const c=_presetCat(p); (byCat[c]=byCat[c]||[]).push({p,i,user:false});
+  });
+  userPresets.forEach((p,i)=>{
+    if(search && !p.name.toLowerCase().includes(search)) return;
+    (byCat['saved']=byCat['saved']||[]).push({p,i,user:true});
+  });
+  const cats=PRESET_CAT_ORDER.filter(c=>byCat[c]).concat(Object.keys(byCat).filter(c=>!PRESET_CAT_ORDER.includes(c)));
+  cats.forEach(cat=>{
+    const hdr=document.createElement('div'); hdr.className='preset-cat-hdr'; hdr.textContent=cat;
+    list.appendChild(hdr);
+    byCat[cat].forEach(({p,i,user})=>{
+      const row=document.createElement('div'); row.className='preset-row';
+      const nm=document.createElement('span'); nm.className='preset-name'; nm.textContent=p.name; row.appendChild(nm);
+      if(p.tip){ const tip=document.createElement('span'); tip.className='preset-tip'; tip.textContent=p.tip; row.appendChild(tip); }
+      const nLayers=(p.layers||[]).length;
+      const meta=document.createElement('span'); meta.className='preset-meta'; meta.textContent=nLayers+(nLayers>1?' layers':' layer'); row.appendChild(meta);
+      if(user){
+        const del=document.createElement('button'); del.textContent='✕'; del.className='preset-del'; del.title='delete saved preset';
+        del.addEventListener('click',ev=>{ ev.stopPropagation();
+          if(confirm('Delete preset "'+p.name+'"?')){ userPresets.splice(i,1);
+            try{localStorage.setItem('grid-v7-presets',JSON.stringify(userPresets));}catch(e){}
+            renderPresets(); } });
+        row.appendChild(del);
+      }
+      row.addEventListener('click',()=>{
+        applyPresetData(p); _presetSetLabel(p.name);
+        document.getElementById('preset-panel').style.display='none';
+        snapshotState();
+      });
+      list.appendChild(row);
+    });
+  });
+  if(!list.children.length){ const e=document.createElement('div'); e.className='preset-tip'; e.style.padding='8px'; e.textContent='no presets match'; list.appendChild(e); }
+}
+document.getElementById('preset-browse')?.addEventListener('click',()=>{
+  const panel=document.getElementById('preset-panel'); if(!panel) return;
+  const open=panel.style.display!=='none';
+  if(open){ panel.style.display='none'; return; }
+  const r=document.getElementById('preset-browse').getBoundingClientRect();
+  panel.style.left=Math.max(6,Math.min(window.innerWidth-330,r.left))+'px';
+  panel.style.bottom=(window.innerHeight-r.top+6)+'px'; // bar lives at the bottom — open upward
+  panel.style.display='flex';
+  renderPresets();
+  setTimeout(()=>document.getElementById('preset-search')?.focus(),30);
+});
+document.getElementById('preset-panel-close')?.addEventListener('click',()=>{ document.getElementById('preset-panel').style.display='none'; });
+document.getElementById('preset-search')?.addEventListener('input',()=>renderPresets());
+document.addEventListener('pointerdown',e=>{
+  const panel=document.getElementById('preset-panel');
+  if(panel && panel.style.display!=='none' && !panel.contains(e.target) && e.target.id!=='preset-browse' && !document.getElementById('preset-browse')?.contains(e.target)) panel.style.display='none';
 });
 
 document.getElementById('btn-save-preset').addEventListener('click',()=>{
   const name=prompt('Preset name:');if(!name) return;
-  const pd={name,layers:layers.map(l=>{const c={...l};delete c._t;delete c._tz;return c;})};
+  // strip runtime keys (_t, _tz, _maskCache, _mCache, _sdf, …) — caches don't belong in presets
+  const pd={name,layers:layers.map(l=>{const c={};for(const k in l){ if(k[0]!=='_') c[k]=l[k]; }return c;})};
   userPresets.push(pd);
   try{localStorage.setItem('grid-v7-presets',JSON.stringify(userPresets));}catch(e){}
+  _presetSetLabel(name);
   renderPresets();
-  // Select the newly saved one
-  setTimeout(()=>{document.getElementById('preset-select').value='u'+(userPresets.length-1);},50);
 });
 
 // ============================================================
@@ -19400,6 +19505,46 @@ function filterDefault(type){
     {label:'glitch & retro', types:['crt','vhsblock','glitchblocks','scanglitch','scanwarp','datamosh','rgbsplit','chromatic','chromabands','pixelsort','zoomblur','anaglyph','rain']},
     {label:'kaleido & feedback', types:['kaleido','kaleidomirror','feedback','glassblocks','edge']},
   ];
+  // ── SHADER PRESET STACKS — curated multi-filter chains with tuned params ──
+  const FILTER_STACKS=[
+    {name:'📼 VHS Night', tip:'CRT curve + tracking + grain', chain:[['crt',{curve:0.35,scan:0.5,vignette:0.5,chroma:0.006,roll:0.4,flicker:0.25}],['vhsblock',{amount:0.35,lines:14,speed:2}],['filmgrain',{amount:0.25,size:1.5}]]},
+    {name:'🖨️ Riso Poster', tip:'2-ink risograph + paper vignette', chain:[['riso',{hueA:0.55,hueB:0.97,misreg:0.008,grain:0.45,levels:3,paper:0.95}],['vignettegr',{vignette:0.35,grain:0.12}]]},
+    {name:'🌀 Infinite Zoom', tip:'droste spiral falling forever', chain:[['droste',{zoom:1.4,twist:0.7,rings:2,speed:0.5}],['bloom',{threshold:0.55,amount:0.7,radius:3}]]},
+    {name:'🧪 Dream Chrome', tip:'liquid metal + glow + hue drift', chain:[['chrome',{bands:6,shine:1.2,flow:0.4,mix:0.85}],['glow',{radius:5,amount:0.6,pulse:0.3}],['huecycle',{shift:0,cycle:0.25,sat:1.1}]]},
+    {name:'🟩 The Matrix', tip:'green map + pixel rain + scanlines', chain:[['gradientmap',{hueLo:0.38,hueMid:0.36,hueHi:0.3,satur:0.9}],['rain',{len:0.25,thresh:0.45,tint:0.9,amount:1.4,speed:1.2}],['scanlines',{count:380,intensity:0.35,speed:0.6}]]},
+    {name:'🫠 Melted Vinyl', tip:'wax melt + breathing chroma', chain:[['melt',{amount:0.25,waves:14,jagged:0.5,speed:0.3}],['chromatic',{amount:0.012,radial:1,falloff:1.2,pulse:0.3}],['vignettegr',{vignette:0.6,grain:0.15}]]},
+    {name:'⚡ Cyber Glitch', tip:'blocks + spinning RGB + signal tears', chain:[['glitchblocks',{amount:0.45,size:18,speed:2.5}],['rgbsplit',{amount:0.012,jitter:0.4,spin:0.6}],['scanglitch',{amount:0.025,freq:80,speed:2}]]},
+    {name:'✏️ Boiling Sketch', tip:'hand-drawn pencil that wobbles', chain:[['sketch',{strength:1.7,hatch:0.65,paper:0.93,boil:0.6,mix:1}],['vignettegr',{vignette:0.3,grain:0.2}]]},
+    {name:'📰 Newsprint', tip:'halftone dots + warm duotone', chain:[['halftone',{scale:7,angle:0.4,dotgain:0.85,mix:1}],['duotone',{mix:0.6,contrast:1.2,hueA:0.62,hueB:0.12,darkness:0.2,lightness:0.85}]]},
+    {name:'🌫 Hypno Moiré', tip:'de-phasing interference + cycling tones', chain:[['moire',{freq:140,delta:0.05,contrast:0.6,mix:0.8,spin:0.3}],['duotone',{mix:0.9,contrast:1.1,hueA:0.8,hueB:0.95,cycle:0.2}]]},
+    {name:'💎 Crystal Ball', tip:'jiggling crystals + twinkling glints', chain:[['voronoi',{scale:18,strength:1,jiggle:0.5}],['sparkle',{density:0.6,size:7,thresh:0.6,twinkle:1}],['bloom',{threshold:0.6,amount:0.6,radius:3}]]},
+    {name:'🎞 Old Film', tip:'sepia map + grain + breathing vignette', chain:[['gradientmap',{hueLo:0.08,hueMid:0.09,hueHi:0.13,satur:0.5}],['filmgrain',{amount:0.4,size:1.8}],['vignettegr',{vignette:0.8,grain:0.1,breathe:0.4}]]},
+  ];
+  function _flStackChain(st){
+    return st.chain.map(([type,u])=>{ const f=filterDefault(type); Object.assign(f.uniforms,u||{}); return f; });
+  }
+  function _flApplyStack(st){
+    syncFilterChainRef();
+    if(filterChain.length && !confirm('Replace the current filter chain with "'+st.name+'"?')) return;
+    filterChain.length=0;
+    _flStackChain(st).forEach(f=>filterChain.push(f));
+    renderFilterList();
+    document.getElementById('filter-picker').style.display='none';
+  }
+  function _flMakeStackTile(st,sample){
+    const tile=document.createElement('div');
+    tile.className='fl-tile fl-stack-tile';
+    tile.style.position='relative';
+    tile.title=st.tip+' — '+st.chain.map(c=>c[0]).join(' → ');
+    const cv=document.createElement('canvas'); cv.width=FL_THUMB_W; cv.height=FL_THUMB_H;
+    cv.getContext('2d').drawImage(sample,0,0);
+    try{ applyFilterChain(cv,FL_THUMB_W,FL_THUMB_H,_flStackChain(st)); }catch(e){}
+    const lbl=document.createElement('div'); lbl.className='fl-tile-label'; lbl.textContent=st.name;
+    const badge=document.createElement('div'); badge.className='fl-stack-badge'; badge.textContent='×'+st.chain.length;
+    tile.appendChild(cv); tile.appendChild(lbl); tile.appendChild(badge);
+    tile.onclick=()=>_flApplyStack(st);
+    return tile;
+  }
   let _flSampleCv=null;            // cached sample of the current frame to filter
   function _flGetSample(){
     if(!_flSampleCv){ _flSampleCv=document.createElement('canvas'); _flSampleCv.width=FL_THUMB_W; _flSampleCv.height=FL_THUMB_H; }
@@ -19431,6 +19576,15 @@ function filterDefault(type){
     const search=(document.getElementById('filter-picker-search')?.value||'').toLowerCase();
     grid.innerHTML='';
     const sample=_flGetSample();
+    // ★ preset stacks first — complete looks, one click
+    const stackMatches=FILTER_STACKS.filter(st=>!search || st.name.toLowerCase().includes(search) || st.tip.toLowerCase().includes(search) || st.chain.some(c=>c[0].includes(search)));
+    if(stackMatches.length){
+      const hdr=document.createElement('div'); hdr.className='fl-grp-hdr'; hdr.style.color='#ffd23f'; hdr.textContent='── ★ preset stacks (multi-shader looks) ──';
+      grid.appendChild(hdr);
+      const row=document.createElement('div'); row.className='fl-grp-grid';
+      stackMatches.forEach(st=>row.appendChild(_flMakeStackTile(st,sample)));
+      grid.appendChild(row);
+    }
     const seen={};
     FILTER_PICKER_GROUPS.forEach(grp=>{
       const matches=grp.types.filter(k=>{
