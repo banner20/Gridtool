@@ -170,6 +170,8 @@ function defaultLayerParams(){
     textListCycleMode:'row',textListScrollSpeed:0.5,
     textNoisePickStr:'░▒▓█',textNoisePickFull:false,
     textFont:'impact, sans-serif',textFontCustom:'',textWeight:'bold',
+    // ── automatic font cycling (applies to ALL text rendered by this layer) ──
+    fontCycleOn:false, fontCycleFonts:[], fontCycleRate:'1s', fontCycleTrans:'morph', fontCycleTransAmt:0.3, fontCycleOrder:'seq',
     textDrawMode:'fill',textStrokeWidth:2,textStrokeColorMode:'same',textStrokeColor:'#000000',
     textSizeMode:'fit',textSize:32,
     textOpacityNoise:0.5,textOpacityMin:0.1,textLetterSpacing:0,textNoiseTracking:0,
@@ -486,9 +488,10 @@ function getArrangeTextMaskFontFamily(layer){
 
 function getLayerTextFontFamily(layer){
   const value=layer.textFont||'impact, sans-serif';
-  if(typeof value==='string' && value.startsWith('uploaded:')) return value.slice(9) || 'impact, sans-serif';
-  if(value==='custom') return (layer.textFontCustom||'impact, sans-serif').trim() || 'impact, sans-serif';
-  return value;
+  let fam=value;
+  if(typeof value==='string' && value.startsWith('uploaded:')) fam=value.slice(9) || 'impact, sans-serif';
+  else if(value==='custom') fam=(layer.textFontCustom||'impact, sans-serif').trim() || 'impact, sans-serif';
+  return (typeof fontCycleFont==='function') ? fontCycleFont(layer, fam) : fam;
 }
 
 function refreshUploadedFontOptions(){
@@ -2959,6 +2962,45 @@ function gfxFillFontSelects(){
   });
 }
 
+// ═══════════════ AUTOMATIC FONT CYCLING ═══════════════
+// Resolves the font ALL text in a layer renders with. Engine-level, so every
+// text site (blob reflow, graphic elements, text grids, cell symbols) cycles
+// identically. Transitions: cut | morph (temporal-dither crossfade) | scramble
+// (slot-machine settle). Rate in seconds or BPM-synced.
+function fontCycleFont(layer, baseFont){
+  if(!layer || !layer.fontCycleOn) return baseFont;
+  const set=(layer.fontCycleFonts && layer.fontCycleFonts.length>=2) ? layer.fontCycleFonts : GFX_FONTS.map(f=>f[0]);
+  const n=set.length;
+  const bpmEl=document.getElementById('bpm'); const bpm=bpmEl?(parseFloat(bpmEl.value)||120):120;
+  const beat=60000/Math.max(20,bpm);
+  const iv=({'0.25s':250,'0.5s':500,'1s':1000,'2s':2000,'4s':4000,'beat':beat,'2beat':beat*2,'bar':beat*4,'2bar':beat*8})[layer.fontCycleRate||'1s']||1000;
+  const tms=(globalT||0)*16.667;
+  const pos=tms/iv, idx=Math.floor(pos), phase=pos-idx;
+  const seq=(layer.fontCycleOrder||'seq')!=='random';
+  const pick=(i)=>{
+    if(seq) return set[((i%n)+n)%n];
+    let h=Math.abs((Math.sin(i*127.1+3.7)*43758.5453)%1); let k=(h*n)|0;
+    if(n>1 && i>0){ const prev=pick._p===i-1?pick._v:null; } // (adjacent repeats are acceptable for random)
+    return set[Math.min(n-1,k)];
+  };
+  const cur=pick(idx), next=pick(idx+1);
+  const trans=layer.fontCycleTrans||'morph';
+  const win=Math.max(0.02,Math.min(0.9,layer.fontCycleTransAmt??0.3));
+  if(trans==='cut' || phase < 1-win || cur===next) return cur;
+  const k=(phase-(1-win))/win; // 0..1 through the transition
+  if(trans==='scramble'){
+    if(k>0.82) return next; // settle
+    const step=Math.floor(tms/50); // flip every ~3 frames
+    const h=Math.abs((Math.sin(step*91.7+idx*7.3)*43758.5453)%1);
+    return set[(h*n)|0];
+  }
+  // morph: temporal dither — show `next` with probability k (reads as a crossfade at 60fps)
+  const fh=(((globalT|0)*2654435761)>>>0)/4294967295;
+  return fh<k ? next : cur;
+}
+// is this layer's font animating right now? (used by caches)
+function fontCycleActive(layer){ return !!(layer && layer.fontCycleOn); }
+
 // Routable graphic element props → [min,max] ranges (for audio/LFO targets)
 const GFX_ROUTABLE={
   x:[0,1], y:[0,1], w:[0.05,1], opacity:[0,1], rotate:[-180,180],
@@ -4415,7 +4457,9 @@ function renderGraphicLayer(lctx,layer,W,H){
   layer._gfxBBoxes=[];
   const els=layer.gfxElements||[];
   for(const el of els){
-    const eff=gfxEffectiveEl(el);
+    let eff=gfxEffectiveEl(el);
+    // font cycling: swap the element's font at render time (shallow copy — never mutate the element)
+    if(layer.fontCycleOn && eff.font) eff={...eff, font:fontCycleFont(layer, eff.font)};
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
     if(fx.length){
       // Render element to its own buffer, run the appearance stack, composite back
@@ -5822,7 +5866,10 @@ function renderBlobStroke(lctx,obj,W,H,U,t,layer){
   const bw=Math.max(1,maxx-minx), bh=Math.max(1,maxy-miny);
   if(bw<1||bh<1||bw*bh>6000*6000) return;
   // build style key for cache
+  // resolved font (font cycling swaps this over time → naturally invalidates the cache)
+  const fcFam=obj.text ? fontCycleFont(layer, obj.textFont||"'Bebas Neue',Impact,sans-serif") : '';
   let key=obj.shape+'|'+merge+'|'+obj.color+'|'+obj.color2+'|'+obj.fillMode+'|'+obj.gradAngle+'|'+obj.stroke+'|'+obj.strokeW+'|'+obj.pattern+'|'+obj.patternColor+'|'+obj.patternScale+'|'+obj.patternOpacity+'|'+obj.wobble+'|'+obj.roundness+'|'+(obj.shade||0)+'|'+(obj.shadeAngle??135)+'|'+Math.round(U)+'|'+bw+'x'+bh;
+  if(obj.text) key+='|T:'+obj.text+'|'+fcFam+'|'+obj.textColor+'|'+obj.textWeight+'|'+(obj.textSize||0.4)+'|'+(obj.textFit||'fill')+'|'+(obj.textAlign||'')+'|'+(obj.textCase||'')+'|'+(obj.textInset||0)+'|'+(obj.textLeading||1.02)+'|'+(obj.textTracking||0)+'|'+(obj.textVAlign||'top')+'|'+(obj.textMin||0)+'|'+(!!obj.textBreaks);
   for(const p of pts) key+=';'+Math.round(p.x*3000)+','+Math.round(p.y*3000)+','+Math.round(p.r*3000)+(p.neg?'n':'');
   let res, ro;
   if(!animated && obj._sdf && obj._sdf.key===key){ res=obj._sdf.res; }
@@ -5882,7 +5929,7 @@ function renderBlobStroke(lctx,obj,W,H,U,t,layer){
       rc.globalAlpha=Math.min(0.8,shade*0.7); rc.drawImage(sh,0,0); rc.globalAlpha=1;
     }
     // 3. text (clipped to silhouette for fill/wrap; free for overlay)
-    if(obj.text){ const tx=_blobStrokeTextCanvas(obj,bw,bh,sil); if(tx) rc.drawImage(tx,0,0); }
+    if(obj.text){ const tx=_blobStrokeTextCanvas(obj,bw,bh,sil,fcFam); if(tx) rc.drawImage(tx,0,0); }
     if(!animated) obj._sdf={key,res};
   }
   if(spinAng||pulseSc!==1){
@@ -5897,7 +5944,7 @@ function renderBlobStroke(lctx,obj,W,H,U,t,layer){
   }
 }
 // build a text canvas for a stroke (clipped to silhouette sil), returns canvas or null
-function _blobStrokeTextCanvas(obj,bw,bh,sil){
+function _blobStrokeTextCanvas(obj,bw,bh,sil,famOverride){
   const fit=obj.textFit||'fill';
   const cv=document.createElement('canvas'); cv.width=bw; cv.height=bh; const c=cv.getContext('2d');
   c.fillStyle=obj.textColor||'#000';
@@ -5907,7 +5954,7 @@ function _blobStrokeTextCanvas(obj,bw,bh,sil){
   const applyCase=(s)=> tcase==='upper'?s.toUpperCase() : tcase==='lower'?s.toLowerCase() : tcase==='title'?s.replace(/\b\w/g,m=>m.toUpperCase()) : s;
   const rawText=applyCase(''+obj.text);
   const track=(obj.textTracking||0);
-  const fontOf=(s)=>`${obj.textWeight||'800'} ${s}px ${obj.textFont||"'Bebas Neue',Impact,sans-serif"}`;
+  const fontOf=(s)=>`${obj.textWeight||'800'} ${s}px ${famOverride||obj.textFont||"'Bebas Neue',Impact,sans-serif"}`;
   const setFont=(s)=>{ c.font=fontOf(s); if('letterSpacing' in c) c.letterSpacing=(track*s)+'px'; };
 
   if(fit==='overlay'){
@@ -6263,15 +6310,16 @@ function renderBlobbyLayer(lctx,layer,W,H){
     // text for single blobs (strokes draw their own text)
     if(b.text){
       const fit=b.textFit||'fill';
+      const bFam=fontCycleFont(layer, b.textFont||"'Bebas Neue',Impact,sans-serif");
       if(fit==='overlay'){
         const lines=(''+b.text).split('\n'); const fs=Math.max(6,(b.textSize||0.4)*P.R);
         lctx.save(); lctx.fillStyle=b.textColor||'#000'; lctx.textAlign='center'; lctx.textBaseline='middle';
-        lctx.font=`${b.textWeight||'800'} ${fs}px ${b.textFont||"'Bebas Neue',Impact,sans-serif"}`;
+        lctx.font=`${b.textWeight||'800'} ${fs}px ${bFam}`;
         const lh=fs, y0=P.y-(lines.length-1)*lh/2; lines.forEach((ln,li)=>lctx.fillText(ln,P.x,y0+li*lh)); lctx.restore();
       } else {
         lctx.save(); traceBlobShape(lctx,P.x,P.y,P.R,{shape:b.shape,wobble:b.wobble,roundness:b.roundness,rot:(b.rot||0)*Math.PI/180,seed:b.seed,jiggle:jiggle,t:t}); lctx.clip();
         lctx.fillStyle=b.textColor||'#000'; lctx.textAlign='left'; lctx.textBaseline='alphabetic';
-        const fs=Math.max(5,(b.textSize||0.4)*P.R*0.6); lctx.font=`${b.textWeight||'800'} ${fs}px ${b.textFont||"'Bebas Neue',Impact,sans-serif"}`;
+        const fs=Math.max(5,(b.textSize||0.4)*P.R*0.6); lctx.font=`${b.textWeight||'800'} ${fs}px ${bFam}`;
         const boxW=P.R*1.85, x0=P.x-boxW/2, lh=fs*1.02;
         const words=(''+b.text).replace(/\n/g,' ').split(/\s+/).filter(Boolean); const wrapped=[]; let cur='';
         for(const w of words){ const test=cur?cur+' '+w:w; if(lctx.measureText(test).width>boxW&&cur){wrapped.push(cur);cur=w;}else cur=test; } if(cur)wrapped.push(cur);
@@ -6510,7 +6558,7 @@ function renderLayer(layer,lc,fbBuf,W,H){
   const cellSymColMode=layer.cellSymbolColorMode||'fixed'; // fixed|cell|contrast|darken|lighten
   const cellSymCol=layer.cellSymbolColor||'#ffffff';
   const cellSymWeight=layer.cellSymbolWeight||'bold';
-  const cellSymFont=layer.cellSymbolFont||'monospace';
+  const cellSymFont=fontCycleFont(layer, layer.cellSymbolFont||'monospace');
   const cellSymStroke=!!layer.cellSymbolStroke; // draw symbol as stroke not fill
   const cellSymRotate=(p('cellSymbolRotate')||0)*Math.PI/180;
   const cellSymRotNoise=p('cellSymbolRotNoise')||0;
@@ -10902,6 +10950,8 @@ function loop(){
   if(lfos.length>0 && _uiTick%4===1) updateLfoSliders();
   // Mask preview: already has own throttle
   if(typeof tickMaskPreview==='function' && _uiTick%2===0) tickMaskPreview();
+  // Font-cycle button tint reflects the selected layer (~2Hz)
+  if(window.syncFontCycleBtns && _uiTick%30===0) syncFontCycleBtns();
   // Refresh FX card thumbnails at ~2fps (every 30 frames)
   fpsF++;const now=performance.now();
   if(now-fpsT>900){
@@ -12832,6 +12882,83 @@ document.getElementById('btn-add-gesture-layer')?.addEventListener('click',()=>{
   };
 })();
 
+// ── FONT CYCLING UI (shared popover; ⟳ buttons live next to every font select) ──
+(function(){
+  const pop=()=>document.getElementById('font-cycle-pop');
+  const L=()=>layers[selectedLayer];
+  // GFX_FONTS index sets for the quick-pick buttons
+  const SET_DISPLAY=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,20,21,22];
+  const SET_SERIFMONO=[14,15,16,24,17,18,19,25];
+  window.syncFontCycleBtns=function(){
+    const on=!!(L()&&L().fontCycleOn);
+    document.querySelectorAll('.font-cycle-btn').forEach(b=>b.classList.toggle('on',on));
+  };
+  function buildChips(){
+    const wrap=document.getElementById('fc-chips'); if(!wrap) return;
+    const l=L(); if(!l) return;
+    const sel=new Set(l.fontCycleFonts||[]);
+    wrap.innerHTML='';
+    GFX_FONTS.forEach(([val,label])=>{
+      const chip=document.createElement('span');
+      chip.className='fc-chip'+(sel.has(val)?' on':'');
+      chip.textContent=label;
+      chip.style.fontFamily=val; // each chip previews its own face
+      chip.addEventListener('click',()=>{
+        const cur=new Set(L().fontCycleFonts||[]);
+        cur.has(val)?cur.delete(val):cur.add(val);
+        L().fontCycleFonts=[...cur];
+        chip.classList.toggle('on');
+        updateCount(); snapshotState();
+      });
+      wrap.appendChild(chip);
+    });
+    updateCount();
+  }
+  function updateCount(){
+    const c=document.getElementById('fc-count'); if(!c) return;
+    const n=(L()&&L().fontCycleFonts||[]).length;
+    c.textContent=n?('('+n+' selected)'):'(empty = all '+GFX_FONTS.length+')';
+  }
+  function syncPop(){
+    const l=L(); if(!l) return;
+    document.getElementById('fc-on').checked=!!l.fontCycleOn;
+    document.getElementById('fc-rate').value=l.fontCycleRate||'1s';
+    document.getElementById('fc-trans').value=l.fontCycleTrans||'morph';
+    document.getElementById('fc-order').value=l.fontCycleOrder||'seq';
+    const ta=document.getElementById('fc-transamt'); ta.value=l.fontCycleTransAmt??0.3;
+    document.getElementById('fc-transamt-v').textContent=parseFloat(ta.value).toFixed(2);
+    buildChips(); syncFontCycleBtns();
+  }
+  document.addEventListener('click',e=>{
+    const btn=e.target.closest?.('.font-cycle-btn');
+    if(btn){
+      const p=pop(); if(!p) return;
+      if(p.style.display!=='none'){ p.style.display='none'; return; }
+      const r=btn.getBoundingClientRect();
+      p.style.left=Math.max(6,Math.min(window.innerWidth-292,r.left-120))+'px';
+      p.style.top=Math.min(window.innerHeight-60, r.bottom+6)+'px';
+      // keep on-screen vertically (panel can be tall)
+      p.style.maxHeight=Math.max(200,window.innerHeight-r.bottom-20)+'px';
+      p.style.display='block';
+      syncPop();
+      return;
+    }
+    const p=pop();
+    if(p && p.style.display!=='none' && !p.contains(e.target)) p.style.display='none';
+  });
+  document.getElementById('fc-close')?.addEventListener('click',()=>{ pop().style.display='none'; });
+  document.getElementById('fc-on')?.addEventListener('change',e=>{ if(L()){ L().fontCycleOn=e.target.checked; syncFontCycleBtns(); snapshotState(); } });
+  document.getElementById('fc-rate')?.addEventListener('change',e=>{ if(L()){ L().fontCycleRate=e.target.value; snapshotState(); } });
+  document.getElementById('fc-trans')?.addEventListener('change',e=>{ if(L()){ L().fontCycleTrans=e.target.value; snapshotState(); } });
+  document.getElementById('fc-order')?.addEventListener('change',e=>{ if(L()){ L().fontCycleOrder=e.target.value; snapshotState(); } });
+  document.getElementById('fc-transamt')?.addEventListener('input',e=>{ if(L()){ L().fontCycleTransAmt=parseFloat(e.target.value); document.getElementById('fc-transamt-v').textContent=parseFloat(e.target.value).toFixed(2); } });
+  const quick=(idxs)=>{ if(!L())return; L().fontCycleFonts=idxs.map(i=>GFX_FONTS[i][0]); buildChips(); snapshotState(); };
+  document.getElementById('fc-all')?.addEventListener('click',()=>quick(GFX_FONTS.map((_,i)=>i)));
+  document.getElementById('fc-none')?.addEventListener('click',()=>{ if(L()){ L().fontCycleFonts=[]; buildChips(); snapshotState(); } });
+  document.getElementById('fc-display')?.addEventListener('click',()=>quick(SET_DISPLAY));
+  document.getElementById('fc-seriftypes')?.addEventListener('click',()=>quick(SET_SERIFMONO));
+})();
+
 // ── BLOBBY TOOL UI MODULE ────────────────────────────────────
 (function(){
   const blobLayer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='blobby')?l:null; };
@@ -13355,7 +13482,7 @@ const DEFAULT_PRESETS=[
   ]},
   {name:'text: stay tuned',layers:[{
     ...defaultLayerParams(),name:'text grid',
-    shape:'text',cols:1,rows:16,gap:0,gapX:0,gapY:2,
+    shape:'rect',textOverlay:true,cols:1,rows:16,gap:0,gapX:0,gapY:2,
     textString:'STAY TUNED',textFont:'impact, sans-serif',textWeight:'900',
     textSizeMode:'fit',textOpacityNoise:0.8,textOpacityMin:0.08,textAlign:'center',
     sizeGradDir:'radial',sizeGradMin:0.2,sizeGradMax:1,
