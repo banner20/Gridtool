@@ -1852,6 +1852,17 @@
           <button class="marble-tool" data-tool="comb" title="Comb: drag a rake of parallel tines">𝄚 comb</button>
           <button class="marble-tool" data-tool="chevron" title="Chevron: alternating push/pull = classic feather">⌒ feather</button>
           <button class="marble-tool" data-tool="vortex" title="Vortex: drag from center outward to swirl (drag left = reverse)">🌀 swirl</button>
+          <button class="marble-tool" data-tool="bouquet" title="Bouquet comb: a comb that wiggles sideways as it travels — the classic ebru bouquet stroke">❀ bouquet</button>
+          <button class="marble-tool" data-tool="pinch" title="Pinch: suck the bath toward a point (drag outward = bigger pull radius)">🧲 pinch</button>
+          <button class="marble-tool" data-tool="ripple" title="Ripple: concentric wave from a point (drag outward = stronger)">◎ ripple</button>
+          <button class="marble-tool" data-tool="splat" title="Splatter: flick a spray of tiny droplets">✺ splatter</button>
+        </div>
+        <div class="st">classic patterns <span style="color:#777;font-weight:400;">(append to bath)</span></div>
+        <div style="display:flex;gap:3px;margin-bottom:6px;">
+          <button class="marble-pattern" data-pat="nonpareil" style="flex:1;font-size:8px;" title="Drop grid + fine comb pass — the foundational marbled pattern">nonpareil</button>
+          <button class="marble-pattern" data-pat="bouquet" style="flex:1;font-size:8px;" title="Nonpareil + a wavy comb back up — scalloped arches">bouquet</button>
+          <button class="marble-pattern" data-pat="chevron" style="flex:1;font-size:8px;" title="Comb down, then comb back up offset half a tooth — herringbone">chevron</button>
+          <button class="marble-pattern" data-pat="feathered" style="flex:1;font-size:8px;" title="Random stones + crossing feather strokes">feathered</button>
         </div>
         <div style="display:flex;gap:4px;margin-bottom:6px;">
           <button id="marble-shower" style="flex:1;font-size:8px;">ink shower</button>
@@ -1865,7 +1876,10 @@
         <div class="row"><label>ink 2</label><input type="color" id="marbleInk2" value="#ffd166"></div>
         <div class="row"><label>ink 3</label><input type="color" id="marbleInk3" value="#4ecdc4"></div>
         <div class="row"><label>ink 4</label><input type="color" id="marbleInk4" value="#f7f0e8"></div>
-        <div class="row"><label>ink order</label><select id="marbleInkMode"><option value="cycle">cycle 1→4</option><option value="random">random</option><option value="single">ink 1 only</option></select></div>
+        <div class="row"><label>ink order</label><select id="marbleInkMode"><option value="cycle">cycle 1→4</option><option value="random">random</option><option value="single">ink 1 only</option><option value="rainbow">🌈 rainbow walk</option></select></div>
+        <div class="row"><label>drop style</label><select id="marbleDropStyle"><option value="solid">solid ink</option><option value="ring">ring (hollow drops)</option><option value="gradient">gradient (shaded)</option></select></div>
+        <div class="row"><label>ink alpha</label><input type="range" id="marbleInkAlpha" min="0.15" max="1" value="1" step="0.01"><span class="val" id="marbleInkAlpha-v">1.00</span></div>
+        <div class="row"><label>turbulence</label><input type="range" id="marbleTurb" min="0" max="1" value="0" step="0.01"><span class="val" id="marbleTurb-v">0.00</span></div>
         <div class="row"><label>drop size</label><input type="range" id="marbleDropSize" min="0.01" max="0.2" value="0.06" step="0.002"><span class="val" id="marbleDropSize-v">0.060</span></div>
         <div class="row"><label>size jitter</label><input type="range" id="marbleDropJitter" min="0" max="0.9" value="0.35" step="0.01"><span class="val" id="marbleDropJitter-v">0.35</span></div>
         <div class="row"><label>ink rim</label><input type="range" id="marbleRim" min="0" max="1" value="0" step="0.01"><span class="val" id="marbleRim-v">0.00</span></div>
@@ -1882,7 +1896,7 @@
 
         <div class="st" style="margin-top:6px;">water / motion</div>
         <div class="row"><label>background</label><input type="checkbox" id="marbleBgOn" checked><input type="color" id="marbleBg" value="#0d0c12" style="margin-left:4px;"></div>
-        <div class="row"><label>motion</label><select id="marbleMotion"><option value="none">still water</option><option value="float">float (gentle sway)</option><option value="vortex">live swirl</option><option value="shimmer">shimmer (breathing feather)</option></select></div>
+        <div class="row"><label>motion</label><select id="marbleMotion"><option value="none">still water</option><option value="float">float (gentle sway)</option><option value="vortex">live swirl</option><option value="shimmer">shimmer (breathing feather)</option><option value="bloom">bloom (replay the bath)</option><option value="comb">drifting tine (slow sweep)</option></select></div>
         <div class="row"><label>amount</label><input type="range" id="marbleMotionAmt" min="0" max="1.5" value="0.5" step="0.05"><span class="val" id="marbleMotionAmt-v">0.50</span></div>
         <div class="row"><label>speed</label><input type="range" id="marbleMotionSpeed" min="0" max="3" value="1" step="0.05"><span class="val" id="marbleMotionSpeed-v">1.00</span></div>
         <div class="tip">live swirl &amp; shimmer recompute the bath each frame — lower <b>detail</b> if it gets heavy.</div>

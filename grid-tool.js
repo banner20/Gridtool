@@ -243,6 +243,7 @@ function defaultLayerParams(){
     marbleTool:'drop', marbleBgOn:true, marbleBg:'#0d0c12',
     marbleInk1:'#ff5a5f', marbleInk2:'#ffd166', marbleInk3:'#4ecdc4', marbleInk4:'#f7f0e8', marbleInkMode:'cycle',
     marbleDropSize:0.06, marbleDropJitter:0.35, marbleRim:0, marbleRimColor:'#000000',
+    marbleDropStyle:'solid', marbleInkAlpha:1, marbleTurb:0,
     marbleTineStrength:0.5, marbleTineFalloff:0.1, marbleCombSpacing:0.07,
     marbleWavePeriod:0.12, marbleVortexStrength:0.6, marbleVortexRadius:0.3,
     marbleDetail:1,
@@ -6082,6 +6083,25 @@ function _marbleApplyOp(op,pts,W,H,U){
     for(let i=0;i<n;i++){ const p=pts[i]; const dx=p.x-cx, dy=p.y-cy; const d=Math.hypot(dx,dy);
       const th=str/(1+(d/rad)*(d/rad)); const c=Math.cos(th), s=Math.sin(th);
       p.x=cx+dx*c-dy*s; p.y=cy+dx*s+dy*c; }
+  } else if(op.t==='pinch'){
+    // inverse drop: suck the bath toward a point (smooth, never crosses center)
+    const cx=op.x*W, cy=op.y*H, r2=Math.max(16,(op.r*U)*(op.r*U)), str=Math.min(0.92,op.a*0.6);
+    for(let i=0;i<n;i++){ const p=pts[i]; const dx=p.x-cx, dy=p.y-cy; const d2=dx*dx+dy*dy;
+      const f=1-str/(1+d2/r2); p.x=cx+dx*f; p.y=cy+dy*f; }
+  } else if(op.t==='rip'){
+    // concentric ripple: radial sine wave fading with distance
+    const cx=op.x*W, cy=op.y*H, per=Math.max(6,op.per*U), a=op.a*U*0.16;
+    for(let i=0;i<n;i++){ const p=pts[i]; const dx=p.x-cx, dy=p.y-cy; const d=Math.hypot(dx,dy); if(d<1e-6)continue;
+      const m=a*Math.sin(6.28318*d/per)/(1+d/(per*4)); p.x+=dx/d*m; p.y+=dy/d*m; }
+  } else if(op.t==='wcomb'){
+    // bouquet stroke: comb teeth pull along u + sinusoidal sideways wiggle along the stroke
+    const ax=op.x*W, ay=op.y*H, ux=op.ux, uy=op.uy, nx=-uy, ny=ux;
+    const a=op.a*U*0.25, lam=Math.max(1,op.f*U), sp=Math.max(4,op.sp*U), per=Math.max(6,op.per*U);
+    for(let i=0;i<n;i++){ const p=pts[i];
+      const s=(p.x-ax)*nx+(p.y-ay)*ny, q=(p.x-ax)*ux+(p.y-ay)*uy;
+      const dn=Math.abs(((s%sp)+sp)%sp - sp/2); const m=a*lam/(dn+lam);
+      const w=a*0.65*Math.sin(6.28318*q/per);
+      p.x+=ux*m+nx*w; p.y+=uy*m+ny*w; }
   }
 }
 function _marbleSubdiv(pts,maxLen,cap){
@@ -6090,37 +6110,118 @@ function _marbleSubdiv(pts,maxLen,cap){
     if(out.length<cap && Math.hypot(q.x-p.x,q.y-p.y)>maxLen) out.push({x:(p.x+q.x)/2,y:(p.y+q.y)/2}); }
   return out;
 }
-function _marbleRenderTo(ctx,ops,layer,W,H){
+function _mShade(col,k){ // lighten (k>0) / darken (k<0) a #rrggbb color
+  if(!col||col[0]!=='#'||col.length<7) return col;
+  const r=parseInt(col.slice(1,3),16), g=parseInt(col.slice(3,5),16), b=parseInt(col.slice(5,7),16);
+  const f=(v)=> Math.max(0,Math.min(255,Math.round(k>0 ? v+(255-v)*k : v*(1+k))));
+  return '#'+((1<<24)|(f(r)<<16)|(f(g)<<8)|f(b)).toString(16).slice(1);
+}
+function _marbleGeom(ops,layer,W,H){
   const U=Math.min(W,H);
-  if(layer.marbleBgOn){ ctx.fillStyle=layer.marbleBg||'#0d0c12'; ctx.fillRect(0,0,W,H); } else ctx.clearRect(0,0,W,H);
   const detail=Math.max(0.4,layer.marbleDetail||1);
   const baseN=Math.max(40,Math.min(170,Math.round(90*detail)));
   const maxLen=Math.max(3,U*0.018/detail), cap=Math.round(900*detail);
-  const rim=layer.marbleRim||0;
+  const ring=(layer.marbleDropStyle==='ring');
+  const polys=[];
   for(let i=0;i<ops.length;i++){
     const op=ops[i]; if(op.t!=='drop') continue;
     const cx=op.x*W, cy=op.y*H, r=Math.max(1.5,op.r*U);
-    let pts=[]; for(let k=0;k<baseN;k++){ const a=k/baseN*6.28318; pts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r}); }
-    for(let j=i+1;j<ops.length;j++){ _marbleApplyOp(ops[j],pts,W,H,U); if((j-i)%2===0||j===ops.length-1) pts=_marbleSubdiv(pts,maxLen,cap); }
-    ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
-    for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x,pts[k].y);
-    ctx.closePath(); ctx.fillStyle=op.color; ctx.fill();
-    if(rim>0.01){ ctx.globalAlpha=rim; ctx.strokeStyle=layer.marbleRimColor||'#000'; ctx.lineWidth=Math.max(0.6,U*0.0018); ctx.stroke(); ctx.globalAlpha=1; }
+    const mk=(rr)=>{ const o=[]; for(let k=0;k<baseN;k++){ const a=k/baseN*6.28318; o.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr}); } return o; };
+    let pts=mk(r), inner=ring?mk(r*0.52):null;
+    for(let j=i+1;j<ops.length;j++){
+      _marbleApplyOp(ops[j],pts,W,H,U); if(inner)_marbleApplyOp(ops[j],inner,W,H,U);
+      if((j-i)%2===0||j===ops.length-1){ pts=_marbleSubdiv(pts,maxLen,cap); if(inner)inner=_marbleSubdiv(inner,maxLen,Math.round(cap*0.6)); }
+    }
+    polys.push({pts,inner,color:op.color});
   }
+  return polys;
+}
+function _marblePaint(ctx,polys,layer,W,H){
+  const U=Math.min(W,H);
+  if(layer.marbleBgOn){ ctx.fillStyle=layer.marbleBg||'#0d0c12'; ctx.fillRect(0,0,W,H); } else ctx.clearRect(0,0,W,H);
+  const rim=layer.marbleRim||0, style=layer.marbleDropStyle||'solid';
+  const alpha=Math.max(0.05,Math.min(1,layer.marbleInkAlpha===undefined?1:layer.marbleInkAlpha));
+  const ts=(layer.marbleTurb||0)*U*0.012, tf=0.045;
+  const warp=(pts)=> ts<0.01 ? pts : pts.map(p=>({
+    x:p.x+(_mnNoise(p.x*tf,p.y*tf,7.3)-0.5)*2*ts,
+    y:p.y+(_mnNoise(p.x*tf+41.7,p.y*tf,2.9)-0.5)*2*ts}));
+  const trace=(pts)=>{ ctx.moveTo(pts[0].x,pts[0].y); for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k].x,pts[k].y); ctx.closePath(); };
+  for(const poly of polys){
+    const pts=warp(poly.pts); if(pts.length<3) continue;
+    ctx.beginPath(); trace(pts);
+    const inner=(poly.inner&&poly.inner.length>2)?warp(poly.inner):null;
+    if(inner) trace(inner);
+    if(style==='gradient'){
+      let cx=0,cy=0,mr=0; for(const p of pts){ cx+=p.x; cy+=p.y; } cx/=pts.length; cy/=pts.length;
+      for(const p of pts){ const d=Math.hypot(p.x-cx,p.y-cy); if(d>mr)mr=d; }
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,Math.max(2,mr));
+      g.addColorStop(0,_mShade(poly.color,0.35)); g.addColorStop(1,_mShade(poly.color,-0.3));
+      ctx.fillStyle=g;
+    } else ctx.fillStyle=poly.color;
+    ctx.globalAlpha=alpha; ctx.fill(inner?'evenodd':'nonzero');
+    if(rim>0.01){ ctx.globalAlpha=rim; ctx.strokeStyle=layer.marbleRimColor||'#000'; ctx.lineWidth=Math.max(0.6,U*0.0018); ctx.stroke(); }
+    ctx.globalAlpha=1;
+  }
+}
+function _marbleRenderTo(ctx,ops,layer,W,H){ _marblePaint(ctx,_marbleGeom(ops,layer,W,H),layer,W,H); }
+function _marbleStaticGeom(layer,ops,W,H){
+  // cache the deformed polygons of the committed bath so live motion only computes the animated ops
+  const key=ops.length+'|'+(ops.length?JSON.stringify(ops[ops.length-1]):'')+'|'+(layer.marbleDetail||1)+'|'+(layer.marbleDropStyle==='ring')+'|'+W+'x'+H;
+  if(!layer._mGeom||layer._mGeom.key!==key) layer._mGeom={key,polys:_marbleGeom(ops,layer,W,H)};
+  return layer._mGeom.polys;
+}
+function _marbleLiveRender(lctx,layer,staticOps,extras,W,H){
+  const U=Math.min(W,H);
+  const detail=Math.max(0.4,layer.marbleDetail||1);
+  const baseN=Math.max(40,Math.min(170,Math.round(90*detail)));
+  const maxLen=Math.max(3,U*0.018/detail), cap=Math.round(900*detail);
+  const ring=(layer.marbleDropStyle==='ring');
+  const polys=_marbleStaticGeom(layer,staticOps,W,H).map(p=>({
+    pts:p.pts.map(q=>({x:q.x,y:q.y})),
+    inner:p.inner?p.inner.map(q=>({x:q.x,y:q.y})):null,
+    color:p.color}));
+  for(const op of extras){
+    if(!op) continue;
+    for(const poly of polys){ _marbleApplyOp(op,poly.pts,W,H,U); if(poly.inner)_marbleApplyOp(op,poly.inner,W,H,U); }
+    if(op.t==='drop'){ // a live drop also lands its own (undeformed — it's newest) circle
+      const cx=op.x*W, cy=op.y*H, r=Math.max(1.5,op.r*U);
+      const mk=(rr)=>{ const o=[]; for(let k=0;k<baseN;k++){ const a=k/baseN*6.28318; o.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr}); } return o; };
+      polys.push({pts:mk(r),inner:ring?mk(r*0.52):null,color:op.color});
+    }
+  }
+  for(const poly of polys){ poly.pts=_marbleSubdiv(poly.pts,maxLen,cap); if(poly.inner)poly.inner=_marbleSubdiv(poly.inner,maxLen,Math.round(cap*0.6)); }
+  _marblePaint(lctx,polys,layer,W,H);
 }
 function renderMarbleLayer(lctx,layer,W,H){
   const U=Math.min(W,H); const t=(globalT||0)*(layer.marbleMotionSpeed||1);
   let ops=layer.marbleOps||[];
-  const motion=layer.marbleMotion||'none'; const amt=layer.marbleMotionAmt||0.5;
-  // live ops: drag preview + animated virtual op (vortex/shimmer recompute per frame)
+  const motion=layer.marbleMotion||'none'; const amt=(layer.marbleMotionAmt===undefined)?0.5:layer.marbleMotionAmt;
+  // live ops: drag preview + animated virtual op (recomputed per frame on cached static geometry)
   const extra=[];
+  let staticOps=ops;
   if(layer._mPreview) extra.push(layer._mPreview);
+  if(motion==='bloom'&&ops.length){
+    // replay the bath's own timeline as a loop: each op lands in sequence, then hold
+    const ph=(t/650)%(ops.length+2.5);
+    const n=Math.min(ops.length,Math.floor(ph)+1);
+    const frac=Math.min(1,ph-(n-1));
+    staticOps=ops.slice(0,n-1);
+    const cur=ops[n-1], sc={...cur};
+    if(cur.t==='drop'){ const e=1-Math.pow(1-frac,2.2); sc.r=Math.max(0.0015,cur.r*e); }
+    else if(sc.a!==undefined) sc.a=cur.a*frac;
+    extra.push(sc);
+  }
   if(motion==='vortex') extra.push({t:'vort',x:0.5+Math.sin(t*0.006)*0.18*amt,y:0.5+Math.cos(t*0.0077)*0.18*amt,rad:0.3+0.1*Math.sin(t*0.004),a:amt*(0.35+0.25*Math.sin(t*0.005))});
   if(motion==='shimmer') extra.push({t:'chev',x:0.5,y:0.5,ux:Math.cos(t*0.003),uy:Math.sin(t*0.003),a:amt*0.4*Math.sin(t*0.02),per:0.15});
+  if(motion==='comb') extra.push({t:'tine',x:((t*0.00009)%1.3)-0.15,y:0.5,ux:0,uy:1,a:amt*0.7,f:0.1});
   const live=extra.length>0;
-  if(live){ _marbleRenderTo(lctx,ops.concat(extra),layer,W,H); return; }
+  if(live){
+    _marbleLiveRender(lctx,layer,staticOps,extra,W,H);
+    if(layer._mDragLine){ const g=layer._mDragLine; lctx.save(); lctx.setLineDash([6,5]); lctx.strokeStyle='rgba(255,255,255,0.5)'; lctx.lineWidth=1; lctx.beginPath(); lctx.moveTo(g.x0*W,g.y0*H); lctx.lineTo(g.x1*W,g.y1*H); lctx.stroke(); lctx.restore(); }
+    return;
+  }
   // static (or float motion): cache the bath, float just transforms the cached image
-  const key=ops.length+'|'+(ops.length?JSON.stringify(ops[ops.length-1]):'')+'|'+layer.marbleBgOn+layer.marbleBg+'|'+(layer.marbleRim||0)+layer.marbleRimColor+'|'+(layer.marbleDetail||1)+'|'+W+'x'+H;
+  const key=ops.length+'|'+(ops.length?JSON.stringify(ops[ops.length-1]):'')+'|'+layer.marbleBgOn+layer.marbleBg+'|'+(layer.marbleRim||0)+layer.marbleRimColor+'|'+(layer.marbleDetail||1)+'|'+(layer.marbleDropStyle||'solid')+'|'+(layer.marbleInkAlpha===undefined?1:layer.marbleInkAlpha)+'|'+(layer.marbleTurb||0)+'|'+W+'x'+H;
   if(!layer._mCache||layer._mCache.key!==key){
     const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
     _marbleRenderTo(cv.getContext('2d'),ops,layer,W,H);
@@ -6141,6 +6242,14 @@ function _marbleInkPick(layer){
   const mode=layer.marbleInkMode||'cycle';
   if(mode==='single') return layer.marbleInk1||'#ff5a5f';
   if(mode==='random') return inks[(Math.random()*inks.length)|0];
+  if(mode==='rainbow'){ // golden-angle hue walk, emitted as hex so gradient shading works
+    layer._inkCtr=(layer._inkCtr||0)+1;
+    const h=(layer._inkCtr*47)%360, s=0.74, l=0.6;
+    const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs(((h/60)%2)-1)), m=l-c/2;
+    const [r,g,b]= h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];
+    const q=(v)=>Math.round((v+m)*255);
+    return '#'+((1<<24)|(q(r)<<16)|(q(g)<<8)|q(b)).toString(16).slice(1);
+  }
   layer._inkCtr=((layer._inkCtr||0)+1)%inks.length; return inks[layer._inkCtr];
 }
 
@@ -9175,6 +9284,16 @@ function blobbyPointerUp(){
 
 // ── MARBLING pointer tools ──
 const _marbleDrag={active:false};
+function _marbleSplat(layer,norm){
+  const base=layer.marbleDropSize||0.06;
+  const n=5+((Math.random()*3)|0);
+  for(let i=0;i<n;i++){
+    const a=Math.random()*6.28318, dd=Math.random()*Math.random()*base*2.4;
+    layer.marbleOps.push({t:'drop',
+      x:Math.min(1,Math.max(0,norm.x+Math.cos(a)*dd)), y:Math.min(1,Math.max(0,norm.y+Math.sin(a)*dd)),
+      r:Math.max(0.003,base*(0.12+Math.random()*0.3)), color:_marbleInkPick(layer)});
+  }
+}
 function marblePointerDown(norm,e){
   const layer=layers[selectedLayer]; if(!layer||layer.layerType!=='marble') return false;
   const tool=layer.marbleTool||'drop';
@@ -9183,6 +9302,12 @@ function marblePointerDown(norm,e){
   if(tool==='drop'){
     const jit=1+((Math.random()*2-1)*(layer.marbleDropJitter||0));
     layer.marbleOps.push({t:'drop',x:norm.x,y:norm.y,r:Math.max(0.004,(layer.marbleDropSize||0.06)*jit),color:_marbleInkPick(layer)});
+  } else if(tool==='splat'){
+    _marbleSplat(layer,norm);
+  } else if(tool==='pinch'){ // preview from the click itself so a plain click commits a default pinch
+    layer._mPreview={t:'pinch',x:norm.x,y:norm.y,r:(layer.marbleDropSize||0.06)*2.5,a:layer.marbleTineStrength||0.5};
+  } else if(tool==='ripple'){
+    layer._mPreview={t:'rip',x:norm.x,y:norm.y,per:layer.marbleWavePeriod||0.12,a:(layer.marbleTineStrength||0.5)*0.5};
   }
   return true;
 }
@@ -9190,23 +9315,27 @@ function marblePointerMove(norm){
   if(!_marbleDrag.active) return false;
   const layer=layers[selectedLayer]; if(!layer||layer.layerType!=='marble') return false;
   const tool=_marbleDrag.tool;
-  if(tool==='drop'){
-    const sp=Math.max(0.008,(layer.marbleDropSize||0.06)*1.1);
+  if(tool==='drop'||tool==='splat'){
+    const sp=Math.max(0.008,(layer.marbleDropSize||0.06)*(tool==='splat'?2.2:1.1));
     if(Math.hypot(norm.x-_marbleDrag.lastX,norm.y-_marbleDrag.lastY)>=sp){
-      const jit=1+((Math.random()*2-1)*(layer.marbleDropJitter||0));
-      layer.marbleOps.push({t:'drop',x:norm.x,y:norm.y,r:Math.max(0.004,(layer.marbleDropSize||0.06)*jit),color:_marbleInkPick(layer)});
+      if(tool==='splat') _marbleSplat(layer,norm);
+      else { const jit=1+((Math.random()*2-1)*(layer.marbleDropJitter||0));
+        layer.marbleOps.push({t:'drop',x:norm.x,y:norm.y,r:Math.max(0.004,(layer.marbleDropSize||0.06)*jit),color:_marbleInkPick(layer)}); }
       _marbleDrag.lastX=norm.x; _marbleDrag.lastY=norm.y;
     }
     return true;
   }
   // direction tools: live-preview the deformation while dragging
   const dx=norm.x-_marbleDrag.x0, dy=norm.y-_marbleDrag.y0, d=Math.hypot(dx,dy);
-  if(d<0.005){ layer._mPreview=null; layer._mDragLine=null; return true; }
+  if(d<0.005){ if(tool!=='pinch'&&tool!=='ripple'){ layer._mPreview=null; layer._mDragLine=null; } return true; }
   const ux=dx/d, uy=dy/d;
   if(tool==='stylus') layer._mPreview={t:'tine',x:_marbleDrag.x0,y:_marbleDrag.y0,ux,uy,a:(layer.marbleTineStrength||0.5)*Math.min(1.5,d*3),f:layer.marbleTineFalloff||0.1};
   else if(tool==='comb') layer._mPreview={t:'comb',x:_marbleDrag.x0,y:_marbleDrag.y0,ux,uy,a:(layer.marbleTineStrength||0.5)*Math.min(1.5,d*3),f:layer.marbleTineFalloff||0.1,sp:layer.marbleCombSpacing||0.07};
   else if(tool==='chevron') layer._mPreview={t:'chev',x:_marbleDrag.x0,y:_marbleDrag.y0,ux,uy,a:(layer.marbleTineStrength||0.5)*Math.min(1.5,d*3),per:layer.marbleWavePeriod||0.12};
   else if(tool==='vortex') layer._mPreview={t:'vort',x:_marbleDrag.x0,y:_marbleDrag.y0,rad:Math.max(0.03,d),a:(layer.marbleVortexStrength||0.6)*(dx>=0?1:-1)};
+  else if(tool==='bouquet') layer._mPreview={t:'wcomb',x:_marbleDrag.x0,y:_marbleDrag.y0,ux,uy,a:(layer.marbleTineStrength||0.5)*Math.min(1.5,d*3),f:layer.marbleTineFalloff||0.1,sp:layer.marbleCombSpacing||0.07,per:layer.marbleWavePeriod||0.12};
+  else if(tool==='pinch') layer._mPreview={t:'pinch',x:_marbleDrag.x0,y:_marbleDrag.y0,r:Math.max(0.04,d*1.2),a:layer.marbleTineStrength||0.5};
+  else if(tool==='ripple') layer._mPreview={t:'rip',x:_marbleDrag.x0,y:_marbleDrag.y0,per:layer.marbleWavePeriod||0.12,a:(layer.marbleTineStrength||0.5)*Math.min(1.5,0.3+d*2.5)};
   layer._mDragLine={x0:_marbleDrag.x0,y0:_marbleDrag.y0,x1:norm.x,y1:norm.y};
   return true;
 }
@@ -12768,6 +12897,7 @@ document.getElementById('btn-add-gesture-layer')?.addEventListener('click',()=>{
   const mLayer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='marble')?l:null; };
   const MAP=['marbleBgOn','marbleBg','marbleInk1','marbleInk2','marbleInk3','marbleInk4','marbleInkMode',
     'marbleDropSize','marbleDropJitter','marbleRim','marbleRimColor',
+    'marbleDropStyle','marbleInkAlpha','marbleTurb',
     'marbleTineStrength','marbleTineFalloff','marbleCombSpacing','marbleWavePeriod',
     'marbleVortexStrength','marbleVortexRadius','marbleDetail',
     'marbleMotion','marbleMotionAmt','marbleMotionSpeed'];
@@ -12792,6 +12922,40 @@ document.getElementById('btn-add-gesture-layer')?.addEventListener('click',()=>{
     for(let i=0;i<12;i++){ const jit=1+((Math.random()*2-1)*(l.marbleDropJitter||0.35));
       l.marbleOps.push({t:'drop',x:0.12+Math.random()*0.76,y:0.12+Math.random()*0.76,r:Math.max(0.004,(l.marbleDropSize||0.06)*jit),color:_marbleInkPick(l)}); }
     l._mCache=null; window.syncMarbleUI&&syncMarbleUI(l); snapshotState();
+  });
+  // ── classic pattern macros: traditional drop-grid + comb sequences, appended to the bath ──
+  const patGrid=(l,cols,rows)=>{
+    const out=[], m=0.08, rr=0.62*(1-2*m)/cols;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      out.push({t:'drop',
+        x:m+(c+0.5)*(1-2*m)/cols+(Math.random()-0.5)*0.012,
+        y:m+(r+0.5)*(1-2*m)/rows+(Math.random()-0.5)*0.012,
+        r:rr*(1+(Math.random()*2-1)*0.12), color:_marbleInkPick(l)});
+    }
+    return out;
+  };
+  const PATTERNS={
+    nonpareil:(l)=>[...patGrid(l,6,5), {t:'comb',x:0.5,y:0.04,ux:0,uy:1,a:1.15,f:0.085,sp:0.042}],
+    bouquet:(l)=>[...patGrid(l,6,5), {t:'comb',x:0.5,y:0.04,ux:0,uy:1,a:1.15,f:0.085,sp:0.042},
+      {t:'wcomb',x:0.5,y:0.96,ux:0,uy:-1,a:0.8,f:0.1,sp:0.07,per:0.17}],
+    chevron:(l)=>[...patGrid(l,6,5), {t:'comb',x:0.5,y:0.04,ux:0,uy:1,a:1.15,f:0.085,sp:0.044},
+      {t:'comb',x:0.522,y:0.96,ux:0,uy:-1,a:1.15,f:0.085,sp:0.044}],
+    feathered:(l)=>{
+      const out=[];
+      for(let i=0;i<14;i++) out.push({t:'drop',x:0.1+Math.random()*0.8,y:0.1+Math.random()*0.8,
+        r:Math.max(0.004,(l.marbleDropSize||0.06)*(0.8+Math.random()*0.7)),color:_marbleInkPick(l)});
+      out.push({t:'chev',x:0.5,y:0.5,ux:1,uy:0,a:0.7,per:0.18});
+      out.push({t:'chev',x:0.5,y:0.5,ux:0,uy:1,a:0.5,per:0.13});
+      return out;
+    }
+  };
+  document.querySelectorAll('.marble-pattern').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const l=mLayer(); if(!l) return;
+      const fn=PATTERNS[btn.dataset.pat]; if(!fn) return;
+      l.marbleOps=(l.marbleOps||[]).concat(fn(l));
+      l._mCache=null; window.syncMarbleUI&&syncMarbleUI(l); snapshotState();
+    });
   });
   document.getElementById('marble-undo')?.addEventListener('click',()=>{
     const l=mLayer(); if(!l||!(l.marbleOps||[]).length)return;
