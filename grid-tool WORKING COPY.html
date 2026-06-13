@@ -2359,9 +2359,16 @@ FARBE</textarea></div>
           <div id="gfx-pane-motion">
           <!-- SHARED: motion & reactivity (all element types) -->
           <div style="margin:6px 0 2px;font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;">motion</div>
-          <div class="row"><label>animate</label><select id="gfx-p-manim"><option value="none">none</option><option value="float">float</option><option value="bounce">bounce</option><option value="pulse">pulse</option><option value="wobble">wobble</option><option value="sway">sway</option><option value="spin">spin</option><option value="flicker">flicker</option><option value="marquee">marquee scroll</option></select></div>
+          <div class="row"><label>animate</label><select id="gfx-p-manim">
+            <optgroup label="oscillate"><option value="none">none</option><option value="float">float</option><option value="bounce">bounce</option><option value="pulse">pulse</option><option value="throb">throb</option><option value="wobble">wobble</option><option value="sway">sway</option><option value="flicker">flicker</option></optgroup>
+            <optgroup label="path"><option value="orbit">orbit</option><option value="figure8">figure-8</option><option value="pendulum">pendulum</option><option value="drift">drift (wander)</option></optgroup>
+            <optgroup label="continuous"><option value="spin">spin</option><option value="marquee">marquee scroll</option></optgroup>
+          </select></div>
+          <div class="row"><label>wave</label><select id="gfx-p-mwave" title="Shape of the oscillation"><option value="sine">sine (smooth)</option><option value="triangle">triangle</option><option value="ease">ease (snappy)</option><option value="saw">saw (ramp)</option><option value="square">square (step)</option></select></div>
           <div class="row"><label>speed</label><input type="range" id="gfx-p-mspeed" min="0.1" max="5" value="1" step="0.1"><span class="val" id="gfx-p-mspeed-v">1.0</span></div>
           <div class="row"><label>amount</label><input type="range" id="gfx-p-mamount" min="0" max="1" value="0.5" step="0.01"><span class="val" id="gfx-p-mamount-v">0.50</span></div>
+          <div class="row"><label>phase</label><input type="range" id="gfx-p-mphase" min="0" max="1" value="0" step="0.01" title="Offset where this element sits in its cycle"><span class="val" id="gfx-p-mphase-v">0.00</span></div>
+          <div class="row"><label>stagger</label><input type="range" id="gfx-p-mstagger" min="0" max="1" value="0" step="0.01" title="Auto phase offset by element order — cascading / wave delays across elements"><span class="val" id="gfx-p-mstagger-v">0.00</span></div>
           </div><!-- end motion pane -->
       </div>
     </div><!-- end graphic-motion -->

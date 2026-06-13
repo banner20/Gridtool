@@ -3035,7 +3035,7 @@ function gfxEffectiveEl(el){
 function gfxDefaultEl(type){
   const id='el_'+Math.random().toString(36).slice(2,8);
   const base={id,type,visible:true,x:0.05,y:0.05,w:0.9,opacity:1,rotate:0,blend:'source-over',
-    mAnim:'none',mSpeed:1,mAmount:0.5,react:'none',reactTarget:'scale',reactAmount:0.6,
+    mAnim:'none',mSpeed:1,mAmount:0.5,mPhase:0,mStagger:0,mWave:'sine',
     effects:[]};
   if(type==='text') return{...base,y:0.1,content:'TITLE',font:"'Bebas Neue',Impact,sans-serif",weight:'900',italic:false,size:5,sizeMode:'fit',tracking:0,lineHeight:0.93,uppercase:true,color:'#ffffff',align:'left',
     fillMode:'solid',color2:'#ff4466',gradAngle:0,_fillImgEl:null,_fillImgName:null,
@@ -3128,6 +3128,14 @@ function drawArcLine(ctx,text,cx,cyBaseline,amount,sz,color,tracking){
   ctx.restore();
 }
 
+// Shaped oscillator for element motion. x in radians, returns -1..1.
+function _gfxWave(x,shape){
+  if(shape==='triangle'){ const f=((x/6.28318)%1+1)%1; return 1-4*Math.abs(f-0.5); }
+  if(shape==='saw'){ const f=((x/6.28318)%1+1)%1; return f*2-1; }
+  if(shape==='square'){ return Math.sin(x)>=0?1:-1; }
+  if(shape==='ease'){ const s=Math.sin(x); return Math.sign(s)*(1-Math.pow(1-Math.abs(s),2.2)); } // snappier peaks
+  return Math.sin(x);
+}
 function renderGfxEl(lctx,el,layer,W,H){
   if(!el||el.visible===false) return null;
   lctx.save();
@@ -3138,23 +3146,31 @@ function renderGfxEl(lctx,el,layer,W,H){
   let ex=Math.round(el.x*W), ey=Math.round(el.y*H);
   const ew=Math.round((el.w||0.9)*W);
 
-  // ── MOTION & REACTIVITY ──────────────────────────────────────
-  el._reactGlowBoost=0;
+  // ── MOTION ───────────────────────────────────────────────────
   (function(){
     const t=globalT||0;
     const spd=parseFloat(el.mSpeed)||1, amt=parseFloat(el.mAmount)||0;
-    const ph=t*spd*0.06;
+    // phase offset (manual) + stagger (auto, by render order) — breaks the unison "template" look
+    const idx=el._renderIdx||0;
+    const phOff=((parseFloat(el.mPhase)||0)+(parseFloat(el.mStagger)||0)*idx)*6.28318;
+    const ph=t*spd*0.06+phOff;
     let mdx=0,mdy=0,mscale=1,mrot=0,mAlpha=1;
     const an=el.mAnim||'none';
     if(an!=='none'&&amt>0){
-      if(an==='float') mdy=Math.sin(ph)*amt*H*0.035;
-      else if(an==='bounce') mdy=-Math.abs(Math.sin(ph))*amt*H*0.05;
-      else if(an==='pulse') mscale=1+Math.sin(ph)*amt*0.22;
-      else if(an==='wobble') mrot=Math.sin(ph)*amt*0.22;
-      else if(an==='sway') mdx=Math.sin(ph)*amt*W*0.04;
-      else if(an==='flicker') mAlpha=1-Math.abs(Math.sin(ph*3.3))*amt*0.9;
+      const w=_gfxWave(ph,el.mWave||'sine'); // shaped oscillator, -1..1
+      if(an==='float') mdy=w*amt*H*0.035;
+      else if(an==='bounce') mdy=-Math.abs(w)*amt*H*0.05;
+      else if(an==='pulse') mscale=1+w*amt*0.22;
+      else if(an==='wobble') mrot=w*amt*0.22;
+      else if(an==='sway') mdx=w*amt*W*0.04;
+      else if(an==='flicker') mAlpha=1-Math.abs(_gfxWave(ph*3.3,el.mWave||'sine'))*amt*0.9;
       else if(an==='spin') mrot=ph*amt;
-      else if(an==='marquee') mdx=-(((t*spd*3*amt))%(ew+W*0.5));
+      else if(an==='marquee') mdx=-(((t*spd*3*amt)+phOff*ew)%(ew+W*0.5));
+      else if(an==='orbit'){ mdx=Math.cos(ph)*amt*W*0.05; mdy=Math.sin(ph)*amt*H*0.05; }
+      else if(an==='figure8'){ mdx=Math.sin(ph)*amt*W*0.055; mdy=Math.sin(ph*2)*amt*H*0.03; }
+      else if(an==='pendulum'){ mrot=_gfxWave(ph,'sine')*amt*0.5; mdx=Math.sin(ph)*amt*W*0.02; }
+      else if(an==='drift'){ const sd=idx*7.3; mdx=(_mnNoise(ph*0.12,sd,0)-0.5)*amt*W*0.12; mdy=(_mnNoise(sd,ph*0.12,9.1)-0.5)*amt*H*0.12; }
+      else if(an==='throb'){ mscale=1+Math.abs(w)*amt*0.3; }
     }
     ex+=Math.round(mdx); ey+=Math.round(mdy);
     const staticRot=(parseFloat(el.rotate)||0)*Math.PI/180;
@@ -3263,7 +3279,7 @@ function renderGfxEl(lctx,el,layer,W,H){
       tctx.globalCompositeOperation='source-over';
       // shadow/glow on the composited text image
       lctx.save();
-      if(el.glowOn||el._reactGlowBoost>0.01){ lctx.shadowColor=el.glowColor||'#ff4466'; lctx.shadowBlur=(parseFloat(el.glowRadius)||20)+(el._reactGlowBoost||0)*55; }
+      if(el.glowOn){ lctx.shadowColor=el.glowColor||'#ff4466'; lctx.shadowBlur=(parseFloat(el.glowRadius)||20); }
       else if(el.shadowOn){ lctx.shadowColor=el.shadowColor||'#000'; lctx.shadowBlur=parseFloat(el.shadowBlur)||0; lctx.shadowOffsetX=parseFloat(el.shadowX)||0; lctx.shadowOffsetY=parseFloat(el.shadowY)||0; }
       lctx.drawImage(tc.cv,ex-padPx,ey-padPx,tcW,tcH);
       lctx.restore();
@@ -3295,7 +3311,7 @@ function renderGfxEl(lctx,el,layer,W,H){
       }
 
       // SHADOW / GLOW applied to the main fill
-      if(el.glowOn||el._reactGlowBoost>0.01){ lctx.shadowColor=el.glowColor||'#ff4466'; lctx.shadowBlur=(parseFloat(el.glowRadius)||20)+(el._reactGlowBoost||0)*55; lctx.shadowOffsetX=0; lctx.shadowOffsetY=0; }
+      if(el.glowOn){ lctx.shadowColor=el.glowColor||'#ff4466'; lctx.shadowBlur=(parseFloat(el.glowRadius)||20); lctx.shadowOffsetX=0; lctx.shadowOffsetY=0; }
       else if(el.shadowOn){ lctx.shadowColor=el.shadowColor||'#000'; lctx.shadowBlur=parseFloat(el.shadowBlur)||0; lctx.shadowOffsetX=parseFloat(el.shadowX)||0; lctx.shadowOffsetY=parseFloat(el.shadowY)||0; }
 
       if(curve!==0){
@@ -4457,8 +4473,10 @@ function renderGraphicLayer(lctx,layer,W,H){
   layer.gfxLayerOpacity=1; // used inside renderGfxEl
   layer._gfxBBoxes=[];
   const els=layer.gfxElements||[];
-  for(const el of els){
+  for(let _i=0;_i<els.length;_i++){
+    const el=els[_i];
     let eff=gfxEffectiveEl(el);
+    eff._renderIdx=_i; // stable index for motion stagger
     // font cycling: swap the element's font at render time (shallow copy — never mutate the element)
     if(layer.fontCycleOn && eff.font) eff={...eff, font:fontCycleFont(layer, eff.font)};
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
@@ -15738,6 +15756,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     setV('gfx-p-x',el.x); setV('gfx-p-y',el.y); setV('gfx-p-w',el.w); setV('gfx-p-op',el.opacity);
     setV('gfx-p-rot',el.rotate||0); setV('gfx-p-blend',el.blend||'source-over');
     setV('gfx-p-manim',el.mAnim||'none'); setV('gfx-p-mspeed',el.mSpeed); setV('gfx-p-mamount',el.mAmount);
+    setV('gfx-p-mwave',el.mWave||'sine'); setV('gfx-p-mphase',el.mPhase||0); setV('gfx-p-mstagger',el.mStagger||0);
     if(el.type==='text'){
       setV('gfx-p-content',el.content);setV('gfx-p-align',el.align);setV('gfx-p-upper',el.uppercase);
       setV('gfx-p-font',el.font);setV('gfx-p-weight',el.weight);setV('gfx-p-italic',el.italic);
@@ -15834,6 +15853,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
   const PMAP=[
     ['gfx-p-x','x','num'],['gfx-p-y','y','num'],['gfx-p-w','w','num'],['gfx-p-op','opacity','num'],
     ['gfx-p-manim','mAnim','str'],['gfx-p-mspeed','mSpeed','num'],['gfx-p-mamount','mAmount','num'],
+    ['gfx-p-mwave','mWave','str'],['gfx-p-mphase','mPhase','num'],['gfx-p-mstagger','mStagger','num'],
     ['gfx-p-content','content','str'],['gfx-p-align','align','str'],['gfx-p-upper','uppercase','bool'],
     ['gfx-p-font','font','str'],['gfx-p-weight','weight','str'],['gfx-p-italic','italic','bool'],
     ['gfx-p-szmode','sizeMode','str'],['gfx-p-size','size','num'],['gfx-p-track','tracking','num'],
