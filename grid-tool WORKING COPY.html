@@ -2092,6 +2092,15 @@
             <div class="row"><label>extr color</label><input type="color" id="gfx-p-extcol" value="#777777"></div>
             <div class="row"><label>extr angle</label><input type="range" id="gfx-p-extang" min="0" max="360" value="45" step="1"><span class="val" id="gfx-p-extang-v">45</span></div>
             <div class="row"><label>curve</label><input type="range" id="gfx-p-curve" min="-100" max="100" value="0" step="1"><span class="val" id="gfx-p-curve-v">0</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;">kinetic type</div>
+            <div class="row"><label>animate</label><select id="gfx-p-kin">
+              <option value="none">none</option><option value="wave">wave</option><option value="bounce">bounce</option><option value="pop">pop (scale)</option><option value="swing">swing (rotate)</option><option value="jitter">jitter</option><option value="rainbow">rainbow cycle</option><option value="typewriter">typewriter</option><option value="scramble">scramble / decode</option>
+            </select></div>
+            <div class="row"><label>per</label><select id="gfx-p-kinunit"><option value="char">character</option><option value="word">word</option></select></div>
+            <div class="row"><label>amount</label><input type="range" id="gfx-p-kinamt" min="0" max="1" value="0.6" step="0.01"><span class="val" id="gfx-p-kinamt-v">0.60</span></div>
+            <div class="row"><label>speed</label><input type="range" id="gfx-p-kinspd" min="0.1" max="5" value="1" step="0.1"><span class="val" id="gfx-p-kinspd-v">1.0</span></div>
+            <div class="row"><label>stagger</label><input type="range" id="gfx-p-kinstag" min="0" max="2" value="0.5" step="0.01" title="Phase delay between consecutive glyphs — the traveling-wave / cascade feel"><span class="val" id="gfx-p-kinstag-v">0.50</span></div>
+            <div class="tip" style="font-size:7px;">Uses the element <b>wave</b> shape (Motion tab). Disabled for image/visual fill &amp; curved text.</div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">box</div>
             <div class="row"><label>style</label><select id="gfx-p-box"><option value="none">none</option><option value="filled">filled</option><option value="outline">outline</option><option value="pill">pill</option><option value="underline">underline</option></select></div>
             <div class="row"><label>box color</label><input type="color" id="gfx-p-bxcol" value="#ffffff"></div>

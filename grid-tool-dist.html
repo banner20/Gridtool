@@ -2092,6 +2092,15 @@
             <div class="row"><label>extr color</label><input type="color" id="gfx-p-extcol" value="#777777"></div>
             <div class="row"><label>extr angle</label><input type="range" id="gfx-p-extang" min="0" max="360" value="45" step="1"><span class="val" id="gfx-p-extang-v">45</span></div>
             <div class="row"><label>curve</label><input type="range" id="gfx-p-curve" min="-100" max="100" value="0" step="1"><span class="val" id="gfx-p-curve-v">0</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;">kinetic type</div>
+            <div class="row"><label>animate</label><select id="gfx-p-kin">
+              <option value="none">none</option><option value="wave">wave</option><option value="bounce">bounce</option><option value="pop">pop (scale)</option><option value="swing">swing (rotate)</option><option value="jitter">jitter</option><option value="rainbow">rainbow cycle</option><option value="typewriter">typewriter</option><option value="scramble">scramble / decode</option>
+            </select></div>
+            <div class="row"><label>per</label><select id="gfx-p-kinunit"><option value="char">character</option><option value="word">word</option></select></div>
+            <div class="row"><label>amount</label><input type="range" id="gfx-p-kinamt" min="0" max="1" value="0.6" step="0.01"><span class="val" id="gfx-p-kinamt-v">0.60</span></div>
+            <div class="row"><label>speed</label><input type="range" id="gfx-p-kinspd" min="0.1" max="5" value="1" step="0.1"><span class="val" id="gfx-p-kinspd-v">1.0</span></div>
+            <div class="row"><label>stagger</label><input type="range" id="gfx-p-kinstag" min="0" max="2" value="0.5" step="0.01" title="Phase delay between consecutive glyphs — the traveling-wave / cascade feel"><span class="val" id="gfx-p-kinstag-v">0.50</span></div>
+            <div class="tip" style="font-size:7px;">Uses the element <b>wave</b> shape (Motion tab). Disabled for image/visual fill &amp; curved text.</div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">box</div>
             <div class="row"><label>style</label><select id="gfx-p-box"><option value="none">none</option><option value="filled">filled</option><option value="outline">outline</option><option value="pill">pill</option><option value="underline">underline</option></select></div>
             <div class="row"><label>box color</label><input type="color" id="gfx-p-bxcol" value="#ffffff"></div>
@@ -5798,6 +5807,7 @@ function gfxDefaultEl(type){
     glowOn:false,glowColor:'#ff4466',glowRadius:24,
     extrude:0,extrudeColor:'#777777',extrudeAngle:45,
     curve:0,
+    kinetic:'none',kineticUnit:'char',kineticAmount:0.6,kineticSpeed:1,kineticStagger:0.5,
     boxStyle:'none',boxColor:'#ffffff',boxOpacity:0.15,boxPad:10};
   if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true};
   if(type==='info') return{...base,y:0.35,date:'',time:'',location:'',extra:'',font:"'Helvetica Neue',Arial,sans-serif",size:0.9,align:'left',color:'#cccccc',accentColor:'#ff4466',pills:false,boxStyle:'none',boxColor:'#000000',boxOpacity:0.85,boxPad:14};
@@ -5889,6 +5899,64 @@ function _gfxWave(x,shape){
   if(shape==='square'){ return Math.sin(x)>=0?1:-1; }
   if(shape==='ease'){ const s=Math.sin(x); return Math.sign(s)*(1-Math.pow(1-Math.abs(s),2.2)); } // snappier peaks
   return Math.sin(x);
+}
+// ── KINETIC TYPE: per-glyph / per-word text animation ──────────
+const _GFX_SCRAMBLE='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&@*<>/\\';
+function _gfxScrambleCh(step,seed){
+  const x=Math.sin((step+seed*7)*12.9898)*43758.5453; const f=x-Math.floor(x);
+  return _GFX_SCRAMBLE[Math.floor(f*_GFX_SCRAMBLE.length)%_GFX_SCRAMBLE.length];
+}
+// per-glyph transform for kinetic mode. i=glyph index, n=count, t=ms, sz=glyph px
+function _gfxKinetic(mode,i,n,t,o,sz){
+  const amt=o.amount==null?0.6:o.amount, spd=o.speed||1, stag=o.stagger==null?0.5:o.stagger, wv=o.wave||'sine';
+  const ph=t*spd*0.06 - i*stag*0.6; // later glyphs lag -> traveling wave
+  const r={dx:0,dy:0,sc:1,rot:0,alpha:1,col:null,scramble:false};
+  if(mode==='wave') r.dy=_gfxWave(ph,wv)*amt*sz*0.5;
+  else if(mode==='bounce') r.dy=-Math.abs(_gfxWave(ph,wv))*amt*sz*0.7;
+  else if(mode==='pop') r.sc=1+_gfxWave(ph,wv)*amt*0.5;
+  else if(mode==='swing') r.rot=_gfxWave(ph,wv)*amt*0.45;
+  else if(mode==='jitter'){
+    const a=_mnNoise(i*3.7,t*0.03*spd,0)-0.5, b=_mnNoise(t*0.03*spd,i*3.7,5.2)-0.5, c=_mnNoise(i*1.3,t*0.03*spd,9.4)-0.5;
+    r.dx=a*amt*sz*0.35; r.dy=b*amt*sz*0.35; r.rot=c*amt*0.5;
+  }
+  else if(mode==='rainbow'){ const h=((i*28+t*spd*0.08)%360+360)%360; r.col='hsl('+h.toFixed(0)+',85%,62%)'; }
+  else if(mode==='typewriter'||mode==='scramble'){
+    const cycle=n+10, head=((t*spd*0.012)%cycle), lead=head-i;
+    if(mode==='typewriter') r.alpha=Math.max(0,Math.min(1,lead));
+    else if(lead<0){ r.alpha=0.9; r.scramble=true; }
+  }
+  return r;
+}
+// draw one line glyph-by-glyph (or word-by-word). ctx font/letterSpacing/baseline already set by caller.
+function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
+  const unit=o.unit||'char';
+  const tokens = unit==='word' ? line.split(' ') : [...line];
+  const spaceW = unit==='word' ? ctx.measureText(' ').width : 0;
+  const tw = tokens.map(tk=>ctx.measureText(tk).width);
+  let total=0; for(let i=0;i<tw.length;i++){ total+=tw[i]; if(unit==='word'&&i<tw.length-1) total+=spaceW; }
+  let x = o.align==='center' ? anchorX-total/2 : o.align==='right' ? anchorX-total : anchorX;
+  const n=tokens.length, t=o.t, step=Math.floor(t*(o.speed||1)*0.06);
+  ctx.textAlign='left';
+  const baseAlpha=ctx.globalAlpha;
+  for(let i=0;i<n;i++){
+    const k=_gfxKinetic(o.mode,i,n,t,o,sz);
+    let glyph=tokens[i];
+    if(k.scramble){ glyph = unit==='word'
+      ? Array.from(glyph,(c,ci)=>_gfxScrambleCh(step,i*31+ci)).join('')
+      : _gfxScrambleCh(step,i); }
+    if(k.alpha>0.003 && glyph!==' ' && glyph!==''){
+      ctx.save();
+      ctx.globalAlpha=baseAlpha*Math.max(0,Math.min(1,k.alpha));
+      const gx=x+tw[i]/2, gy=topY+sz/2;
+      ctx.translate(gx+k.dx,gy+k.dy); ctx.scale(k.sc,k.sc); ctx.rotate(k.rot); ctx.translate(-gx,-gy);
+      if(o.strokeMode!=='stroke'){ ctx.fillStyle=k.col||o.fill; ctx.fillText(glyph,x,topY); }
+      if(o.strokeMode==='stroke'||o.strokeMode==='both'){ ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
+        ctx.strokeStyle=o.strokeMode==='stroke'?(k.col||o.fill):o.strokeColor; ctx.lineWidth=o.strokeWidth; ctx.lineJoin='round'; ctx.strokeText(glyph,x,topY); }
+      ctx.restore();
+    }
+    x+=tw[i]+(unit==='word'?spaceW:0);
+  }
+  ctx.globalAlpha=baseAlpha;
 }
 function renderGfxEl(lctx,el,layer,W,H){
   if(!el||el.visible===false) return null;
@@ -6072,6 +6140,19 @@ function renderGfxEl(lctx,el,layer,W,H){
         // per-character arc layout (uses solid color only for simplicity)
         lctx.shadowBlur=el.glowOn?(parseFloat(el.glowRadius)||20):(el.shadowOn?(parseFloat(el.shadowBlur)||0):0);
         drawArcLine(lctx,line,ex+ew/2,cy+sz*0.5,curve,sz,el.color||'#fff',tracking);
+        lctx.restore(); cy+=lh; continue;
+      }
+
+      // KINETIC TYPE — per-glyph / per-word animation (replaces whole-line fill)
+      const kin=el.kinetic||'none';
+      if(kin!=='none'){
+        _gfxKineticDraw(lctx,line,sz,tx,cy,{
+          mode:kin, unit:el.kineticUnit||'char',
+          amount:parseFloat(el.kineticAmount), speed:parseFloat(el.kineticSpeed)||1,
+          stagger:parseFloat(el.kineticStagger), wave:el.mWave||'sine', t:globalT||0,
+          align, fill:lineFill(tx,cy,tw,sz),
+          strokeMode, strokeColor:el.strokeColor||'#000', strokeWidth:parseFloat(el.strokeWidth)||3
+        });
         lctx.restore(); cy+=lh; continue;
       }
 
@@ -18522,6 +18603,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-glowon',el.glowOn);setV('gfx-p-glowcol',el.glowColor);setV('gfx-p-glowr',el.glowRadius);
       setV('gfx-p-ext',el.extrude);setV('gfx-p-extcol',el.extrudeColor);setV('gfx-p-extang',el.extrudeAngle);
       setV('gfx-p-curve',el.curve);
+      setV('gfx-p-kin',el.kinetic||'none');setV('gfx-p-kinunit',el.kineticUnit||'char');
+      setV('gfx-p-kinamt',el.kineticAmount==null?0.6:el.kineticAmount);setV('gfx-p-kinspd',el.kineticSpeed||1);setV('gfx-p-kinstag',el.kineticStagger==null?0.5:el.kineticStagger);
       { const fm=el.fillMode||'solid';
         const c2=document.getElementById('gfx-p-color2-row'),ga=document.getElementById('gfx-p-gradang-row'),fi=document.getElementById('gfx-p-fillimg-row');
         if(c2)c2.style.display=fm==='gradient'?'flex':'none';
@@ -18618,6 +18701,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-glowon','glowOn','bool'],['gfx-p-glowcol','glowColor','str'],['gfx-p-glowr','glowRadius','num'],
     ['gfx-p-ext','extrude','num'],['gfx-p-extcol','extrudeColor','str'],['gfx-p-extang','extrudeAngle','num'],
     ['gfx-p-curve','curve','num'],
+    ['gfx-p-kin','kinetic','str'],['gfx-p-kinunit','kineticUnit','str'],['gfx-p-kinamt','kineticAmount','num'],['gfx-p-kinspd','kineticSpeed','num'],['gfx-p-kinstag','kineticStagger','num'],
     ['gfx-p-sw','strokeWidth','num'],['gfx-p-box','boxStyle','str'],['gfx-p-bxcol','boxColor','str'],
     ['gfx-p-bxop','boxOpacity','num'],['gfx-p-bxpad','boxPad','num'],
     ['gfx-p-items','items','str'],['gfx-p-lup','uppercase','bool'],['gfx-p-lfmt','format','str'],
