@@ -1998,6 +1998,32 @@
         </div>
         <div id="gfx-el-list" style="min-height:20px;max-height:180px;overflow-y:auto;margin-bottom:4px;"></div>
 
+        <!-- LAYOUT TOOLBAR -->
+        <div id="gfx-layout-bar" style="display:none;border:1px solid #2a2a32;border-radius:5px;padding:4px;margin-bottom:5px;">
+          <div style="font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px;">layout <span id="gfx-layout-scope" style="color:#666;">— selected</span></div>
+          <div class="gfx-lay-grp" title="Align (selected → canvas; with 2+ elements selected → to selection)">
+            <button class="gfx-lay" data-lay="left" title="Align left">⇤</button>
+            <button class="gfx-lay" data-lay="centerh" title="Center horizontally">⇆</button>
+            <button class="gfx-lay" data-lay="right" title="Align right">⇥</button>
+            <span class="gfx-lay-div"></span>
+            <button class="gfx-lay" data-lay="top" title="Align top">⤒</button>
+            <button class="gfx-lay" data-lay="middlev" title="Center vertically">⇅</button>
+            <button class="gfx-lay" data-lay="bottom" title="Align bottom">⤓</button>
+            <span class="gfx-lay-div"></span>
+            <button class="gfx-lay" data-lay="center" title="Center on canvas">⊕</button>
+          </div>
+          <div class="gfx-lay-grp" style="margin-top:3px;">
+            <button class="gfx-lay" data-lay="distv" title="Distribute evenly — vertical (all elements)">≡↕</button>
+            <button class="gfx-lay" data-lay="disth" title="Distribute evenly — horizontal (all elements)">≡↔</button>
+            <button class="gfx-lay" data-lay="stack" title="Tidy into an even vertical stack (all elements)">▤ stack</button>
+            <span class="gfx-lay-div"></span>
+            <button class="gfx-lay" data-lay="duprow" title="Duplicate selected into a row (3 copies)">⧉→</button>
+            <label style="font-size:7px;color:#888;display:flex;align-items:center;gap:2px;margin-left:auto;" title="Snap dragging & nudges to a grid"><input type="checkbox" id="gfx-snap-on" style="width:auto;">snap</label>
+            <select id="gfx-snap-div" style="font-size:7px;width:auto;padding:0 2px;" title="Grid divisions"><option value="6">6</option><option value="8">8</option><option value="12" selected>12</option><option value="16">16</option><option value="24">24</option></select>
+          </div>
+          <div class="tip" style="font-size:7px;margin-top:2px;">Tip: ⇧-click elements in the list to multi-select. Align/distribute use selection if 2+, else the whole layer.</div>
+        </div>
+
         <!-- ELEMENT PROPERTIES (dynamic) -->
         <div id="gfx-props" style="display:none;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">

@@ -4564,10 +4564,10 @@ function renderGraphicLayer(lctx,layer,W,H){
       if(eff.blend&&eff.blend!=='source-over') lctx.globalCompositeOperation=eff.blend;
       lctx.drawImage(buf,0,0);
       lctx.restore();
-      if(bbox) layer._gfxBBoxes.push(bbox);
+      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
     } else {
       const bbox=renderGfxEl(lctx,eff,layer,W,H);
-      if(bbox) layer._gfxBBoxes.push(bbox);
+      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
     }
   }
   renderGfxFrame(lctx,layer,W,H);
@@ -15778,7 +15778,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     if(!els.length){ list.innerHTML='<div style="font-size:8px;color:#444;text-align:center;padding:6px;">no elements — add one above or use a template ↓</div>'; }
     els.forEach((el,i)=>{
       const row=document.createElement('div');
-      row.className='gfx-el-row'+(el.id===l._gfxSelectedEl?' gfx-sel':'');
+      const inMulti=(l._gfxMultiSel&&l._gfxMultiSel.includes(el.id));
+      row.className='gfx-el-row'+(el.id===l._gfxSelectedEl?' gfx-sel':'')+(inMulti?' gfx-multisel':'');
       let prev = el.type==='text'?(el.content||'').split('\n')[0]
         : el.type==='lineup'?((el.items||'').split('\n')[0]||'lineup')
         : el.type==='info'?(el.date||el.location||el.time||'info')
@@ -15797,13 +15798,28 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
         +'<span class="gfx-el-vis '+(el.visible!==false?'on':'')+'">'+(el.visible!==false?'●':'○')+'</span>'
         +'<span class="gfx-el-vis" data-up style="color:#555;">↑</span>'
         +'<span class="gfx-el-vis" data-dn style="color:#555;">↓</span>';
-      row.querySelector('.gfx-el-icon').onclick=()=>{ l._gfxSelectedEl=el.id; renderGfxElList(); syncGfxProps(); };
-      row.querySelector('.gfx-el-preview').onclick=()=>{ l._gfxSelectedEl=el.id; renderGfxElList(); syncGfxProps(); };
+      const pick=(ev)=>{
+        if(ev.shiftKey){ // multi-select toggle
+          l._gfxMultiSel=l._gfxMultiSel||[];
+          // seed with the current single selection so shift-click extends from it
+          if(!l._gfxMultiSel.length && l._gfxSelectedEl) l._gfxMultiSel.push(l._gfxSelectedEl);
+          const at=l._gfxMultiSel.indexOf(el.id);
+          if(at>=0) l._gfxMultiSel.splice(at,1); else l._gfxMultiSel.push(el.id);
+          l._gfxSelectedEl=el.id;
+        } else { l._gfxMultiSel=[]; l._gfxSelectedEl=el.id; }
+        renderGfxElList(); syncGfxProps();
+      };
+      row.querySelector('.gfx-el-icon').onclick=pick;
+      row.querySelector('.gfx-el-preview').onclick=pick;
       row.querySelector('.gfx-el-vis').onclick=(ev)=>{ ev.stopPropagation(); el.visible=el.visible===false; renderGfxElList(); };
       row.querySelector('[data-up]').onclick=(ev)=>{ ev.stopPropagation(); if(i<els.length-1){ els.splice(i,1); els.splice(i+1,0,el); renderGfxElList(); } };
       row.querySelector('[data-dn]').onclick=(ev)=>{ ev.stopPropagation(); if(i>0){ els.splice(i,1); els.splice(i-1,0,el); renderGfxElList(); } };
       list.appendChild(row);
     });
+    const bar=document.getElementById('gfx-layout-bar');
+    if(bar){ bar.style.display=els.length?'block':'none';
+      const sc=document.getElementById('gfx-layout-scope'); const m=(l._gfxMultiSel||[]).length;
+      if(sc) sc.textContent = m>=2 ? '— '+m+' selected' : '— selected vs canvas'; }
     syncGfxProps();
   };
 
@@ -16060,6 +16076,72 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     renderGfxElList(); syncGfxProps();
   });
 
+  // ── LAYOUT TOOLS (align / distribute / stack / snap) ─────────
+  // rendered rect of an element as fractions (uses last frame's bbox; falls back to x/w)
+  function _gfxRect(l,el){
+    const bb=(l._gfxBBoxes||[]).find(b=>b.id===el.id);
+    if(bb&&bb.x2>bb.x1) return {x:bb.x1,y:bb.y1,w:bb.x2-bb.x1,h:Math.max(0.01,bb.y2-bb.y1)};
+    return {x:el.x||0,y:el.y||0,w:el.w||0.3,h:0.08};
+  }
+  function _gfxMoveTo(l,el,rx,ry){
+    const r=_gfxRect(l,el);
+    if(rx!=null) el.x=Math.max(-0.5,Math.min(1.5,(el.x||0)+(rx-r.x)));
+    if(ry!=null) el.y=Math.max(-0.5,Math.min(1.5,(el.y||0)+(ry-r.y)));
+  }
+  function gfxLayout(op){
+    const l=gfxLayer(); if(!l||!(l.gfxElements||[]).length) return;
+    const pad=parseFloat(l.gfxCanvasPad)||0.05;
+    const all=l.gfxElements;
+    const selIds=l._gfxMultiSel||[];
+    const sel = selIds.length>=2 ? all.filter(e=>selIds.includes(e.id)) : null;
+    const single=gfxSel();
+    if(['left','right','centerh','top','bottom','middlev','center'].includes(op)){
+      let targets,L,R,T,B;
+      if(sel){ targets=sel; const rs=sel.map(e=>_gfxRect(l,e));
+        L=Math.min(...rs.map(r=>r.x)); R=Math.max(...rs.map(r=>r.x+r.w));
+        T=Math.min(...rs.map(r=>r.y)); B=Math.max(...rs.map(r=>r.y+r.h));
+      } else { if(!single) return; targets=[single]; L=pad; R=1-pad; T=pad; B=1-pad; }
+      const CX=(L+R)/2, CY=(T+B)/2;
+      targets.forEach(e=>{ const r=_gfxRect(l,e);
+        if(op==='left') _gfxMoveTo(l,e,L,null);
+        else if(op==='right') _gfxMoveTo(l,e,R-r.w,null);
+        else if(op==='centerh') _gfxMoveTo(l,e,CX-r.w/2,null);
+        else if(op==='top') _gfxMoveTo(l,e,null,T);
+        else if(op==='bottom') _gfxMoveTo(l,e,null,B-r.h);
+        else if(op==='middlev') _gfxMoveTo(l,e,null,CY-r.h/2);
+        else if(op==='center') _gfxMoveTo(l,e,CX-r.w/2,CY-r.h/2);
+      });
+    } else if(op==='distv'||op==='disth'){
+      const grp=(sel||all).slice(); if(grp.length<3) return; // need interior items
+      const horiz=op==='disth';
+      const rects=grp.map(e=>({e,r:_gfxRect(l,e)}));
+      rects.sort((a,b)=> horiz ? (a.r.x+a.r.w/2)-(b.r.x+b.r.w/2) : (a.r.y+a.r.h/2)-(b.r.y+b.r.h/2));
+      const startC = horiz ? rects[0].r.x+rects[0].r.w/2 : rects[0].r.y+rects[0].r.h/2;
+      const endC = horiz ? rects[rects.length-1].r.x+rects[rects.length-1].r.w/2 : rects[rects.length-1].r.y+rects[rects.length-1].r.h/2;
+      const step=(endC-startC)/(rects.length-1);
+      rects.forEach((o,i)=>{ const c=startC+step*i;
+        if(horiz) _gfxMoveTo(l,o.e,c-o.r.w/2,null); else _gfxMoveTo(l,o.e,null,c-o.r.h/2); });
+    } else if(op==='stack'){
+      const grp=(sel||all).slice();
+      const rects=grp.map(e=>({e,r:_gfxRect(l,e)})).sort((a,b)=>a.r.y-b.r.y);
+      const gap=0.02; let cur=Math.max(pad, rects.length?rects[0].r.y:pad);
+      rects.forEach(o=>{ _gfxMoveTo(l,o.e,null,cur); cur+=o.r.h+gap; });
+    } else if(op==='duprow'){
+      const el=single; if(!el) return; const r=_gfxRect(l,el); const gap=0.02;
+      for(let k=1;k<=2;k++){ const imgRef=el._imgEl;
+        const c=JSON.parse(JSON.stringify({...el,_imgEl:null})); c.id='el_'+Math.random().toString(36).slice(2,8); c._imgEl=imgRef;
+        c.x=(el.x||0)+(r.w+gap)*k; l.gfxElements.push(c); }
+    }
+    renderGfxElList(); syncGfxProps(); if(window.snapshotState) snapshotState();
+  }
+  document.querySelectorAll('.gfx-lay').forEach(b=>b.addEventListener('click',()=>gfxLayout(b.dataset.lay)));
+
+  // snap-to-grid preference (applies to canvas drag + duplicate)
+  const _gfxSnap={on:false,div:12};
+  document.getElementById('gfx-snap-on')?.addEventListener('change',e=>{ _gfxSnap.on=e.target.checked; });
+  document.getElementById('gfx-snap-div')?.addEventListener('change',e=>{ _gfxSnap.div=parseInt(e.target.value)||12; });
+  window._gfxSnapState=_gfxSnap;
+
   // Fill mode → toggle gradient/image rows
   document.getElementById('gfx-p-fillmode')?.addEventListener('change',()=>{ syncGfxProps(); });
   document.getElementById('gfx-p-shfillmode')?.addEventListener('change',()=>{ syncGfxProps(); });
@@ -16126,8 +16208,10 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       if(!drag) return;
       const r=cv.getBoundingClientRect();
       const fx=(e.clientX-r.left)/r.width, fy=(e.clientY-r.top)/r.height;
-      drag.x=Math.max(0,Math.min(1,start.ex+(fx-start.fx)));
-      drag.y=Math.max(0,Math.min(1,start.ey+(fy-start.fy)));
+      let nx=Math.max(0,Math.min(1,start.ex+(fx-start.fx)));
+      let ny=Math.max(0,Math.min(1,start.ey+(fy-start.fy)));
+      if(_gfxSnapState&&_gfxSnapState.on){ const d=_gfxSnapState.div||12; nx=Math.round(nx*d)/d; ny=Math.round(ny*d)/d; }
+      drag.x=nx; drag.y=ny;
       setV('gfx-p-x',drag.x); setV('gfx-p-y',drag.y);
     });
     const end=e=>{ if(drag){ drag=null; try{cv.releasePointerCapture(e.pointerId);}catch(_){}}};

@@ -99,6 +99,12 @@ button.danger:hover{background:var(--red);color:#000;}
 .gfx-el-row{display:flex;align-items:center;gap:3px;padding:4px 5px;background:#0d0d0d;border:1px solid #1c1c1c;border-radius:3px;margin-bottom:2px;cursor:pointer;user-select:none;}
 .gfx-el-row:hover{border-color:#2a2a2a;}
 .gfx-el-row.gfx-sel{border-color:#7744aa;background:#120d1a;}
+.gfx-el-row.gfx-multisel{border-color:#cc88ff;background:#160f22;box-shadow:inset 2px 0 0 #cc88ff;}
+.gfx-lay-grp{display:flex;align-items:center;gap:2px;}
+.gfx-lay{font-size:10px;line-height:1;padding:3px 5px;min-width:22px;background:#141418;border:1px solid #2a2a32;border-radius:3px;color:#bbb;cursor:pointer;font-family:monospace;}
+.gfx-lay:hover{border-color:#cc88ff;color:#fff;background:#1c1622;}
+.gfx-lay:active{background:#2a1f38;}
+.gfx-lay-div{width:1px;align-self:stretch;background:#2a2a32;margin:0 2px;}
 .gfx-el-icon{font-size:10px;color:#666;width:14px;text-align:center;flex-shrink:0;font-family:monospace;font-weight:700;}
 .gfx-el-preview{flex:1;font-size:8px;color:#777;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .gfx-el-vis{font-size:9px;cursor:pointer;flex-shrink:0;color:#333;padding:0 2px;}
