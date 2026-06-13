@@ -1995,6 +1995,9 @@
           <button id="gfx-add-textfill" title="Add text-pattern fill (one word repeated + justified to fill a region — SAINT LAURENT style)">¶</button>
           <button id="gfx-add-physics" title="Add physics cluster (word bodies attract, collide & clump — Designzentrum style)">⚛</button>
           <button id="gfx-add-fluid" title="Add fluid swirl (packed circles each with a two-tone swirl fill — metaball/fluid style)">◍</button>
+          <button id="gfx-add-ticker" title="Add ticker (infinite scrolling marquee strip — news/now-playing band)">⇄</button>
+          <button id="gfx-add-counter" title="Add counter (timecode / count-up / live clock)">⏱</button>
+          <button id="gfx-add-barcode" title="Add barcode (procedural bars or QR-like matrix)">▥</button>
         </div>
         <div id="gfx-el-list" style="min-height:20px;max-height:180px;overflow-y:auto;margin-bottom:4px;"></div>
 
@@ -2365,6 +2368,50 @@ FARBE</textarea></div>
             <div class="row"><label>spin speed</label><input type="range" id="gfx-p-flspin" min="0" max="5" value="1" step="0.05"><span class="val" id="gfx-p-flspin-v">1.00</span></div>
             <div class="row"><label>highlight</label><input type="range" id="gfx-p-flhi" min="0" max="1" value="0.3" step="0.01"><span class="val" id="gfx-p-flhi-v">0.30</span></div>
             <div class="row"><label>background</label><input type="checkbox" id="gfx-p-flbgon" checked><input type="color" id="gfx-p-flbg" value="#3a0a0a" style="margin-left:4px;"></div>
+          </div>
+
+          <div id="gfx-pp-ticker" style="display:none;">
+            <div class="row"><label>text</label><input type="text" id="gfx-p-tktext" value="BREAKING · NOW PLAYING · LIVE"></div>
+            <div class="row"><label>separator</label><input type="text" id="gfx-p-tksep" value="   •   "></div>
+            <div class="row"><label>font</label><select id="gfx-p-tkfont" class="gfx-font-sel"></select></div>
+            <div class="row"><label>weight</label><select id="gfx-p-tkweight"><option>300</option><option>400</option><option>500</option><option>700</option><option>900</option></select></div>
+            <div class="row"><label>size</label><input type="range" id="gfx-p-tksize" min="0.3" max="2" value="0.9" step="0.05"><span class="val" id="gfx-p-tksize-v">0.90</span></div>
+            <div class="row"><label>tracking</label><input type="range" id="gfx-p-tktrack" min="0" max="20" value="2" step="0.5"><span class="val" id="gfx-p-tktrack-v">2.0</span></div>
+            <div class="row"><label>uppercase</label><input type="checkbox" id="gfx-p-tkupper" checked></div>
+            <div class="row"><label>text color</label><input type="color" id="gfx-p-tkcolor" value="#000000"></div>
+            <div class="row"><label>strip bg</label><input type="checkbox" id="gfx-p-tkbgon" checked><input type="color" id="gfx-p-tkbg" value="#ffffff" style="margin-left:4px;"></div>
+            <div class="row"><label>scroll speed</label><input type="range" id="gfx-p-tkspeed" min="0" max="5" value="1" step="0.05"><span class="val" id="gfx-p-tkspeed-v">1.00</span></div>
+            <div class="row"><label>direction</label><select id="gfx-p-tkdir"><option value="left">left ←</option><option value="right">right →</option></select></div>
+          </div>
+
+          <div id="gfx-pp-counter" style="display:none;">
+            <div class="row"><label>mode</label><select id="gfx-p-cnmode"><option value="timecode">timecode (HH:MM:SS:FF)</option><option value="count">count up</option><option value="clock">live clock</option></select></div>
+            <div class="row"><label>font</label><select id="gfx-p-cnfont" class="gfx-font-sel"></select></div>
+            <div class="row"><label>weight</label><select id="gfx-p-cnweight"><option>300</option><option>400</option><option>500</option><option>700</option><option>900</option></select></div>
+            <div class="row"><label>size</label><input type="range" id="gfx-p-cnsize" min="0.5" max="8" value="2.4" step="0.1"><span class="val" id="gfx-p-cnsize-v">2.4</span></div>
+            <div class="row"><label>align</label><select id="gfx-p-cnalign"><option value="left">left</option><option value="center">center</option><option value="right">right</option></select></div>
+            <div class="row"><label>color</label><input type="color" id="gfx-p-cncolor" value="#ffffff"></div>
+            <div class="row"><label>background</label><input type="checkbox" id="gfx-p-cnbgon"><input type="color" id="gfx-p-cnbg" value="#000000" style="margin-left:4px;"></div>
+            <div class="row"><label>speed</label><input type="range" id="gfx-p-cnspeed" min="0" max="10" value="1" step="0.1"><span class="val" id="gfx-p-cnspeed-v">1.0</span></div>
+            <div class="row"><label>fps (timecode)</label><input type="range" id="gfx-p-cnfps" min="1" max="60" value="24" step="1"><span class="val" id="gfx-p-cnfps-v">24</span></div>
+            <div class="row"><label>start (count)</label><input type="number" id="gfx-p-cnstart" value="0" style="font-size:9px;"></div>
+            <div class="row"><label>decimals</label><input type="range" id="gfx-p-cndec" min="0" max="4" value="0" step="1"><span class="val" id="gfx-p-cndec-v">0</span></div>
+            <div class="row"><label>zero-pad</label><input type="range" id="gfx-p-cnpad" min="0" max="8" value="2" step="1"><span class="val" id="gfx-p-cnpad-v">2</span></div>
+            <div class="row"><label>prefix</label><input type="text" id="gfx-p-cnprefix" value=""></div>
+            <div class="row"><label>suffix</label><input type="text" id="gfx-p-cnsuffix" value=""></div>
+          </div>
+
+          <div id="gfx-pp-barcode" style="display:none;">
+            <div class="row"><label>variant</label><select id="gfx-p-bcvariant"><option value="lines">bars (1D)</option><option value="matrix">matrix (QR-like)</option></select></div>
+            <div class="row"><label>seed / data</label><input type="text" id="gfx-p-bcdata" value="GRIDTOOL-2026"></div>
+            <div class="row"><label>bars</label><input type="range" id="gfx-p-bcbars" min="8" max="120" value="48" step="1"><span class="val" id="gfx-p-bcbars-v">48</span></div>
+            <div class="row"><label>matrix size</label><input type="range" id="gfx-p-bcmsize" min="9" max="41" value="21" step="2"><span class="val" id="gfx-p-bcmsize-v">21</span></div>
+            <div class="row"><label>fill density</label><input type="range" id="gfx-p-bcdensity" min="0.2" max="0.8" value="0.5" step="0.01"><span class="val" id="gfx-p-bcdensity-v">0.50</span></div>
+            <div class="row"><label>color</label><input type="color" id="gfx-p-bccolor" value="#000000"></div>
+            <div class="row"><label>background</label><input type="checkbox" id="gfx-p-bcbgon" checked><input type="color" id="gfx-p-bcbg" value="#ffffff" style="margin-left:4px;"></div>
+            <div class="row"><label>quiet zone</label><input type="range" id="gfx-p-bcquiet" min="0" max="0.2" value="0.06" step="0.01"><span class="val" id="gfx-p-bcquiet-v">0.06</span></div>
+            <div class="row"><label>label</label><input type="checkbox" id="gfx-p-bclabelon" checked></div>
+            <div class="row"><label>label text</label><input type="text" id="gfx-p-bclabel" value="" placeholder="(uses seed if empty)"></div>
           </div>
 
           <div id="gfx-pp-empty" style="font-size:8px;color:#444;padding:8px 0;text-align:center;">select an element above to edit it<br><span style="color:#333;font-size:7px;">or drag it on the canvas to reposition</span></div>
