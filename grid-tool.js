@@ -203,6 +203,7 @@ function defaultLayerParams(){
     gfxBoxColor:'#ffffff',gfxBoxOpacity:0.15,gfxBoxPad:12,
     gfxFrame:'none',gfxFrameColor:'#ff6600',gfxFrameWeight:2,gfxFrameInset:0.012,
     gfxBg:'none',gfxBgColor:'#000000',gfxBgColor2:'#222222',gfxBgAngle:0,
+    gfxGrid:{on:false,cols:12,rows:0,marginX:0.06,marginY:0.06,gutterX:0.018,gutterY:0.018,showGuide:true,guideColor:'#cc88ff'},
     gfxDividers:false,gfxBottomBar:false,
     gfxHeadlineColor:'#ffffff',gfxBodyColor:'#cccccc',gfxAccentColor:'#ff4466',gfxOpacity:1,
     gfxLogoScale:0.18,gfxLogoX:0.5,gfxLogoY:0.06,
@@ -3036,6 +3037,8 @@ function gfxDefaultEl(type){
   const id='el_'+Math.random().toString(36).slice(2,8);
   const base={id,type,visible:true,x:0.05,y:0.05,w:0.9,opacity:1,rotate:0,blend:'source-over',
     mAnim:'none',mSpeed:1,mAmount:0.5,mPhase:0,mStagger:0,mWave:'sine',
+    gridOn:false,gridCol:0,gridColSpan:6,gridRow:0,gridRowSpan:1,gridSetH:false,
+    anchorH:'free',anchorV:'free',
     effects:[]};
   if(type==='text') return{...base,y:0.1,content:'TITLE',font:"'Bebas Neue',Impact,sans-serif",weight:'900',italic:false,size:5,sizeMode:'fit',tracking:0,lineHeight:0.93,uppercase:true,color:'#ffffff',align:'left',
     fillMode:'solid',color2:'#ff4466',gradAngle:0,_fillImgEl:null,_fillImgName:null,
@@ -3141,6 +3144,25 @@ function drawArcLine(ctx,text,cx,cyBaseline,amount,sz,color,tracking){
   ctx.restore();
 }
 
+// Compute a grid cell's rect (fractions) from a layer grid config + placement.
+// Returns {x,w,y,h}; y/h are null when the grid has no rows (free vertical).
+function gfxGridCell(g,col,colSpan,row,rowSpan){
+  const mx=g.marginX||0, my=g.marginY||0, gx=g.gutterX||0, gy=g.gutterY||0;
+  const cols=Math.max(1,Math.round(g.cols||12));
+  const colW=(1-2*mx-gx*(cols-1))/cols;
+  const cs=Math.max(1,Math.min(cols,Math.round(colSpan||1)));
+  const c0=Math.max(0,Math.min(cols-cs,Math.round(col||0)));
+  const x=mx+c0*(colW+gx), w=cs*colW+(cs-1)*gx;
+  let y=null,h=null;
+  const rows=Math.round(g.rows||0);
+  if(rows>0){
+    const rowH=(1-2*my-gy*(rows-1))/rows;
+    const rs=Math.max(1,Math.min(rows,Math.round(rowSpan||1)));
+    const r0=Math.max(0,Math.min(rows-rs,Math.round(row||0)));
+    y=my+r0*(rowH+gy); h=rs*rowH+(rs-1)*gy;
+  }
+  return {x,w,y,h};
+}
 // Deterministic seeded RNG from a string (mulberry32) — for procedural barcodes etc.
 function _gfxSeedRng(str){
   str=String(str); let h=1779033703^str.length;
@@ -4221,6 +4243,23 @@ function _hsl2rgb(h,s,l){ let r,g,b; if(s===0){r=g=b=l;} else { const hue2rgb=(p
 function cx0(x,w){return x+w/2;} function cy0(y,h){return y+h/2;}
 
 // ── Canvas frame ─────────────────────────────────────────────
+// Editor-only modular-grid guide overlay (never drawn during export — see _gtExporting)
+function _gfxDrawGridGuide(lctx,layer,W,H){
+  const g=layer.gfxGrid; if(!g) return;
+  const col=g.guideColor||'#cc88ff';
+  const mx=(g.marginX||0)*W, my=(g.marginY||0)*H, gx=(g.gutterX||0)*W, gy=(g.gutterY||0)*H;
+  const cols=Math.max(1,Math.round(g.cols||12)), rows=Math.round(g.rows||0);
+  const colW=(W-2*mx-gx*(cols-1))/cols;
+  lctx.save();
+  lctx.fillStyle=col; lctx.strokeStyle=col;
+  lctx.globalAlpha=0.1;
+  for(let c=0;c<cols;c++) lctx.fillRect(mx+c*(colW+gx),my,colW,H-2*my);
+  if(rows>0){ const rowH=(H-2*my-gy*(rows-1))/rows;
+    for(let r=0;r<rows;r++) lctx.fillRect(mx,my+r*(rowH+gy),W-2*mx,rowH); }
+  lctx.globalAlpha=0.4; lctx.lineWidth=1; lctx.setLineDash([4,4]);
+  lctx.strokeRect(mx,my,W-2*mx,H-2*my);
+  lctx.setLineDash([]); lctx.restore();
+}
 function renderGfxFrame(lctx,layer,W,H){
   const fs=layer.gfxFrame||'none'; if(fs==='none') return;
   const fc=layer.gfxFrameColor||'#ff6600';
@@ -4653,9 +4692,16 @@ function renderGraphicLayer(lctx,layer,W,H){
   for(let _i=0;_i<els.length;_i++){
     const el=els[_i];
     let eff=gfxEffectiveEl(el);
+    if(eff===el) eff={...el}; // never mutate the element below
     eff._renderIdx=_i; // stable index for motion stagger
-    // font cycling: swap the element's font at render time (shallow copy — never mutate the element)
-    if(layer.fontCycleOn && eff.font) eff={...eff, font:fontCycleFont(layer, eff.font)};
+    // font cycling: swap the element's font at render time
+    if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
+    // GRID PLACEMENT: derive x/w (and y/h) from the layer grid when the element opts in
+    if(layer.gfxGrid && layer.gfxGrid.on && eff.gridOn){
+      const cell=gfxGridCell(layer.gfxGrid, eff.gridCol, eff.gridColSpan, eff.gridRow, eff.gridRowSpan);
+      eff.x=cell.x; eff.w=cell.w;
+      if(cell.y!=null){ eff.y=cell.y; if(eff.gridSetH) eff.h=cell.h; }
+    }
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
     if(fx.length){
       // Render element to its own buffer, run the appearance stack, composite back
@@ -4676,6 +4722,8 @@ function renderGraphicLayer(lctx,layer,W,H){
     }
   }
   renderGfxFrame(lctx,layer,W,H);
+  if(layer.gfxGrid && layer.gfxGrid.on && layer.gfxGrid.showGuide && !window._gtExporting && layer===layers[selectedLayer])
+    _gfxDrawGridGuide(lctx,layer,W,H);
 }
 
 // ── OLD (kept for safety) ─────────────────────────────────────
@@ -11405,6 +11453,14 @@ function syncLayerUI(){
     const el=document.getElementById(k); if(el&&layer[k]) el.value=layer[k];
   });
   if(window._gfxToggleBgRows) try{ _gfxToggleBgRows(); }catch(e){}
+  // Sync layout grid (nested object)
+  (function(){
+    const g=layer.gfxGrid||(layer.gfxGrid={on:false,cols:12,rows:0,marginX:0.06,marginY:0.06,gutterX:0.018,gutterY:0.018,showGuide:true,guideColor:'#cc88ff'});
+    const sv=(id,val)=>{ const el=document.getElementById(id); if(!el)return; if(el.type==='checkbox')el.checked=!!val; else el.value=val;
+      const v=document.getElementById(id+'-v'); if(v&&el.type==='range'){const d=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; v.textContent=parseFloat(el.value).toFixed(d);} };
+    sv('gfxGridOn',g.on); sv('gfxGridGuide',g.showGuide); sv('gfxGridGuideColor',g.guideColor);
+    sv('gfxGridCols',g.cols); sv('gfxGridRows',g.rows); sv('gfxGridMx',g.marginX); sv('gfxGridMy',g.marginY); sv('gfxGridGx',g.gutterX); sv('gfxGridGy',g.gutterY);
+  })();
   // Sync gfx logo name
   const gfxLnEl=document.getElementById('gfx-logo-name');
   if(gfxLnEl) gfxLnEl.textContent=layer._gfxLogoName||'no logo';
@@ -12505,6 +12561,18 @@ function wireParamInputs(){
   ['gfxHeadlineColor','gfxBodyColor','gfxAccentColor','gfxBoxColor','gfxFrameColor','gfxBgColor','gfxBgColor2'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input',e=>{ const l=layers[selectedLayer]; if(l) l[id]=e.target.value; });
   });
+  // Layout grid config (nested layer.gfxGrid object)
+  (function(){
+    const GG=()=>{ const l=layers[selectedLayer]; if(!l) return null; if(!l.gfxGrid) l.gfxGrid={on:false,cols:12,rows:0,marginX:0.06,marginY:0.06,gutterX:0.018,gutterY:0.018,showGuide:true,guideColor:'#cc88ff'}; return l.gfxGrid; };
+    const bind=(id,key,kind)=>{ const el=document.getElementById(id); if(!el) return;
+      el.addEventListener(kind==='bool'?'change':'input',()=>{ const g=GG(); if(!g) return;
+        g[key]= kind==='bool'?el.checked : kind==='num'?parseFloat(el.value) : el.value;
+        const v=document.getElementById(id+'-v'); if(v&&el.type==='range'){ const d=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; v.textContent=parseFloat(el.value).toFixed(d); } });
+    };
+    bind('gfxGridOn','on','bool'); bind('gfxGridGuide','showGuide','bool'); bind('gfxGridGuideColor','guideColor','str');
+    bind('gfxGridCols','cols','num'); bind('gfxGridRows','rows','num');
+    bind('gfxGridMx','marginX','num'); bind('gfxGridMy','marginY','num'); bind('gfxGridGx','gutterX','num'); bind('gfxGridGy','gutterY','num');
+  })();
   // Logo
   document.getElementById('btn-gfx-logo-load')?.addEventListener('click',()=>document.getElementById('gfx-logo-input')?.click());
   document.getElementById('gfx-logo-input')?.addEventListener('change',e=>{
@@ -14858,7 +14926,9 @@ function buildVectorSvgString(){
 }
 
 document.getElementById('btn-export-png').addEventListener('click',()=>{
+  window._gtExporting=true; try{ loop(); }catch(_){}  // repaint without the grid guide
   const tmp=buildExportCanvas();
+  window._gtExporting=false;
   const a=document.createElement('a');
   a.download='grid-'+mainCanvas.width+'x'+mainCanvas.height+'-'+Date.now()+'.png';
   a.href=tmp.toDataURL('image/png');
@@ -14868,7 +14938,9 @@ document.getElementById('btn-export-png').addEventListener('click',()=>{
 document.getElementById('btn-copy-png').addEventListener('click',async()=>{
   try{
     if(!navigator.clipboard || !window.ClipboardItem) throw new Error('Clipboard image copy is not supported in this browser.');
+    window._gtExporting=true; try{ loop(); }catch(_){}
     const tmp=buildExportCanvas();
+    window._gtExporting=false;
     const blob=await canvasToBlob(tmp,'image/png');
     await navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
     alert(`PNG copied at ${tmp.width}x${tmp.height}.`);
@@ -14900,12 +14972,14 @@ document.getElementById('btn-rec').addEventListener('click',function(){
   if(mediaRecorder&&mediaRecorder.state==='recording'){
     mediaRecorder.stop();this.textContent='⏺ record';this.classList.remove('active');
     document.getElementById('rec-indicator').style.display='none';
+    window._gtExporting=false; // restore grid guide
     // Restore preview scale after recording
     liveScale=_recPrevScale;
     applyCanvasSize();
     return;
   }
   try{
+    window._gtExporting=true; // suppress grid guide for the recording
     // Upscale to full res for recording
     _recPrevScale=liveScale;
     if(liveScale<1){ liveScale=1; applyCanvasSize(); }
@@ -15951,6 +16025,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const sub=document.getElementById('gfx-pp-'+el.type); if(sub) sub.style.display='block';
     setV('gfx-p-x',el.x); setV('gfx-p-y',el.y); setV('gfx-p-w',el.w); setV('gfx-p-op',el.opacity);
     setV('gfx-p-rot',el.rotate||0); setV('gfx-p-blend',el.blend||'source-over');
+    setV('gfx-p-gridon',!!el.gridOn);setV('gfx-p-gridcol',el.gridCol||0);setV('gfx-p-gridcolspan',el.gridColSpan||6);setV('gfx-p-gridrow',el.gridRow||0);setV('gfx-p-gridrowspan',el.gridRowSpan||1);setV('gfx-p-gridseth',!!el.gridSetH);
     setV('gfx-p-manim',el.mAnim||'none'); setV('gfx-p-mspeed',el.mSpeed); setV('gfx-p-mamount',el.mAmount);
     setV('gfx-p-mwave',el.mWave||'sine'); setV('gfx-p-mphase',el.mPhase||0); setV('gfx-p-mstagger',el.mStagger||0);
     if(el.type==='text'){
@@ -16063,6 +16138,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-x','x','num'],['gfx-p-y','y','num'],['gfx-p-w','w','num'],['gfx-p-op','opacity','num'],
     ['gfx-p-manim','mAnim','str'],['gfx-p-mspeed','mSpeed','num'],['gfx-p-mamount','mAmount','num'],
     ['gfx-p-mwave','mWave','str'],['gfx-p-mphase','mPhase','num'],['gfx-p-mstagger','mStagger','num'],
+    ['gfx-p-gridon','gridOn','bool'],['gfx-p-gridcol','gridCol','num'],['gfx-p-gridcolspan','gridColSpan','num'],['gfx-p-gridrow','gridRow','num'],['gfx-p-gridrowspan','gridRowSpan','num'],['gfx-p-gridseth','gridSetH','bool'],
     ['gfx-p-content','content','str'],['gfx-p-align','align','str'],['gfx-p-upper','uppercase','bool'],
     ['gfx-p-font','font','str'],['gfx-p-weight','weight','str'],['gfx-p-italic','italic','bool'],
     ['gfx-p-szmode','sizeMode','str'],['gfx-p-size','size','num'],['gfx-p-track','tracking','num'],
@@ -16332,7 +16408,23 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       const fx=(e.clientX-r.left)/r.width, fy=(e.clientY-r.top)/r.height;
       let nx=Math.max(0,Math.min(1,start.ex+(fx-start.fx)));
       let ny=Math.max(0,Math.min(1,start.ey+(fy-start.fy)));
-      if(_gfxSnapState&&_gfxSnapState.on){ const d=_gfxSnapState.div||12; nx=Math.round(nx*d)/d; ny=Math.round(ny*d)/d; }
+      const gg=(layers[selectedLayer]||{}).gfxGrid;
+      if(gg&&gg.on){
+        // snap to the grid: nearest column (x) and nearest row (y, if rows>0)
+        const cols=Math.max(1,Math.round(gg.cols||12)), mx=gg.marginX||0, gx=gg.gutterX||0;
+        const colW=(1-2*mx-gx*(cols-1))/cols;
+        let bestc=0,bd=1e9; for(let c=0;c<cols;c++){ const cx=mx+c*(colW+gx); const dd=Math.abs(cx-nx); if(dd<bd){bd=dd;bestc=c;} }
+        const rows=Math.round(gg.rows||0); let bestr=0;
+        if(rows>0){ const my=gg.marginY||0, gy=gg.gutterY||0, rowH=(1-2*my-gy*(rows-1))/rows; let bdr=1e9;
+          for(let r=0;r<rows;r++){ const cy=my+r*(rowH+gy); const dd=Math.abs(cy-ny); if(dd<bdr){bdr=dd;bestr=r;} } }
+        if(drag.gridOn){ // a grid-placed element: drive its column/row, not raw x/y
+          drag.gridCol=bestc; setV('gfx-p-gridcol',bestc);
+          if(rows>0){ drag.gridRow=bestr; setV('gfx-p-gridrow',bestr); }
+          return;
+        }
+        nx=mx+bestc*(colW+gx);
+        if(rows>0){ const my=gg.marginY||0, gy=gg.gutterY||0, rowH=(1-2*my-gy*(rows-1))/rows; ny=my+bestr*(rowH+gy); }
+      } else if(_gfxSnapState&&_gfxSnapState.on){ const d=_gfxSnapState.div||12; nx=Math.round(nx*d)/d; ny=Math.round(ny*d)/d; }
       drag.x=nx; drag.y=ny;
       setV('gfx-p-x',drag.x); setV('gfx-p-y',drag.y);
     });
