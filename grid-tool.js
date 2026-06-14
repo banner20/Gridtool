@@ -204,6 +204,9 @@ function defaultLayerParams(){
     gfxFrame:'none',gfxFrameColor:'#ff6600',gfxFrameWeight:2,gfxFrameInset:0.012,
     gfxBg:'none',gfxBgColor:'#000000',gfxBgColor2:'#222222',gfxBgAngle:0,
     gfxGrid:{on:false,cols:12,rows:0,marginX:0.06,marginY:0.06,gutterX:0.018,gutterY:0.018,showGuide:true,guideColor:'#cc88ff'},
+    gfxPalette:{on:false,bg:'#0c0c0e',ink:'#f4f4f0',accent:'#ff3b30',accent2:'#ffd166',muted:'#8a8a92'},
+    gfxBgFollowsPalette:false,
+    gfxType:{base:1,ratio:1.25,headFont:"'Bebas Neue',Impact,sans-serif",bodyFont:"'Helvetica Neue',Arial,sans-serif"},
     gfxDividers:false,gfxBottomBar:false,
     gfxHeadlineColor:'#ffffff',gfxBodyColor:'#cccccc',gfxAccentColor:'#ff4466',gfxOpacity:1,
     gfxLogoScale:0.18,gfxLogoX:0.5,gfxLogoY:0.06,
@@ -3039,6 +3042,7 @@ function gfxDefaultEl(type){
     mAnim:'none',mSpeed:1,mAmount:0.5,mPhase:0,mStagger:0,mWave:'sine',
     gridOn:false,gridCol:0,gridColSpan:6,gridRow:0,gridRowSpan:1,gridSetH:false,
     anchorH:'free',anchorV:'free',
+    colorRole:'none',sizeRole:'none',fontRole:'none',
     effects:[]};
   if(type==='text') return{...base,y:0.1,content:'TITLE',font:"'Bebas Neue',Impact,sans-serif",weight:'900',italic:false,size:5,sizeMode:'fit',tracking:0,lineHeight:0.93,uppercase:true,color:'#ffffff',align:'left',
     fillMode:'solid',color2:'#ff4466',gradAngle:0,_fillImgEl:null,_fillImgName:null,
@@ -3162,6 +3166,34 @@ function gfxGridCell(g,col,colSpan,row,rowSpan){
     y=my+r0*(rowH+gy); h=rs*rowH+(rs-1)*gy;
   }
   return {x,w,y,h};
+}
+// ── DESIGN SYSTEM: palette roles + type scale ──────────────────
+// which color field a role should drive, per element type
+function _gfxColorField(type){
+  return ({text:'color',lineup:'headColor',info:'color',divider:'color',box:'fillColor',shape:'fillColor',
+    pattern:'patColor',glyphs:'color',textfill:'color',physics:'color',ticker:'color',counter:'color',barcode:'color'})[type]||'color';
+}
+// which size field a size-role drives + the per-type multiplier (so a type's default == its "body")
+function _gfxSizeField(type){
+  return ({text:{field:'size',mul:5},lineup:{field:'size',mul:1.2},glyphs:{field:'size',mul:1.2},
+    textfill:{field:'fontSize',mul:1},ticker:{field:'fontSize',mul:1},counter:{field:'fontSize',mul:2.4},physics:{field:'fontSize',mul:1.1}})[type]||null;
+}
+function _gfxScaleStep(role,ty){ const e={caption:-1,body:0,h2:1,h1:2,display:3}[role]; if(e===undefined) return null; return (ty.base||1)*Math.pow(ty.ratio||1.25,e); }
+function _hslHex(h,s,l){ // h 0-360, s/l 0-100
+  s/=100; l/=100; const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs(((h/60)%2)-1)), m=l-c/2;
+  const [r,g,b]= h<60?[c,x,0]:h<120?[x,c,0]:h<180?[0,c,x]:h<240?[0,x,c]:h<300?[x,0,c]:[c,0,x];
+  const q=v=>('0'+Math.round((v+m)*255).toString(16)).slice(-2); return '#'+q(r)+q(g)+q(b);
+}
+// generate a harmonious 5-role palette from a seed string
+function gfxGenPalette(seed){
+  const rng=_gfxSeedRng(String(seed)); const h=Math.floor(rng()*360), dark=rng()<0.62;
+  const compl=rng()<0.5?150+Math.floor(rng()*70):190+Math.floor(rng()*40);
+  return {on:true,
+    bg: dark?_hslHex(h,18,7+rng()*5):_hslHex(h,14,93+rng()*4),
+    ink: dark?_hslHex(h,8,95):_hslHex(h,40,9),
+    accent: _hslHex((h+compl)%360,78+rng()*15,55+rng()*8),
+    accent2:_hslHex((h+30+rng()*30)%360,80+rng()*12,58+rng()*8),
+    muted: dark?_hslHex(h,12,42+rng()*10):_hslHex(h,10,52+rng()*8)};
 }
 // Deterministic seeded RNG from a string (mulberry32) — for procedural barcodes etc.
 function _gfxSeedRng(str){
@@ -4674,8 +4706,9 @@ function gfxMakePresetStack(key){
 
 function renderGraphicLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
-  // Background fill (solid / gradient)
-  const bg=layer.gfxBg||'none';
+  // Background fill (solid / gradient). When bg-follows-palette is on, use palette.bg.
+  const palBg=(layer.gfxBgFollowsPalette && layer.gfxPalette && layer.gfxPalette.on)?layer.gfxPalette.bg:null;
+  const bg=palBg?'solid':(layer.gfxBg||'none');
   if(bg!=='none'){
     lctx.save();
     if(bg==='gradient'){
@@ -4683,7 +4716,7 @@ function renderGraphicLayer(lctx,layer,W,H){
       const g=lctx.createLinearGradient(cx-Math.cos(a)*r,cy-Math.sin(a)*r,cx+Math.cos(a)*r,cy+Math.sin(a)*r);
       g.addColorStop(0,layer.gfxBgColor||'#000'); g.addColorStop(1,layer.gfxBgColor2||'#222');
       lctx.fillStyle=g;
-    } else lctx.fillStyle=layer.gfxBgColor||'#000';
+    } else lctx.fillStyle=palBg||layer.gfxBgColor||'#000';
     lctx.fillRect(0,0,W,H); lctx.restore();
   }
   layer.gfxLayerOpacity=1; // used inside renderGfxEl
@@ -4694,14 +4727,24 @@ function renderGraphicLayer(lctx,layer,W,H){
     let eff=gfxEffectiveEl(el);
     if(eff===el) eff={...el}; // never mutate the element below
     eff._renderIdx=_i; // stable index for motion stagger
-    // font cycling: swap the element's font at render time
-    if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
     // GRID PLACEMENT: derive x/w (and y/h) from the layer grid when the element opts in
     if(layer.gfxGrid && layer.gfxGrid.on && eff.gridOn){
       const cell=gfxGridCell(layer.gfxGrid, eff.gridCol, eff.gridColSpan, eff.gridRow, eff.gridRowSpan);
       eff.x=cell.x; eff.w=cell.w;
       if(cell.y!=null){ eff.y=cell.y; if(eff.gridSetH) eff.h=cell.h; }
     }
+    // DESIGN SYSTEM: resolve palette/type roles into concrete fields
+    const PAL=layer.gfxPalette, TY=layer.gfxType;
+    if(PAL && PAL.on && eff.colorRole && eff.colorRole!=='none' && PAL[eff.colorRole]){
+      eff[_gfxColorField(eff.type)]=PAL[eff.colorRole];
+    }
+    if(TY){
+      if(eff.fontRole==='head') eff.font=TY.headFont;
+      else if(eff.fontRole==='body') eff.font=TY.bodyFont;
+      if(eff.sizeRole && eff.sizeRole!=='none'){ const sm=_gfxSizeField(eff.type); const st=_gfxScaleStep(eff.sizeRole,TY); if(sm&&st!=null) eff[sm.field]=st*sm.mul; }
+    }
+    // font cycling runs last so it wins over a font role when both are on
+    if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
     if(fx.length){
       // Render element to its own buffer, run the appearance stack, composite back
@@ -11460,6 +11503,12 @@ function syncLayerUI(){
       const v=document.getElementById(id+'-v'); if(v&&el.type==='range'){const d=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; v.textContent=parseFloat(el.value).toFixed(d);} };
     sv('gfxGridOn',g.on); sv('gfxGridGuide',g.showGuide); sv('gfxGridGuideColor',g.guideColor);
     sv('gfxGridCols',g.cols); sv('gfxGridRows',g.rows); sv('gfxGridMx',g.marginX); sv('gfxGridMy',g.marginY); sv('gfxGridGx',g.gutterX); sv('gfxGridGy',g.gutterY);
+    // design system
+    const P=layer.gfxPalette||(layer.gfxPalette={on:false,bg:'#0c0c0e',ink:'#f4f4f0',accent:'#ff3b30',accent2:'#ffd166',muted:'#8a8a92'});
+    const T=layer.gfxType||(layer.gfxType={base:1,ratio:1.25,headFont:"'Bebas Neue',Impact,sans-serif",bodyFont:"'Helvetica Neue',Arial,sans-serif"});
+    sv('gfxPalOn',P.on); sv('gfxPalBg',P.bg); sv('gfxPalInk',P.ink); sv('gfxPalAccent',P.accent); sv('gfxPalAccent2',P.accent2); sv('gfxPalMuted',P.muted);
+    sv('gfxBgFollowsPalette',layer.gfxBgFollowsPalette);
+    sv('gfxTypeBase',T.base); sv('gfxTypeRatio',T.ratio); sv('gfxTypeHeadFont',T.headFont); sv('gfxTypeBodyFont',T.bodyFont);
   })();
   // Sync gfx logo name
   const gfxLnEl=document.getElementById('gfx-logo-name');
@@ -12572,6 +12621,36 @@ function wireParamInputs(){
     bind('gfxGridOn','on','bool'); bind('gfxGridGuide','showGuide','bool'); bind('gfxGridGuideColor','guideColor','str');
     bind('gfxGridCols','cols','num'); bind('gfxGridRows','rows','num');
     bind('gfxGridMx','marginX','num'); bind('gfxGridMy','marginY','num'); bind('gfxGridGx','gutterX','num'); bind('gfxGridGy','gutterY','num');
+  })();
+  // Design system: palette + type scale (nested layer.gfxPalette / layer.gfxType)
+  (function(){
+    const PP=()=>{ const l=layers[selectedLayer]; if(!l) return null; if(!l.gfxPalette) l.gfxPalette={on:false,bg:'#0c0c0e',ink:'#f4f4f0',accent:'#ff3b30',accent2:'#ffd166',muted:'#8a8a92'}; return l.gfxPalette; };
+    const TT=()=>{ const l=layers[selectedLayer]; if(!l) return null; if(!l.gfxType) l.gfxType={base:1,ratio:1.25,headFont:"'Bebas Neue',Impact,sans-serif",bodyFont:"'Helvetica Neue',Arial,sans-serif"}; return l.gfxType; };
+    const bind=(id,get,key,kind)=>{ const el=document.getElementById(id); if(!el) return;
+      el.addEventListener(kind==='bool'?'change':'input',()=>{ const o=get(); if(!o) return;
+        o[key]= kind==='bool'?el.checked : kind==='num'?parseFloat(el.value) : el.value;
+        const v=document.getElementById(id+'-v'); if(v&&el.type==='range'){ const d=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; v.textContent=parseFloat(el.value).toFixed(d); } });
+    };
+    bind('gfxPalOn',PP,'on','bool'); bind('gfxPalBg',PP,'bg','str'); bind('gfxPalInk',PP,'ink','str');
+    bind('gfxPalAccent',PP,'accent','str'); bind('gfxPalAccent2',PP,'accent2','str'); bind('gfxPalMuted',PP,'muted','str');
+    bind('gfxTypeBase',TT,'base','num'); bind('gfxTypeRatio',TT,'ratio','num'); bind('gfxTypeHeadFont',TT,'headFont','str'); bind('gfxTypeBodyFont',TT,'bodyFont','str');
+    document.getElementById('gfxBgFollowsPalette')?.addEventListener('change',e=>{ const l=layers[selectedLayer]; if(l) l.gfxBgFollowsPalette=e.target.checked; });
+    // shuffle → generate a harmonious palette, turn the system on
+    document.getElementById('gfxPalShuffle')?.addEventListener('click',()=>{ const l=layers[selectedLayer]; if(!l) return;
+      l.gfxPalette=gfxGenPalette('seed'+Math.random()); l.gfxPalette.on=true; syncLayerUI(); if(window.snapshotState) snapshotState(); });
+    // curated palette presets
+    const PRESETS={
+      'noir':{bg:'#0a0a0a',ink:'#f5f5f5',accent:'#e10600',accent2:'#ffb800',muted:'#777777'},
+      'swiss red/white':{bg:'#f4f1ea',ink:'#111111',accent:'#e2231a',accent2:'#1452cc',muted:'#9a958c'},
+      'acid':{bg:'#0d0f08',ink:'#eaffd0',accent:'#c6ff00',accent2:'#ff00a8',muted:'#5c6650'},
+      'pastel':{bg:'#fdf6f0',ink:'#3a2e2a',accent:'#ff8a5c',accent2:'#5cc8ff',muted:'#c9b8ad'},
+      'vapor':{bg:'#1a0b2e',ink:'#f7e7ff',accent:'#ff61d2',accent2:'#21e6c1',muted:'#7a5c9e'},
+      'editorial':{bg:'#ffffff',ink:'#1a1a1a',accent:'#0033ff',accent2:'#ff3b30',muted:'#999999'},
+      'earth':{bg:'#211c18',ink:'#f0e6d2',accent:'#d98a3d',accent2:'#6b8f5e',muted:'#8a7a66'}};
+    const sel=document.getElementById('gfxPalPreset');
+    if(sel){ Object.keys(PRESETS).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+      sel.addEventListener('change',()=>{ const l=layers[selectedLayer], p=PRESETS[sel.value]; if(!l||!p) return;
+        l.gfxPalette={on:true,...p}; syncLayerUI(); sel.value=''; if(window.snapshotState) snapshotState(); }); }
   })();
   // Logo
   document.getElementById('btn-gfx-logo-load')?.addEventListener('click',()=>document.getElementById('gfx-logo-input')?.click());
@@ -16026,6 +16105,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     setV('gfx-p-x',el.x); setV('gfx-p-y',el.y); setV('gfx-p-w',el.w); setV('gfx-p-op',el.opacity);
     setV('gfx-p-rot',el.rotate||0); setV('gfx-p-blend',el.blend||'source-over');
     setV('gfx-p-gridon',!!el.gridOn);setV('gfx-p-gridcol',el.gridCol||0);setV('gfx-p-gridcolspan',el.gridColSpan||6);setV('gfx-p-gridrow',el.gridRow||0);setV('gfx-p-gridrowspan',el.gridRowSpan||1);setV('gfx-p-gridseth',!!el.gridSetH);
+    setV('gfx-p-colorrole',el.colorRole||'none');setV('gfx-p-sizerole',el.sizeRole||'none');setV('gfx-p-fontrole',el.fontRole||'none');
     setV('gfx-p-manim',el.mAnim||'none'); setV('gfx-p-mspeed',el.mSpeed); setV('gfx-p-mamount',el.mAmount);
     setV('gfx-p-mwave',el.mWave||'sine'); setV('gfx-p-mphase',el.mPhase||0); setV('gfx-p-mstagger',el.mStagger||0);
     if(el.type==='text'){
@@ -16139,6 +16219,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-manim','mAnim','str'],['gfx-p-mspeed','mSpeed','num'],['gfx-p-mamount','mAmount','num'],
     ['gfx-p-mwave','mWave','str'],['gfx-p-mphase','mPhase','num'],['gfx-p-mstagger','mStagger','num'],
     ['gfx-p-gridon','gridOn','bool'],['gfx-p-gridcol','gridCol','num'],['gfx-p-gridcolspan','gridColSpan','num'],['gfx-p-gridrow','gridRow','num'],['gfx-p-gridrowspan','gridRowSpan','num'],['gfx-p-gridseth','gridSetH','bool'],
+    ['gfx-p-colorrole','colorRole','str'],['gfx-p-sizerole','sizeRole','str'],['gfx-p-fontrole','fontRole','str'],
     ['gfx-p-content','content','str'],['gfx-p-align','align','str'],['gfx-p-upper','uppercase','bool'],
     ['gfx-p-font','font','str'],['gfx-p-weight','weight','str'],['gfx-p-italic','italic','bool'],
     ['gfx-p-szmode','sizeMode','str'],['gfx-p-size','size','num'],['gfx-p-track','tracking','num'],

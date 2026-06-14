@@ -1990,6 +1990,26 @@
         <div class="row"><label>gutter Y</label><input type="range" id="gfxGridGy" min="0" max="0.08" value="0.018" step="0.002"><span class="val" id="gfxGridGy-v">0.018</span></div>
         <div class="tip" style="font-size:7px;">0 rows = free vertical (columns only). Per element: turn on <b>place in grid</b> in its Transform tab.</div>
 
+        <!-- DESIGN SYSTEM (palette + type scale) -->
+        <div class="st" style="margin-top:10px;color:#cc88ff;">◈ design system</div>
+        <div class="row"><label>palette</label><input type="checkbox" id="gfxPalOn"><span style="font-size:7px;color:#666;margin-left:4px;">elements bind by role</span></div>
+        <div style="display:flex;gap:4px;margin:2px 0 4px;align-items:center;">
+          <button id="gfxPalShuffle" style="flex:1;font-size:8px;" title="Generate a fresh harmonious palette">🎲 shuffle palette</button>
+          <select id="gfxPalPreset" style="flex:1;font-size:8px;"><option value="">presets…</option></select>
+        </div>
+        <div class="row"><label>bg</label><input type="color" id="gfxPalBg" value="#0c0c0e"></div>
+        <div class="row"><label>ink</label><input type="color" id="gfxPalInk" value="#f4f4f0"></div>
+        <div class="row"><label>accent</label><input type="color" id="gfxPalAccent" value="#ff3b30"></div>
+        <div class="row"><label>accent 2</label><input type="color" id="gfxPalAccent2" value="#ffd166"></div>
+        <div class="row"><label>muted</label><input type="color" id="gfxPalMuted" value="#8a8a92"></div>
+        <div class="row"><label>bg = palette bg</label><input type="checkbox" id="gfxBgFollowsPalette"></div>
+        <div style="margin:4px 0 2px;font-size:7px;color:#888;text-transform:uppercase;letter-spacing:.1em;">type scale</div>
+        <div class="row"><label>base size</label><input type="range" id="gfxTypeBase" min="0.4" max="2.5" value="1" step="0.05"><span class="val" id="gfxTypeBase-v">1.00</span></div>
+        <div class="row"><label>ratio</label><input type="range" id="gfxTypeRatio" min="1.05" max="1.8" value="1.25" step="0.01"><span class="val" id="gfxTypeRatio-v">1.25</span></div>
+        <div class="row"><label>head font</label><select id="gfxTypeHeadFont" class="gfx-font-sel"></select></div>
+        <div class="row"><label>body font</label><select id="gfxTypeBodyFont" class="gfx-font-sel"></select></div>
+        <div class="tip" style="font-size:7px;">Per element: set <b>color / size / font role</b> in its Transform tab to pull from this system.</div>
+
         <!-- ELEMENTS LIST -->
         <div class="st" style="margin-top:10px;">elements</div>
         <div class="tip" style="margin-bottom:5px;">Click element to select and edit. Drag on canvas to move.</div>
@@ -2065,6 +2085,10 @@
           <div class="row"><label>row</label><input type="range" id="gfx-p-gridrow" min="0" max="15" value="0" step="1"><span class="val" id="gfx-p-gridrow-v">0</span></div>
           <div class="row"><label>row span</label><input type="range" id="gfx-p-gridrowspan" min="1" max="16" value="1" step="1"><span class="val" id="gfx-p-gridrowspan-v">1</span></div>
           <div class="row"><label>set height</label><input type="checkbox" id="gfx-p-gridseth"><span style="font-size:7px;color:#666;margin-left:4px;">use row height (needs rows&gt;0)</span></div>
+          <div style="margin:6px 0 2px;font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;">design roles</div>
+          <div class="row"><label>color role</label><select id="gfx-p-colorrole"><option value="none">none (own color)</option><option value="bg">bg</option><option value="ink">ink</option><option value="accent">accent</option><option value="accent2">accent 2</option><option value="muted">muted</option></select></div>
+          <div class="row"><label>size role</label><select id="gfx-p-sizerole"><option value="none">none (own size)</option><option value="display">display</option><option value="h1">H1</option><option value="h2">H2</option><option value="body">body</option><option value="caption">caption</option></select></div>
+          <div class="row"><label>font role</label><select id="gfx-p-fontrole"><option value="none">none (own font)</option><option value="head">head font</option><option value="body">body font</option></select></div>
           </div><!-- end transform pane -->
         </div><!-- end gfx-props -->
 <!-- QUICK TEMPLATES -->
