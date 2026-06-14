@@ -207,6 +207,7 @@ function defaultLayerParams(){
     gfxPalette:{on:false,bg:'#0c0c0e',ink:'#f4f4f0',accent:'#ff3b30',accent2:'#ffd166',muted:'#8a8a92'},
     gfxBgFollowsPalette:false,
     gfxType:{base:1,ratio:1.25,headFont:"'Bebas Neue',Impact,sans-serif",bodyFont:"'Helvetica Neue',Arial,sans-serif"},
+    gfxGen:{seed:1,recipe:'swiss',lockPos:false,lockColor:false,lockSize:false,lockRot:false},
     gfxDividers:false,gfxBottomBar:false,
     gfxHeadlineColor:'#ffffff',gfxBodyColor:'#cccccc',gfxAccentColor:'#ff4466',gfxOpacity:1,
     gfxLogoScale:0.18,gfxLogoX:0.5,gfxLogoY:0.06,
@@ -3194,6 +3195,69 @@ function gfxGenPalette(seed){
     accent: _hslHex((h+compl)%360,78+rng()*15,55+rng()*8),
     accent2:_hslHex((h+30+rng()*30)%360,80+rng()*12,58+rng()*8),
     muted: dark?_hslHex(h,12,42+rng()*10):_hslHex(h,10,52+rng()*8)};
+}
+// ── GENERATOR: parametric layout recipes (re-roll over the grid + design system) ──
+const GFX_RECIPES=['swiss','poster','brutalist','grid-cards','scatter'];
+function gfxReroll(layer,recipe,seed){
+  const els=layer.gfxElements||[]; if(!els.length) return false;
+  const G=layer.gfxGen||(layer.gfxGen={seed:1,recipe:'swiss',lockPos:false,lockColor:false,lockSize:false,lockRot:false});
+  if(recipe) G.recipe=recipe; recipe=G.recipe||'swiss';
+  if(seed!=null) G.seed=seed;
+  const rng=_gfxSeedRng(recipe+'|'+G.seed);
+  const lockP=G.lockPos,lockC=G.lockColor,lockS=G.lockSize,lockR=G.lockRot;
+  // ensure the systems the recipes compose against are on
+  if(!layer.gfxPalette) layer.gfxPalette=gfxGenPalette('p'+G.seed);
+  if(!lockC){ const np=gfxGenPalette('p'+G.seed); np.on=true; layer.gfxPalette=np; }
+  layer.gfxPalette.on=true;
+  if(!layer.gfxGrid) layer.gfxGrid={on:false,cols:12,rows:0,marginX:0.06,marginY:0.06,gutterX:0.018,gutterY:0.018,showGuide:true,guideColor:'#cc88ff'};
+  if(!layer.gfxType) layer.gfxType={base:1,ratio:1.25,headFont:"'Bebas Neue',Impact,sans-serif",bodyFont:"'Helvetica Neue',Arial,sans-serif"};
+  const TEXT=['text','lineup','info','textfill','ticker','counter'];
+  const texts=els.filter(e=>TEXT.includes(e.type)), graphics=els.filter(e=>!TEXT.includes(e.type));
+  const pick=a=>a[Math.floor(rng()*a.length)];
+  const pos=(el,fn)=>{ if(!lockP) fn(el); };
+  const col=(el,role)=>{ if(!lockC) el.colorRole=role; };
+  const sz=(el,role)=>{ if(!lockS) el.sizeRole=role; };
+  const rot=(el,deg)=>{ if(!lockR) el.rotate=deg; };
+  const grid=(e,c,cs,r,rs)=>{ e.gridOn=true; e.gridCol=c; e.gridColSpan=cs; if(r!=null)e.gridRow=r; if(rs!=null)e.gridRowSpan=rs; };
+  const free=(e,x,y,w)=>{ e.gridOn=false; e.x=x; e.y=y; if(w!=null)e.w=w; };
+
+  if(recipe==='swiss'){
+    layer.gfxGrid.on=true; layer.gfxGrid.cols=12; layer.gfxGrid.rows=0;
+    texts.forEach((el,i)=>{
+      if(i===0){ pos(el,e=>{grid(e,0,8+Math.floor(rng()*5)); e.y=0.08+rng()*0.06;}); sz(el,'display'); col(el,'ink'); el.fontRole='head'; el.align='left'; rot(el,0); }
+      else { const c=rng()<0.5?0:6; pos(el,e=>{grid(e,c,5+Math.floor(rng()*2)); e.y=0.42+i*0.13;}); sz(el,i===1?'h2':'body'); col(el,rng()<0.3?'accent':'ink'); el.fontRole='body'; rot(el,0); }
+    });
+    graphics.forEach(el=>{ pos(el,e=>{grid(e,rng()<0.5?8:0,4); e.y=0.28+rng()*0.45;}); col(el,'accent'); rot(el,0); });
+  } else if(recipe==='poster'){
+    layer.gfxGrid.on=true; layer.gfxGrid.cols=12; layer.gfxGrid.rows=0;
+    graphics.forEach(el=>{ pos(el,e=>{grid(e,2,8); e.y=0.18+rng()*0.1;}); col(el,'accent'); rot(el,0); });
+    texts.forEach((el,i)=>{ pos(el,e=>{grid(e,1,10); e.y= i===0?0.3:0.52+i*0.11;}); sz(el,i===0?'display':i===1?'h2':'body'); col(el,i===0?'ink':'muted'); el.align='center'; el.fontRole=i===0?'head':'body'; rot(el,0); });
+  } else if(recipe==='brutalist'){
+    layer.gfxGrid.on=false;
+    els.forEach((el,i)=>{
+      const isText=TEXT.includes(el.type);
+      pos(el,e=>{ free(e, rng()*0.55, rng()*0.7, 0.3+rng()*0.6); });
+      rot(el,(rng()<0.45)?(rng()*34-17):0);
+      sz(el, isText?(i===0?'display':pick(['h1','h2','body'])):'none');
+      col(el, pick(['ink','accent','accent2']));
+      if(isText) el.fontRole=rng()<0.5?'head':'body';
+    });
+  } else if(recipe==='grid-cards'){
+    const n=els.length, cols=Math.ceil(Math.sqrt(n)), rows=Math.ceil(n/cols);
+    layer.gfxGrid.on=true; layer.gfxGrid.cols=cols; layer.gfxGrid.rows=rows;
+    els.forEach((el,i)=>{ const c=i%cols, r=Math.floor(i/cols);
+      pos(el,e=>{grid(e,c,1,r,1); e.gridSetH=true;}); rot(el,0);
+      col(el, i%3===0?'accent':i%3===1?'ink':'muted');
+      if(TEXT.includes(el.type)) sz(el,'body');
+    });
+  } else if(recipe==='scatter'){
+    layer.gfxGrid.on=false;
+    els.forEach(el=>{ pos(el,e=>{ free(e,0.05+rng()*0.7,0.05+rng()*0.8,0.15+rng()*0.4); }); rot(el,rng()*40-20);
+      col(el,pick(['ink','accent','accent2','muted']));
+      if(TEXT.includes(el.type)) sz(el,pick(['h1','h2','body','caption']));
+    });
+  }
+  return true;
 }
 // Deterministic seeded RNG from a string (mulberry32) — for procedural barcodes etc.
 function _gfxSeedRng(str){
@@ -11509,6 +11573,8 @@ function syncLayerUI(){
     sv('gfxPalOn',P.on); sv('gfxPalBg',P.bg); sv('gfxPalInk',P.ink); sv('gfxPalAccent',P.accent); sv('gfxPalAccent2',P.accent2); sv('gfxPalMuted',P.muted);
     sv('gfxBgFollowsPalette',layer.gfxBgFollowsPalette);
     sv('gfxTypeBase',T.base); sv('gfxTypeRatio',T.ratio); sv('gfxTypeHeadFont',T.headFont); sv('gfxTypeBodyFont',T.bodyFont);
+    const GEN=layer.gfxGen||(layer.gfxGen={seed:1,recipe:'swiss',lockPos:false,lockColor:false,lockSize:false,lockRot:false});
+    sv('gfxGenRecipe',GEN.recipe); sv('gfxGenLockPos',GEN.lockPos); sv('gfxGenLockSize',GEN.lockSize); sv('gfxGenLockColor',GEN.lockColor); sv('gfxGenLockRot',GEN.lockRot);
   })();
   // Sync gfx logo name
   const gfxLnEl=document.getElementById('gfx-logo-name');
@@ -12651,6 +12717,17 @@ function wireParamInputs(){
     if(sel){ Object.keys(PRESETS).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
       sel.addEventListener('change',()=>{ const l=layers[selectedLayer], p=PRESETS[sel.value]; if(!l||!p) return;
         l.gfxPalette={on:true,...p}; syncLayerUI(); sel.value=''; if(window.snapshotState) snapshotState(); }); }
+    // GENERATOR controls
+    const GENo=()=>{ const l=layers[selectedLayer]; if(!l) return null; if(!l.gfxGen) l.gfxGen={seed:1,recipe:'swiss',lockPos:false,lockColor:false,lockSize:false,lockRot:false}; return l.gfxGen; };
+    document.getElementById('gfxGenRecipe')?.addEventListener('change',e=>{ const g=GENo(); if(g) g.recipe=e.target.value; });
+    [['gfxGenLockPos','lockPos'],['gfxGenLockSize','lockSize'],['gfxGenLockColor','lockColor'],['gfxGenLockRot','lockRot']].forEach(([id,k])=>{
+      document.getElementById(id)?.addEventListener('change',e=>{ const g=GENo(); if(g) g[k]=e.target.checked; }); });
+    const runRoll=(newSeed)=>{ const l=layers[selectedLayer]; if(!l) return;
+      const rec=document.getElementById('gfxGenRecipe').value;
+      if(!gfxReroll(l,rec,newSeed?Math.floor(Math.random()*1e6):null)){ alert('Add some elements first, then re-roll.'); return; }
+      syncLayerUI(); if(window.renderGfxElList) renderGfxElList(); if(window.syncGfxProps) syncGfxProps(); if(window.snapshotState) snapshotState(); };
+    document.getElementById('gfxGenRoll')?.addEventListener('click',()=>runRoll(true));
+    document.getElementById('gfxGenApply')?.addEventListener('click',()=>runRoll(false));
   })();
   // Logo
   document.getElementById('btn-gfx-logo-load')?.addEventListener('click',()=>document.getElementById('gfx-logo-input')?.click());

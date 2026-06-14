@@ -2010,6 +2010,23 @@
         <div class="row"><label>body font</label><select id="gfxTypeBodyFont" class="gfx-font-sel"></select></div>
         <div class="tip" style="font-size:7px;">Per element: set <b>color / size / font role</b> in its Transform tab to pull from this system.</div>
 
+        <!-- GENERATOR (seed + re-roll + recipes) -->
+        <div class="st" style="margin-top:10px;color:#ffcc44;">🎲 generate</div>
+        <div class="tip" style="font-size:7px;margin-bottom:4px;">Arranges your elements into a composition. Add elements first, pick a recipe, then re-roll.</div>
+        <div class="row"><label>recipe</label><select id="gfxGenRecipe"><option value="swiss">Swiss / editorial</option><option value="poster">poster (centered)</option><option value="brutalist">brutalist (overlap)</option><option value="grid-cards">grid cards</option><option value="scatter">scatter</option></select></div>
+        <div style="display:flex;gap:4px;margin:3px 0;">
+          <button id="gfxGenRoll" style="flex:2;font-size:9px;padding:5px 0;border-color:#9a7a3a;color:#ffcc44;background:rgba(255,200,68,.08);">🎲 re-roll</button>
+          <button id="gfxGenApply" style="flex:1;font-size:8px;" title="Apply this recipe with the current seed (no new random)">apply</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:7px;color:#999;margin-bottom:3px;">
+          <span style="color:#666;">lock:</span>
+          <label style="display:flex;align-items:center;gap:2px;"><input type="checkbox" id="gfxGenLockPos" style="width:auto;">position</label>
+          <label style="display:flex;align-items:center;gap:2px;"><input type="checkbox" id="gfxGenLockSize" style="width:auto;">size</label>
+          <label style="display:flex;align-items:center;gap:2px;"><input type="checkbox" id="gfxGenLockColor" style="width:auto;">color</label>
+          <label style="display:flex;align-items:center;gap:2px;"><input type="checkbox" id="gfxGenLockRot" style="width:auto;">rotation</label>
+        </div>
+        <div class="tip" style="font-size:7px;">Lock what you like, re-roll the rest. Re-roll also shuffles the palette unless <b>color</b> is locked.</div>
+
         <!-- ELEMENTS LIST -->
         <div class="st" style="margin-top:10px;">elements</div>
         <div class="tip" style="margin-bottom:5px;">Click element to select and edit. Drag on canvas to move.</div>
