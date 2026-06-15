@@ -79,6 +79,7 @@
           <button class="mask-preset" data-preset="wipe" title="Linear gradient wipe">◧ wipe</button>
           <button class="mask-preset" data-preset="blinds" title="Animated stripe blinds">𝄚 blinds</button>
           <button class="mask-preset" data-preset="clouds" title="Drifting organic noise">☁ clouds</button>
+          <button class="mask-preset" data-preset="grid" title="Grid of tiles revealing in a pattern (David Byrne poster)">▦ grid</button>
           <button class="mask-preset" data-preset="stencil" title="Your text as a stencil">𝐀 stencil</button>
           <button class="mask-preset" data-preset="clipbelow" title="Clip to the layer below (its alpha becomes this layer's shape)">⤵ clip below</button>
           <button class="mask-preset" data-preset="off" title="Disable the mask">✕ off</button>
@@ -106,6 +107,7 @@
               <option value="rings">rings</option>
               <option value="checker">checker</option>
               <option value="noise">noise / clouds</option>
+              <option value="gridanim">▦ grid animation</option>
               <option value="text">text stencil</option>
               <option value="layer">another layer</option>
             </select>
@@ -157,6 +159,38 @@
           <div id="mask-noise-params" style="display:none">
             <div class="row"><label>scale</label><input type="range" id="mask-noise-scale" min="0.5" max="14" value="3" step="0.1"><span class="val" id="mask-noise-scale-v">3.0</span></div>
             <div class="row"><label>seed</label><input type="range" id="mask-noise-seed" min="1" max="99" value="7" step="1"><span class="val" id="mask-noise-seed-v">7</span></div>
+          </div>
+          <div id="mask-grid-params" style="display:none">
+            <div class="row"><label>columns</label><input type="range" id="mask-grid-cols" min="1" max="40" value="10" step="1"><span class="val" id="mask-grid-cols-v">10</span></div>
+            <div class="row"><label>rows</label><input type="range" id="mask-grid-rows" min="1" max="40" value="14" step="1"><span class="val" id="mask-grid-rows-v">14</span></div>
+            <div class="row"><label>pattern</label>
+              <select id="mask-grid-pattern" style="flex:1;font-size:9px;font-family:monospace;padding:2px 4px;background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:3px;">
+                <option value="random">random</option>
+                <option value="cols">wipe → cols</option>
+                <option value="colsRev">wipe ← cols</option>
+                <option value="rows">wipe ↓ rows</option>
+                <option value="rowsRev">wipe ↑ rows</option>
+                <option value="diagonal">diagonal</option>
+                <option value="center">from center</option>
+                <option value="edges">from edges</option>
+                <option value="checker">checker</option>
+                <option value="wave">wave</option>
+              </select>
+            </div>
+            <div class="row"><label>animation</label>
+              <select id="mask-grid-anim" style="flex:1;font-size:9px;font-family:monospace;padding:2px 4px;background:#1a1a1a;color:var(--text);border:1px solid var(--border);border-radius:3px;">
+                <option value="static">static (use coverage)</option>
+                <option value="sweep">sweep (loop reveal)</option>
+                <option value="pingpong">ping-pong</option>
+                <option value="pulse">pulse</option>
+                <option value="shuffle">shuffle (twinkle)</option>
+              </select>
+            </div>
+            <div class="row"><label>coverage</label><input type="range" id="mask-grid-coverage" min="0" max="1" value="0.5" step="0.01"><span class="val" id="mask-grid-coverage-v">0.50</span></div>
+            <div class="row"><label>speed</label><input type="range" id="mask-grid-speed" min="0" max="5" value="1" step="0.05"><span class="val" id="mask-grid-speed-v">1.00</span></div>
+            <div class="row"><label>tile soft</label><input type="range" id="mask-grid-soft" min="0" max="1" value="0" step="0.01"><span class="val" id="mask-grid-soft-v">0.00</span></div>
+            <div class="row"><label>tile gap</label><input type="range" id="mask-grid-inset" min="0" max="0.45" value="0" step="0.01"><span class="val" id="mask-grid-inset-v">0.00</span></div>
+            <div class="row"><label>jitter</label><input type="range" id="mask-grid-jitter" min="0" max="1" value="0" step="0.01"><span class="val" id="mask-grid-jitter-v">0.00</span></div>
           </div>
           <div id="mask-text-params" style="display:none">
             <div class="row"><label>text</label><input type="text" id="mask-text" value="MASK" style="flex:1;font-size:10px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>

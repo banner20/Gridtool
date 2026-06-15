@@ -2500,7 +2500,8 @@ function makeFxDefaults(type){
 function defaultFxMask(){
   return {enabled:false,source:'radial',centerX:0.5,centerY:0.5,
     angle:0,innerR:0,outerR:0.5,sizeX:0.5,sizeY:0.5,
-    feather:0.15,invert:false,layerSource:0,opacity:1};
+    feather:0.15,invert:false,layerSource:0,opacity:1,
+    gridCols:10,gridRows:14,gridPattern:'random',gridAnim:'sweep',gridCoverage:0.5,gridSpeed:1,gridSoft:0,gridInset:0,gridJitter:0};
 }
 
 function buildFxMaskSection(fx, layer){
@@ -10025,12 +10026,16 @@ function defaultGradMask(){
     levelHigh:1,
     threshold:0,
     opacity:1,
+    gridCols:10, gridRows:14, gridPattern:'random', gridAnim:'sweep',
+    gridCoverage:0.5, gridSpeed:1, gridSoft:0, gridInset:0, gridJitter:0,
   };
 }
 
 // Returns Float32Array[W*H] of 0..1 mask values (1=fully visible)
 // value noise for the 'noise' mask source (2D + z slice for boil animation)
 function _mnHash(ix,iy,iz){ let h=(Math.imul(ix,374761393)+Math.imul(iy,668265263)+Math.imul(iz,69119389))|0; h=Math.imul(h^(h>>>13),1274126177); return ((h^(h>>>16))>>>0)/4294967295; }
+// stable per-cell hash for the grid-animation mask (0..1)
+function _gridHash(a,b,c){ let h=Math.imul((a+1)*374761393 ^ (b+131)*668265263 ^ ((c|0)*1274126177|0), 1103515245); h=(h^(h>>>13))>>>0; return h/4294967296; }
 function _mnNoise(x,y,z){
   const ix=Math.floor(x), iy=Math.floor(y), iz=Math.floor(z);
   const fx=x-ix, fy=y-iy, fz=z-iz;
@@ -10151,6 +10156,49 @@ function computeMask(W, H, m, t){
         n=n*0.65+_mnNoise(x/W*sc*2.7, y/H*sc*2.7, z*1.3)*0.35; // 2 octaves
         mask[y*W+x] = Math.max(0, Math.min(1, (n-0.5)/contrast + 0.5));
       }
+    }
+  } else if(m.source === 'gridanim'){
+    // Grid-animation mask: a grid of square cells that reveal/hide in a pattern (David Byrne tile poster).
+    const cols=Math.max(1,Math.round(m.gridCols??10)), rows=Math.max(1,Math.round(m.gridRows??14));
+    const anim=m.gridAnim||'sweep', spd=m.gridSpeed??1;
+    const inset=Math.max(0,Math.min(0.45,m.gridInset||0)), soft=Math.max(0,Math.min(1,m.gridSoft||0));
+    const jitter=Math.max(0,Math.min(1,m.gridJitter||0)), pat=m.gridPattern||'random';
+    let coverage;
+    const ph=tt*0.0004*spd;
+    if(anim==='static') coverage=(m.gridCoverage??0.5);
+    else if(anim==='sweep') coverage=((ph%1)+1)%1;
+    else if(anim==='pingpong'){ const p=((ph%1)+1)%1; coverage=p<0.5?p*2:2-p*2; }
+    else if(anim==='pulse') coverage=0.5+0.5*Math.sin(tt*0.04*spd);
+    else coverage=(m.gridCoverage??0.5); // shuffle
+    const step = anim==='shuffle' ? Math.floor(tt*0.004*spd) : 0;
+    // precompute each cell's ON value
+    const cellOn=new Float32Array(cols*rows);
+    const cxc=(cols-1)/2, cyc=(rows-1)/2, maxd=Math.hypot(cxc,cyc)||1;
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      let order;
+      if(pat==='cols') order=cols<2?0:c/(cols-1);
+      else if(pat==='colsRev') order=cols<2?0:1-c/(cols-1);
+      else if(pat==='rows') order=rows<2?0:r/(rows-1);
+      else if(pat==='rowsRev') order=rows<2?0:1-r/(rows-1);
+      else if(pat==='diagonal') order=(c+r)/Math.max(1,cols+rows-2);
+      else if(pat==='checker') order=((c+r)&1)?0.92:0.08;
+      else if(pat==='center') order=Math.hypot(c-cxc,r-cyc)/maxd;
+      else if(pat==='edges') order=1-Math.hypot(c-cxc,r-cyc)/maxd;
+      else if(pat==='wave') order=0.5+0.5*Math.sin(c*0.7+r*0.5+ph*6.283);
+      else order=_gridHash(c,r,0); // random
+      const cov=coverage + (jitter>0?(_gridHash(c,r,99)-0.5)*jitter:0);
+      cellOn[r*cols+c]= anim==='shuffle' ? (_gridHash(c,r,step)<coverage?1:0) : (order<=cov?1:0);
+    }
+    const fe=Math.max(0.0001, soft*0.5);
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const u=x/W*cols, v=y/H*rows;
+      let ci=u|0, ri=v|0; if(ci>=cols)ci=cols-1; if(ri>=rows)ri=rows-1;
+      let val=cellOn[ri*cols+ci];
+      if(val>0 && (inset>0||soft>0)){
+        const md=Math.min(u-ci,1-(u-ci),v-ri,1-(v-ri)); // dist to cell edge (cell units)
+        val*=Math.max(0,Math.min(1,(md-inset)/fe));
+      }
+      mask[y*W+x]=val;
     }
   } else if(m.source === 'text'){
     if(!_maskTextCv) _maskTextCv=document.createElement('canvas');
@@ -10354,7 +10402,8 @@ function renderDesignObjects(lctx, layer, W, H){
 function maskIsAnimated(mask){
   return mask.source==='layer' || (mask.motionDrift||0)>0 || !!mask.motionSpin ||
          (mask.motionPulse||0)>0 || !!mask.motionScroll ||
-         (mask.source==='noise' && (mask.motionBoil||0)>0);
+         (mask.source==='noise' && (mask.motionBoil||0)>0) ||
+         (mask.source==='gridanim' && (mask.gridAnim||'sweep')!=='static');
 }
 function _maskUpsample(src, w2, h2, W, H){
   const out=new Float32Array(W*H);
@@ -10397,7 +10446,8 @@ function resolveLayerMaskData(mask, W, H, t, cacheHost){
     return data;
   }
   // animated (non-layer) masks: compute at reduced res + bilinear upsample, edge style at full res
-  if(mask.source!=='layer' && W*H>90000){
+  // (grid masks have crisp tile edges — never downscale them, compute full-res)
+  if(mask.source!=='layer' && mask.source!=='gridanim' && W*H>90000){
     const budget = mask.source==='noise' ? 15000 : 64000; // noise is smooth — fewer samples needed, 16 hashes/px
     const scale=Math.ceil(Math.sqrt(W*H/budget));
     const w2=Math.max(8,Math.ceil(W/scale)), h2=Math.max(8,Math.ceil(H/scale));
@@ -11654,6 +11704,7 @@ function syncMaskUI(layer){
   show('mask-band-params', src==='stripes'||src==='rings');
   show('mask-check-params', src==='checker');
   show('mask-noise-params', src==='noise');
+  show('mask-grid-params', src==='gridanim');
   show('mask-text-params', src==='text');
   const boilRow=document.getElementById('mask-boil-row'); if(boilRow) boilRow.style.display=src==='noise'?'flex':'none';
   const stepsRow=document.getElementById('mask-steps-row'); if(stepsRow) stepsRow.style.display=(m.edgeStyle||'soft')==='steps'?'flex':'none';
@@ -11673,6 +11724,8 @@ function syncMaskUI(layer){
   });
 
   document.getElementById('mask-property').value = m.property||'luma';
+  { const gp=document.getElementById('mask-grid-pattern'); if(gp) gp.value=m.gridPattern||'random';
+    const ga=document.getElementById('mask-grid-anim'); if(ga) ga.value=m.gridAnim||'sweep'; }
   document.getElementById('mask-invert').checked = !!m.invert;
   document.getElementById('mask-mod-target1').value = m.modTarget1||'none';
   document.getElementById('mask-mod-target2').value = m.modTarget2||'none';
@@ -11703,6 +11756,13 @@ function syncMaskUI(layer){
   setSlider('mask-check-y',    m.checkY??4);
   setSlider('mask-noise-scale',m.noiseScale??3);
   setSlider('mask-noise-seed', m.noiseSeed??7);
+  setSlider('mask-grid-cols',  m.gridCols??10);
+  setSlider('mask-grid-rows',  m.gridRows??14);
+  setSlider('mask-grid-coverage', m.gridCoverage??0.5);
+  setSlider('mask-grid-speed', m.gridSpeed??1);
+  setSlider('mask-grid-soft',  m.gridSoft??0);
+  setSlider('mask-grid-inset', m.gridInset??0);
+  setSlider('mask-grid-jitter',m.gridJitter??0);
   setSlider('mask-text-size',  m.maskTextSize??0.35);
   setSlider('mask-edge-steps', m.edgeSteps??4);
   setSlider('mask-motion-drift', m.motionDrift??0);
@@ -11731,6 +11791,10 @@ function updateMaskPreview(layer){
 }
 
 function wireMaskInputs(){
+  // Make the layer-mask section reachable for EVERY layer type (incl. graphic):
+  // lift it out of the tab-switched "layers" section so it's always visible at the panel bottom.
+  try{ const ms=document.querySelector('.mask-sec'), pb=document.getElementById('panel-body');
+    if(ms&&pb&&ms.parentElement!==pb) pb.appendChild(ms); }catch(_){}
   const getMask = () => {
     const layer = layers[selectedLayer];
     if(!layer) return null;
@@ -11769,6 +11833,12 @@ function wireMaskInputs(){
   document.getElementById('mask-edge-style')?.addEventListener('change', e => {
     const m=getMask(); if(!m) return; m.edgeStyle=e.target.value; refresh();
   });
+  document.getElementById('mask-grid-pattern')?.addEventListener('change', e => {
+    const m=getMask(); if(!m) return; m.gridPattern=e.target.value; updateMaskPreview(layers[selectedLayer]); debouncedSnapshot();
+  });
+  document.getElementById('mask-grid-anim')?.addEventListener('change', e => {
+    const m=getMask(); if(!m) return; m.gridAnim=e.target.value; updateMaskPreview(layers[selectedLayer]); debouncedSnapshot();
+  });
   document.getElementById('mask-text')?.addEventListener('input', e => {
     const m=getMask(); if(!m) return; m.maskText=e.target.value; updateMaskPreview(layers[selectedLayer]);
   });
@@ -11783,6 +11853,8 @@ function wireMaskInputs(){
     ['mask-band-count','bandCount'],['mask-band-duty','bandDuty'],
     ['mask-check-x','checkX'],['mask-check-y','checkY'],
     ['mask-noise-scale','noiseScale'],['mask-noise-seed','noiseSeed'],
+    ['mask-grid-cols','gridCols'],['mask-grid-rows','gridRows'],['mask-grid-coverage','gridCoverage'],
+    ['mask-grid-speed','gridSpeed'],['mask-grid-soft','gridSoft'],['mask-grid-inset','gridInset'],['mask-grid-jitter','gridJitter'],
     ['mask-text-size','maskTextSize'],['mask-edge-steps','edgeSteps'],
     ['mask-motion-drift','motionDrift'],['mask-motion-spin','motionSpin'],
     ['mask-motion-pulse','motionPulse'],['mask-motion-scroll','motionScroll'],
@@ -11806,6 +11878,7 @@ function wireMaskInputs(){
     wipe:      m=>{ Object.assign(m,{enabled:true,source:'linear',angle:0,feather:0.35,invert:false,edgeStyle:'soft',motionScroll:0}); },
     blinds:    m=>{ Object.assign(m,{enabled:true,source:'stripes',bandCount:8,bandDuty:0.55,angle:90,feather:0.06,invert:false,edgeStyle:'soft',motionScroll:0.8}); },
     clouds:    m=>{ Object.assign(m,{enabled:true,source:'noise',noiseScale:2.5,feather:0.16,invert:false,edgeStyle:'soft',motionBoil:1,motionScroll:0.3}); },
+    grid:      m=>{ Object.assign(m,{enabled:true,source:'gridanim',gridCols:10,gridRows:14,gridPattern:'random',gridAnim:'sweep',gridCoverage:0.5,gridSpeed:1,gridSoft:0,gridInset:0.04,gridJitter:0.1,feather:0,invert:false,edgeStyle:'soft',motionDrift:0,motionSpin:0,motionPulse:0,motionScroll:0}); },
     stencil:   m=>{ Object.assign(m,{enabled:true,source:'text',maskText:m.maskText&&m.maskText!=='MASK'?m.maskText:'GREED',maskTextSize:0.5,feather:0.02,invert:false,edgeStyle:'soft',centerX:0.5,centerY:0.5,motionPulse:0}); },
     clipbelow: m=>{ const i=selectedLayer; Object.assign(m,{enabled:true,source:'layer',sourceLayer:Math.max(0,i-1),property:'alpha',levelLow:0,levelHigh:1,feather:0,invert:false,edgeStyle:'soft'}); },
     off:       m=>{ m.enabled=false; },
