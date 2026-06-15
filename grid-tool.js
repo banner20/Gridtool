@@ -11931,6 +11931,29 @@ function wireMaskInputs(){
     document.getElementById('mask-aim').classList.toggle('on', window._maskAim);
   });
 }
+
+// ── PASTE IMAGE FROM CLIPBOARD ────────────────────────────────
+// Reads an image off the clipboard and feeds it through an existing <input type=file>
+// change handler as a File — so every "load image" spot gets clipboard paste for free.
+async function gtClipboardImage(){
+  try{
+    if(!navigator.clipboard || !navigator.clipboard.read) throw new Error('Clipboard image read is not supported in this browser.');
+    const items=await navigator.clipboard.read();
+    for(const it of items){
+      const type=(it.types||[]).find(t=>t.startsWith('image/'));
+      if(type){ const blob=await it.getType(type); const ext=(type.split('/')[1]||'png').split('+')[0]; return new File([blob],'clipboard.'+ext,{type:blob.type}); }
+    }
+    throw new Error('No image on the clipboard — copy an image first (right-click an image → Copy image).');
+  }catch(e){ alert('Paste image failed: '+(e&&e.message||e)); return null; }
+}
+async function gtPasteToInput(inputId){
+  const input=document.getElementById(inputId); if(!input) return;
+  const file=await gtClipboardImage(); if(!file) return;
+  try{ const dt=new DataTransfer(); dt.items.add(file); input.files=dt.files; }catch(_){ }
+  input.dispatchEvent(new Event('change',{bubbles:true}));
+}
+document.querySelectorAll('.gt-paste-img').forEach(b=>b.addEventListener('click',()=>gtPasteToInput(b.dataset.target)));
+
 // pointer routing for mask aiming (runs before tool layers — aiming is explicit)
 window._maskAimDrag=false;
 function maskAimPointerDown(norm){

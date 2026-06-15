@@ -865,6 +865,7 @@
             <div class="row" id="img-url-row"><label>URL</label><input type="text" id="imgUrl" value="" placeholder="https://..."></div>
             <div id="img-upload-row" style="display:flex;gap:4px;margin-top:2px;">
               <button id="img-upload-btn" style="font-size:8px;padding:2px 6px;">upload image</button>
+              <button class="gt-paste-img" data-target="img-upload-input" title="Paste image from clipboard" style="font-size:8px;padding:2px 6px;">📋</button>
               <input id="img-upload-input" type="file" accept="image/*" style="display:none;">
               <span id="img-upload-name" style="font-size:8px;color:var(--text3);line-height:1.6;">no file</span>
             </div>
@@ -974,6 +975,7 @@
           <div class="tip">Loads a PNG/JPG at full canvas size. Transparency is preserved — perfect for flyer art on top of a motion background. Control compositing with the layer's opacity &amp; blend mode.</div>
           <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
             <button id="btn-overlay-load" style="font-size:8px;padding:3px 8px;">load image</button>
+            <button class="gt-paste-img" data-target="overlay-file-input" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
             <input id="overlay-file-input" type="file" accept="image/*" style="display:none;">
             <span id="overlay-filename" style="font-size:8px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no image loaded</span>
           </div>
@@ -1121,6 +1123,7 @@
           <div class="st" style="margin-top:8px;">logo</div>
           <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
             <button id="btn-flyer-logo-load" style="font-size:8px;padding:3px 8px;">load logo</button>
+            <button class="gt-paste-img" data-target="flyer-logo-input" title="Paste logo from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
             <input id="flyer-logo-input" type="file" accept="image/*" style="display:none;">
             <span id="flyer-logo-name" style="font-size:8px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no logo</span>
             <button id="btn-flyer-logo-clear" style="font-size:8px;padding:2px 5px;opacity:0.5;">✕</button>
@@ -1758,6 +1761,7 @@
         <div class="st">media layer</div>
         <div class="tip" style="margin-bottom:6px;">Load an image or video. It composites like any layer (blend/opacity) and accepts shader filters.</div>
         <button id="media-load-btn" style="width:100%;font-size:9px;padding:6px 0;border-color:#44ccff;color:#44ccff;background:rgba(68,204,255,.08);">+ load image / video</button>
+        <button class="gt-paste-img" data-target="media-file-input" title="Paste image from clipboard" style="width:100%;font-size:8px;padding:3px 0;margin-top:3px;">📋 paste image from clipboard</button>
         <input id="media-file-input" type="file" accept="image/*,video/*" style="display:none;">
         <div id="media-name" style="font-size:8px;color:#666;margin:6px 0;text-align:center;font-family:monospace;">no media loaded</div>
 
@@ -2200,6 +2204,7 @@
             <div class="row" id="gfx-p-gradang-row"><label>grad angle</label><input type="range" id="gfx-p-gradang" min="0" max="360" value="0" step="1"><span class="val" id="gfx-p-gradang-v">0</span></div>
             <div class="row" id="gfx-p-fillimg-row" style="display:none;">
               <button id="gfx-p-fillimgload" style="font-size:8px;padding:3px 8px;">load fill image</button>
+              <button class="gt-paste-img" data-target="gfx-p-fillimginput" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
               <span id="gfx-p-fillimgname" style="font-size:8px;color:#555;margin-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">none</span>
               <input id="gfx-p-fillimginput" type="file" accept="image/*" style="display:none;">
             </div>
@@ -2277,6 +2282,7 @@
           <div id="gfx-pp-image" style="display:none;">
             <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
               <button id="gfx-p-imgload" style="font-size:8px;padding:3px 8px;">load image</button>
+              <button class="gt-paste-img" data-target="gfx-p-imginput" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
               <input id="gfx-p-imginput" type="file" accept="image/*" style="display:none;">
               <span id="gfx-p-imgname" style="font-size:8px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no image</span>
             </div>
@@ -2317,7 +2323,7 @@
             <div class="row"><label>color</label><input type="color" id="gfx-p-shcol" value="#ff4466"></div>
             <div class="row" id="gfx-p-shcol2-row"><label>color 2</label><input type="color" id="gfx-p-shcol2" value="#ffcc00"></div>
             <div class="row" id="gfx-p-shgrad-row"><label>grad angle</label><input type="range" id="gfx-p-shgradang" min="0" max="360" value="0" step="1"><span class="val" id="gfx-p-shgradang-v">0</span></div>
-            <div class="row" id="gfx-p-shimg-row" style="display:none;"><button id="gfx-p-shimgload" style="font-size:8px;padding:3px 8px;">load image</button><span id="gfx-p-shimgname" style="font-size:8px;color:#555;margin-left:4px;flex:1;">none</span><input id="gfx-p-shimginput" type="file" accept="image/*" style="display:none;"></div>
+            <div class="row" id="gfx-p-shimg-row" style="display:none;"><button id="gfx-p-shimgload" style="font-size:8px;padding:3px 8px;">load image</button><button class="gt-paste-img" data-target="gfx-p-shimginput" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button><span id="gfx-p-shimgname" style="font-size:8px;color:#555;margin-left:4px;flex:1;">none</span><input id="gfx-p-shimginput" type="file" accept="image/*" style="display:none;"></div>
             <div class="row"><label>stroke col</label><input type="color" id="gfx-p-shstrokecol" value="#ffffff"></div>
             <div class="row"><label>stroke W</label><input type="range" id="gfx-p-shstrokew" min="0" max="30" value="0" step="0.5"><span class="val" id="gfx-p-shstrokew-v">0</span></div>
             <div class="row"><label>glow</label><input type="checkbox" id="gfx-p-shglow"></div>
@@ -2360,6 +2366,7 @@
           <div id="gfx-pp-mosaic" style="display:none;">
             <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
               <button id="gfx-p-mosload" style="font-size:8px;padding:3px 8px;">load image / video</button>
+              <button class="gt-paste-img" data-target="gfx-p-mosinput" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
               <input id="gfx-p-mosinput" type="file" accept="image/*,video/*" style="display:none;">
               <span id="gfx-p-mosname" style="font-size:8px;color:#555;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no source</span>
             </div>
