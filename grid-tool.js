@@ -4393,6 +4393,21 @@ function _gfxClipBaseBuf(W,H){
   if(_gfxClipBaseCv.width!==W||_gfxClipBaseCv.height!==H){ _gfxClipBaseCv.width=W; _gfxClipBaseCv.height=H; }
   return _gfxClipBaseCv;
 }
+// clip-anchor scratch per nesting depth (0=layer, 1=group) so a group's intra-clip
+// never clobbers the layer-level clip anchor.
+let _gfxClipLCv=null,_gfxClipGCv=null;
+function _gfxClipScratch(depth,W,H){
+  let cv=depth?_gfxClipGCv:_gfxClipLCv;
+  if(!cv){ cv=document.createElement('canvas'); if(depth)_gfxClipGCv=cv; else _gfxClipLCv=cv; }
+  if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
+  return cv;
+}
+let _gfxGroupCv=null;
+function _gfxGroupBuf(W,H){
+  if(!_gfxGroupCv){ _gfxGroupCv=document.createElement('canvas'); }
+  if(_gfxGroupCv.width!==W||_gfxGroupCv.height!==H){ _gfxGroupCv.width=W; _gfxGroupCv.height=H; }
+  return _gfxGroupCv;
+}
 
 // Definitions: each effect has params (with [min,max,default]) and an apply(ctx,W,H,p,bbox)
 // Gradient palettes for the Spectrum/Pleats fill (index = `palette` param)
@@ -4776,6 +4791,68 @@ function gfxMakePresetStack(key){
   return p.stack.map(([type,ov])=>{ const e=gfxEffectDefault(type); Object.assign(e.params,ov||{}); return e; });
 }
 
+// Render one graphic element onto targetCtx (the layer canvas or a group buffer).
+// anyClip: whether the container has any clip-below element (forces buffering so anchors are captured).
+// clip: {base,depth} shared clip-anchor state for the container.
+function _gfxDrawElement(targetCtx,layer,W,H,el,idx,anyClip,clip){
+  let eff=gfxEffectiveEl(el);
+  if(eff===el) eff={...el};
+  eff._renderIdx=idx;
+  if(layer.gfxGrid && layer.gfxGrid.on && eff.gridOn){
+    const cell=gfxGridCell(layer.gfxGrid, eff.gridCol, eff.gridColSpan, eff.gridRow, eff.gridRowSpan);
+    eff.x=cell.x; eff.w=cell.w;
+    if(cell.y!=null){ eff.y=cell.y; if(eff.gridSetH) eff.h=cell.h; }
+  }
+  const PAL=layer.gfxPalette, TY=layer.gfxType;
+  if(PAL && PAL.on && eff.colorRole && eff.colorRole!=='none' && PAL[eff.colorRole]){
+    eff[_gfxColorField(eff.type)]=PAL[eff.colorRole];
+  }
+  if(TY){
+    if(eff.fontRole==='head') eff.font=TY.headFont;
+    else if(eff.fontRole==='body') eff.font=TY.bodyFont;
+    if(eff.sizeRole && eff.sizeRole!=='none'){ const sm=_gfxSizeField(eff.type); const st=_gfxScaleStep(eff.sizeRole,TY); if(sm&&st!=null) eff[sm.field]=st*sm.mul; }
+  }
+  if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
+  const fx=(eff.effects||[]).filter(f=>f.on!==false);
+  const hasMask = eff.mask && eff.mask.enabled;
+  const useBuf = anyClip || fx.length || hasMask;
+  if(useBuf){
+    const buf=_gfxElBuf(W,H);
+    const bctx=buf.getContext('2d',{willReadFrequently:true});
+    bctx.clearRect(0,0,W,H);
+    const bbox=renderGfxEl(bctx,eff,layer,W,H);
+    if(fx.length) gfxApplyElementEffects(buf,fx,W,H,bbox);
+    if(hasMask){ const md=resolveLayerMaskData(eff.mask,W,H,globalT||0,el); if(md) applyMaskData(bctx,md,W,H,eff.mask.opacity??1); }
+    if(anyClip && eff.clipBelow && clip.base){ bctx.save(); bctx.globalCompositeOperation='destination-in'; bctx.drawImage(clip.base,0,0); bctx.restore(); }
+    targetCtx.save();
+    targetCtx.globalAlpha=(parseFloat(eff.opacity)||1);
+    if(eff.blend&&eff.blend!=='source-over') targetCtx.globalCompositeOperation=eff.blend;
+    targetCtx.drawImage(buf,0,0);
+    targetCtx.restore();
+    if(anyClip && !eff.clipBelow){ const cb=_gfxClipScratch(clip.depth,W,H), cbx=cb.getContext('2d'); cbx.clearRect(0,0,W,H); cbx.drawImage(buf,0,0); clip.base=cb; }
+    if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
+    return bbox;
+  } else {
+    const bbox=renderGfxEl(targetCtx,eff,layer,W,H);
+    if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
+    return bbox;
+  }
+}
+// Render a group: members draw into a shared buffer, then group mask / opacity / blend apply.
+function _gfxRenderGroup(lctx,layer,W,H,members,indices,group){
+  const gbuf=_gfxGroupBuf(W,H);
+  const gctx=gbuf.getContext('2d',{willReadFrequently:true});
+  gctx.clearRect(0,0,W,H);
+  const anyClip=members.some(e=>e.clipBelow);
+  const clip={base:null,depth:1};
+  for(let k=0;k<members.length;k++) _gfxDrawElement(gctx,layer,W,H,members[k],indices[k],anyClip,clip);
+  if(group.mask && group.mask.enabled){ const md=resolveLayerMaskData(group.mask,W,H,globalT||0,group); if(md) applyMaskData(gctx,md,W,H,group.mask.opacity??1); }
+  lctx.save();
+  lctx.globalAlpha=(group.opacity==null?1:group.opacity);
+  if(group.blend&&group.blend!=='source-over') lctx.globalCompositeOperation=group.blend;
+  lctx.drawImage(gbuf,0,0);
+  lctx.restore();
+}
 function renderGraphicLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
   // Background fill (solid / gradient). When bg-follows-palette is on, use palette.bg.
@@ -4794,57 +4871,23 @@ function renderGraphicLayer(lctx,layer,W,H){
   layer.gfxLayerOpacity=1; // used inside renderGfxEl
   layer._gfxBBoxes=[];
   const els=layer.gfxElements||[];
-  const anyClip=els.some(e=>e.clipBelow);
-  let clipBase=null; // standalone canvas of the last non-clipped element (the clip anchor)
+  const groups=layer.gfxGroups||[];
+  const groupOf=id=>groups.find(g=>g.id===id);
+  // Walk elements; group members (any with the same groupId) render together into a group buffer.
+  const layerAnyClip=els.some(e=>!e.groupId && e.clipBelow);
+  const layerClip={base:null,depth:0};
+  const done=new Set();
   for(let _i=0;_i<els.length;_i++){
+    if(done.has(_i)) continue;
     const el=els[_i];
-    let eff=gfxEffectiveEl(el);
-    if(eff===el) eff={...el}; // never mutate the element below
-    eff._renderIdx=_i; // stable index for motion stagger
-    // GRID PLACEMENT: derive x/w (and y/h) from the layer grid when the element opts in
-    if(layer.gfxGrid && layer.gfxGrid.on && eff.gridOn){
-      const cell=gfxGridCell(layer.gfxGrid, eff.gridCol, eff.gridColSpan, eff.gridRow, eff.gridRowSpan);
-      eff.x=cell.x; eff.w=cell.w;
-      if(cell.y!=null){ eff.y=cell.y; if(eff.gridSetH) eff.h=cell.h; }
+    const g=el.groupId?groupOf(el.groupId):null;
+    if(g){
+      const members=[],indices=[];
+      for(let k=_i;k<els.length;k++){ if(els[k].groupId===el.groupId){ members.push(els[k]); indices.push(k); done.add(k); } }
+      if(g.visible!==false) _gfxRenderGroup(lctx,layer,W,H,members,indices,g);
+      continue;
     }
-    // DESIGN SYSTEM: resolve palette/type roles into concrete fields
-    const PAL=layer.gfxPalette, TY=layer.gfxType;
-    if(PAL && PAL.on && eff.colorRole && eff.colorRole!=='none' && PAL[eff.colorRole]){
-      eff[_gfxColorField(eff.type)]=PAL[eff.colorRole];
-    }
-    if(TY){
-      if(eff.fontRole==='head') eff.font=TY.headFont;
-      else if(eff.fontRole==='body') eff.font=TY.bodyFont;
-      if(eff.sizeRole && eff.sizeRole!=='none'){ const sm=_gfxSizeField(eff.type); const st=_gfxScaleStep(eff.sizeRole,TY); if(sm&&st!=null) eff[sm.field]=st*sm.mul; }
-    }
-    // font cycling runs last so it wins over a font role when both are on
-    if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
-    const fx=(eff.effects||[]).filter(f=>f.on!==false);
-    const hasMask = eff.mask && eff.mask.enabled;
-    const useBuf = anyClip || fx.length || hasMask;
-    if(useBuf){
-      // Buffered path: element renders to its own buffer so we can run its appearance
-      // stack, apply its OWN mask, and clip it to the anchor element below.
-      const buf=_gfxElBuf(W,H);
-      const bctx=buf.getContext('2d',{willReadFrequently:true});
-      bctx.clearRect(0,0,W,H);
-      const bbox=renderGfxEl(bctx,eff,layer,W,H);
-      if(fx.length) gfxApplyElementEffects(buf,fx,W,H,bbox);
-      if(hasMask){ const md=resolveLayerMaskData(eff.mask,W,H,globalT||0,el); if(md) applyMaskData(bctx,md,W,H,eff.mask.opacity??1); }
-      if(anyClip && eff.clipBelow && clipBase){ bctx.save(); bctx.globalCompositeOperation='destination-in'; bctx.drawImage(clipBase,0,0); bctx.restore(); }
-      lctx.save();
-      lctx.globalAlpha=(parseFloat(eff.opacity)||1);
-      if(eff.blend&&eff.blend!=='source-over') lctx.globalCompositeOperation=eff.blend;
-      lctx.drawImage(buf,0,0);
-      lctx.restore();
-      if(anyClip && !eff.clipBelow){ // becomes the clip anchor for following clipped elements
-        const cb=_gfxClipBaseBuf(W,H), cbx=cb.getContext('2d'); cbx.clearRect(0,0,W,H); cbx.drawImage(buf,0,0); clipBase=cb;
-      }
-      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
-    } else {
-      const bbox=renderGfxEl(lctx,eff,layer,W,H);
-      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
-    }
+    _gfxDrawElement(lctx,layer,W,H,el,_i,layerAnyClip,layerClip);
   }
   renderGfxFrame(lctx,layer,W,H);
   if(layer.gfxGrid && layer.gfxGrid.on && layer.gfxGrid.showGuide && !window._gtExporting && layer===layers[selectedLayer])
@@ -11696,6 +11739,8 @@ function syncLayerUI(){
 function gfxMaskTarget(){
   const l=layers[selectedLayer];
   if(l && l.layerType==='graphic' && window._maskScope!=='layer'){
+    if(l._gfxSelectedGroup){ const g=(l.gfxGroups||[]).find(x=>x.id===l._gfxSelectedGroup);
+      if(g){ if(!g.mask) g.mask=defaultMask(); return {mask:g.mask,isEl:true,name:'group · '+(g.name||'')}; } }
     const el=(l.gfxElements||[]).find(e=>e.id===l._gfxSelectedEl);
     if(el){ if(!el.mask) el.mask=defaultMask(); return {mask:el.mask,isEl:true,name:(el.type||'element')}; }
   }
@@ -11708,7 +11753,7 @@ function syncMaskUI(layer){
   const m = tgt.mask; if(!m) return;
   // header + scope toggle reflect what's being masked
   const l=layers[selectedLayer], isGfx=l&&l.layerType==='graphic';
-  const hasEl=isGfx && (l.gfxElements||[]).some(e=>e.id===l._gfxSelectedEl);
+  const hasEl=isGfx && (l._gfxSelectedGroup || (l.gfxElements||[]).some(e=>e.id===l._gfxSelectedEl));
   const hdr=document.getElementById('mask-sec-title'); if(hdr) hdr.textContent= tgt.isEl ? ('element mask · '+tgt.name) : 'layer mask';
   const scopeRow=document.getElementById('mask-scope-row'); if(scopeRow) scopeRow.style.display=hasEl?'flex':'none';
   document.querySelectorAll('.mask-scope-btn').forEach(b=>b.classList.toggle('on', b.dataset.scope===(tgt.isEl?'element':'layer')));
@@ -16241,10 +16286,34 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     list.innerHTML='';
     const els=l.gfxElements||[];
     if(!els.length){ list.innerHTML='<div style="font-size:8px;color:#444;text-align:center;padding:6px;">no elements — add one above or use a template ↓</div>'; }
+    const grpOf=id=>(l.gfxGroups||[]).find(x=>x.id===id);
+    const seenGroups=new Set();
     els.forEach((el,i)=>{
+      const g=el.groupId?grpOf(el.groupId):null;
+      // group header before the first member of each group (once per group)
+      if(g && !seenGroups.has(g.id)){
+        seenGroups.add(g.id);
+        const gh=document.createElement('div');
+        gh.className='gfx-grp-row'+(l._gfxSelectedGroup===g.id?' gfx-sel':'');
+        const memCount=els.filter(e=>e.groupId===g.id).length;
+        gh.innerHTML='<span class="gfx-grp-arrow">'+(g.collapsed?'▸':'▾')+'</span>'
+          +'<span class="gfx-grp-name">▦ '+(g.name||'group').replace(/</g,'&lt;')+'</span>'
+          +(g.mask&&g.mask.enabled?'<span class="gfx-el-clip" title="group mask">◫</span>':'')
+          +'<span style="font-size:7px;color:#666;flex-shrink:0;">'+memCount+'</span>'
+          +'<span class="gfx-el-vis '+(g.visible!==false?'on':'')+'">'+(g.visible!==false?'●':'○')+'</span>'
+          +'<span class="gfx-grp-x" title="ungroup">⊟</span>';
+        gh.querySelector('.gfx-grp-arrow').onclick=(ev)=>{ ev.stopPropagation(); g.collapsed=!g.collapsed; renderGfxElList(); };
+        const selGrp=(ev)=>{ ev.stopPropagation(); l._gfxSelectedGroup=g.id; l._gfxSelectedEl=null; l._gfxMultiSel=[]; renderGfxElList(); syncGfxProps(); };
+        gh.querySelector('.gfx-grp-name').onclick=selGrp;
+        gh.querySelector('.gfx-grp-name').ondblclick=(ev)=>{ ev.stopPropagation(); const n=prompt('Group name:',g.name||'group'); if(n!=null){ g.name=n; renderGfxElList(); } };
+        gh.querySelector('.gfx-el-vis').onclick=(ev)=>{ ev.stopPropagation(); g.visible=g.visible===false; renderGfxElList(); };
+        gh.querySelector('.gfx-grp-x').onclick=(ev)=>{ ev.stopPropagation(); gfxUngroup(g.id); };
+        list.appendChild(gh);
+      }
+      if(g && g.collapsed) return; // hide members of a collapsed group
       const row=document.createElement('div');
       const inMulti=(l._gfxMultiSel&&l._gfxMultiSel.includes(el.id));
-      row.className='gfx-el-row'+(el.id===l._gfxSelectedEl?' gfx-sel':'')+(inMulti?' gfx-multisel':'');
+      row.className='gfx-el-row'+(el.id===l._gfxSelectedEl?' gfx-sel':'')+(inMulti?' gfx-multisel':'')+(g?' gfx-grp-member':'');
       let prev = el.type==='text'?(el.content||'').split('\n')[0]
         : el.type==='lineup'?((el.items||'').split('\n')[0]||'lineup')
         : el.type==='info'?(el.date||el.location||el.time||'info')
@@ -16276,6 +16345,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
           if(at>=0) l._gfxMultiSel.splice(at,1); else l._gfxMultiSel.push(el.id);
           l._gfxSelectedEl=el.id;
         } else { l._gfxMultiSel=[]; l._gfxSelectedEl=el.id; }
+        l._gfxSelectedGroup=null;
         renderGfxElList(); syncGfxProps();
       };
       row.querySelector('.gfx-el-icon').onclick=pick;
@@ -16592,6 +16662,32 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     if(rx!=null) el.x=Math.max(-0.5,Math.min(1.5,(el.x||0)+(rx-r.x)));
     if(ry!=null) el.y=Math.max(-0.5,Math.min(1.5,(el.y||0)+(ry-r.y)));
   }
+  function gfxGroupSelected(){
+    const l=gfxLayer(); if(!l) return;
+    const ids=(l._gfxMultiSel||[]).slice();
+    if(ids.length<2){ alert('Shift-click 2+ elements in the list to group them.'); return; }
+    l.gfxGroups=l.gfxGroups||[];
+    const gid='grp_'+Math.random().toString(36).slice(2,8);
+    l.gfxGroups.push({id:gid,name:'Group '+(l.gfxGroups.length+1),collapsed:false,visible:true,opacity:1,blend:'source-over',mask:null});
+    l.gfxElements.forEach(e=>{ if(ids.includes(e.id)) e.groupId=gid; });
+    // make members contiguous at the first member's position (keeps the list tidy)
+    const members=l.gfxElements.filter(e=>e.groupId===gid);
+    const others=l.gfxElements.filter(e=>e.groupId!==gid);
+    const firstIdx=l.gfxElements.findIndex(e=>e.groupId===gid);
+    let before=0; for(let i=0;i<firstIdx;i++){ if(l.gfxElements[i].groupId!==gid) before++; }
+    others.splice(before,0,...members);
+    l.gfxElements=others;
+    l._gfxSelectedGroup=gid; l._gfxMultiSel=[]; l._gfxSelectedEl=null;
+    renderGfxElList(); syncGfxProps(); if(window.snapshotState) snapshotState();
+  }
+  window.gfxUngroup=function(gid){
+    const l=gfxLayer(); if(!l) return;
+    gid=gid||l._gfxSelectedGroup; if(!gid) return;
+    l.gfxElements.forEach(e=>{ if(e.groupId===gid) delete e.groupId; });
+    l.gfxGroups=(l.gfxGroups||[]).filter(g=>g.id!==gid);
+    if(l._gfxSelectedGroup===gid) l._gfxSelectedGroup=null;
+    renderGfxElList(); syncGfxProps(); if(window.snapshotState) snapshotState();
+  };
   function gfxLayout(op){
     const l=gfxLayer(); if(!l||!(l.gfxElements||[]).length) return;
     const pad=parseFloat(l.gfxCanvasPad)||0.05;
@@ -16638,7 +16734,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     }
     renderGfxElList(); syncGfxProps(); if(window.snapshotState) snapshotState();
   }
-  document.querySelectorAll('.gfx-lay').forEach(b=>b.addEventListener('click',()=>gfxLayout(b.dataset.lay)));
+  document.querySelectorAll('.gfx-lay').forEach(b=>b.addEventListener('click',()=>{ if(b.id==='gfx-group-btn') gfxGroupSelected(); else gfxLayout(b.dataset.lay); }));
 
   // snap-to-grid preference (applies to canvas drag + duplicate)
   const _gfxSnap={on:false,div:12};
