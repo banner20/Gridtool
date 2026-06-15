@@ -1965,22 +1965,41 @@
 
         <div class="st" style="margin-top:8px;">detect</div>
         <div class="row"><label>detector</label><select id="visionDetector"><option value="blob">blobs (regions)</option><option value="motion">motion (frame diff)</option></select></div>
-        <div class="row" id="vision-channel-row"><label>channel</label><select id="visionChannel"><option value="luma">bright</option><option value="dark">dark</option><option value="red">red</option><option value="green">green</option><option value="blue">blue</option></select></div>
+        <div class="row" id="vision-channel-row"><label>channel</label><select id="visionChannel"><option value="luma">bright</option><option value="dark">dark</option><option value="red">red</option><option value="green">green</option><option value="blue">blue</option><option value="color">🎯 color match</option></select></div>
+        <div class="row" id="vision-target-row" style="display:none;"><label>target</label><input type="color" id="visionTargetColor" value="#ff3b6b"><input type="range" id="visionColorTol" min="0.02" max="0.7" value="0.25" step="0.01" style="margin-left:4px;"><span class="val" id="visionColorTol-v">0.25</span></div>
         <div class="row"><label>threshold</label><input type="range" id="visionThreshold" min="0.05" max="0.95" value="0.62" step="0.01"><span class="val" id="visionThreshold-v">0.62</span></div>
+        <div class="row"><label>blur / merge</label><input type="range" id="visionBlur" min="0" max="8" value="0" step="0.2"><span class="val" id="visionBlur-v">0.0</span></div>
         <div class="row"><label>min size</label><input type="range" id="visionMinSize" min="0.002" max="0.15" value="0.012" step="0.002"><span class="val" id="visionMinSize-v">0.012</span></div>
+        <div class="row"><label>max size</label><input type="range" id="visionMaxSize" min="0.02" max="1" value="1" step="0.02"><span class="val" id="visionMaxSize-v">1.00</span></div>
         <div class="row"><label>max count</label><input type="range" id="visionMaxBlobs" min="1" max="60" value="24" step="1"><span class="val" id="visionMaxBlobs-v">24</span></div>
-        <div class="row"><label>tracking</label><input type="range" id="visionSmooth" min="0" max="0.95" value="0.4" step="0.05"><span class="val" id="visionSmooth-v">0.40</span></div>
         <div class="row"><label>detail</label><input type="range" id="visionAnalysisRes" min="32" max="160" value="72" step="4"><span class="val" id="visionAnalysisRes-v">72</span></div>
+
+        <div class="st" style="margin-top:8px;">track</div>
+        <div class="row"><label>smoothing</label><input type="range" id="visionSmooth" min="0" max="0.95" value="0.4" step="0.05"><span class="val" id="visionSmooth-v">0.40</span></div>
+        <div class="row"><label>match dist</label><input type="range" id="visionMatchDist" min="0.02" max="0.6" value="0.16" step="0.01"><span class="val" id="visionMatchDist-v">0.16</span></div>
+        <div class="row"><label>persistence</label><input type="range" id="visionHold" min="0" max="30" value="0" step="1"><span class="val" id="visionHold-v">0</span></div>
+        <div class="row"><label>min age</label><input type="range" id="visionMinAge" min="0" max="20" value="0" step="1"><span class="val" id="visionMinAge-v">0</span></div>
 
         <div class="st" style="margin-top:8px;">render</div>
         <div class="row"><label>style</label><select id="visionRender"><option value="hud">HUD brackets</option><option value="boxes">boxes</option><option value="crosshair">crosshairs</option><option value="dots">dots</option><option value="labels">labels</option><option value="connect">constellation</option></select></div>
-        <div class="row"><label>label</label><select id="visionLabelMode"><option value="id">id</option><option value="area">area</option><option value="coord">coords</option><option value="word">word</option></select></div>
-        <div class="row" id="vision-words-row" style="display:none;"><label>words</label><textarea id="visionWords" rows="3" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;">OBJECT
-TARGET
-UNIT</textarea></div>
+        <div class="row"><label>color mode</label><select id="visionColorMode"><option value="fixed">fixed color</option><option value="id">by id (rainbow)</option><option value="source">sample source</option><option value="speed">by speed</option></select></div>
         <div class="row"><label>color</label><input type="color" id="visionColor" value="#46ff8c"></div>
         <div class="row"><label>accent</label><input type="color" id="visionAccent" value="#ff3b6b"></div>
         <div class="row"><label>line W</label><input type="range" id="visionLineW" min="0.5" max="6" value="1.5" step="0.1"><span class="val" id="visionLineW-v">1.5</span></div>
+        <div class="row"><label>fill</label><input type="range" id="visionFill" min="0" max="1" value="0" step="0.02"><span class="val" id="visionFill-v">0.00</span></div>
+        <div class="row"><label>glow</label><input type="range" id="visionGlow" min="0" max="30" value="0" step="1"><span class="val" id="visionGlow-v">0</span></div>
+        <div class="row"><label>box pad</label><input type="range" id="visionBoxPad" min="0" max="1" value="0" step="0.02"><span class="val" id="visionBoxPad-v">0.00</span></div>
+        <div class="row"><label>velocity</label><input type="range" id="visionVelScale" min="0" max="30" value="8" step="0.5"><span class="val" id="visionVelScale-v">8.0</span></div>
+        <div class="row"><label>jitter</label><input type="range" id="visionJitter" min="0" max="1" value="0" step="0.02"><span class="val" id="visionJitter-v">0.00</span></div>
+        <div class="row" id="vision-dot-row" style="display:none;"><label>dot shape</label><select id="visionDotShape"><option value="circle">circle</option><option value="square">square</option><option value="ring">ring</option><option value="cross">cross</option></select><input type="range" id="visionDotScale" min="0.2" max="4" value="1" step="0.1" style="margin-left:4px;"><span class="val" id="visionDotScale-v">1.0</span></div>
+        <div class="st" style="margin-top:6px;">trails &amp; labels</div>
+        <div class="row"><label>trail len</label><input type="range" id="visionTrail" min="0" max="40" value="0" step="1"><span class="val" id="visionTrail-v">0</span></div>
+        <div class="row"><label>trail fade</label><input type="range" id="visionTrailFade" min="0" max="1" value="0.6" step="0.02"><span class="val" id="visionTrailFade-v">0.60</span></div>
+        <div class="row"><label>label</label><select id="visionLabelMode"><option value="id">id</option><option value="area">area</option><option value="coord">coords</option><option value="word">word</option></select></div>
+        <div class="row"><label>label size</label><input type="range" id="visionLabelSize" min="0.4" max="3" value="1" step="0.1"><span class="val" id="visionLabelSize-v">1.0</span></div>
+        <div class="row" id="vision-words-row" style="display:none;"><label>words</label><textarea id="visionWords" rows="3" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;">OBJECT
+TARGET
+UNIT</textarea></div>
         <div class="row" id="vision-connect-row" style="display:none;"><label>link dist</label><input type="range" id="visionConnectDist" min="0.05" max="1" value="0.4" step="0.01"><span class="val" id="visionConnectDist-v">0.40</span></div>
         <div class="tip" style="font-size:7px;">Tip: point <b>source</b> at the layers below and it tracks your animation in real time. Lower <b>detail</b> if it gets heavy.</div>
       </div>

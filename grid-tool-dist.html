@@ -2353,22 +2353,41 @@ button.danger:hover{background:var(--red);color:#000;}
 
         <div class="st" style="margin-top:8px;">detect</div>
         <div class="row"><label>detector</label><select id="visionDetector"><option value="blob">blobs (regions)</option><option value="motion">motion (frame diff)</option></select></div>
-        <div class="row" id="vision-channel-row"><label>channel</label><select id="visionChannel"><option value="luma">bright</option><option value="dark">dark</option><option value="red">red</option><option value="green">green</option><option value="blue">blue</option></select></div>
+        <div class="row" id="vision-channel-row"><label>channel</label><select id="visionChannel"><option value="luma">bright</option><option value="dark">dark</option><option value="red">red</option><option value="green">green</option><option value="blue">blue</option><option value="color">🎯 color match</option></select></div>
+        <div class="row" id="vision-target-row" style="display:none;"><label>target</label><input type="color" id="visionTargetColor" value="#ff3b6b"><input type="range" id="visionColorTol" min="0.02" max="0.7" value="0.25" step="0.01" style="margin-left:4px;"><span class="val" id="visionColorTol-v">0.25</span></div>
         <div class="row"><label>threshold</label><input type="range" id="visionThreshold" min="0.05" max="0.95" value="0.62" step="0.01"><span class="val" id="visionThreshold-v">0.62</span></div>
+        <div class="row"><label>blur / merge</label><input type="range" id="visionBlur" min="0" max="8" value="0" step="0.2"><span class="val" id="visionBlur-v">0.0</span></div>
         <div class="row"><label>min size</label><input type="range" id="visionMinSize" min="0.002" max="0.15" value="0.012" step="0.002"><span class="val" id="visionMinSize-v">0.012</span></div>
+        <div class="row"><label>max size</label><input type="range" id="visionMaxSize" min="0.02" max="1" value="1" step="0.02"><span class="val" id="visionMaxSize-v">1.00</span></div>
         <div class="row"><label>max count</label><input type="range" id="visionMaxBlobs" min="1" max="60" value="24" step="1"><span class="val" id="visionMaxBlobs-v">24</span></div>
-        <div class="row"><label>tracking</label><input type="range" id="visionSmooth" min="0" max="0.95" value="0.4" step="0.05"><span class="val" id="visionSmooth-v">0.40</span></div>
         <div class="row"><label>detail</label><input type="range" id="visionAnalysisRes" min="32" max="160" value="72" step="4"><span class="val" id="visionAnalysisRes-v">72</span></div>
+
+        <div class="st" style="margin-top:8px;">track</div>
+        <div class="row"><label>smoothing</label><input type="range" id="visionSmooth" min="0" max="0.95" value="0.4" step="0.05"><span class="val" id="visionSmooth-v">0.40</span></div>
+        <div class="row"><label>match dist</label><input type="range" id="visionMatchDist" min="0.02" max="0.6" value="0.16" step="0.01"><span class="val" id="visionMatchDist-v">0.16</span></div>
+        <div class="row"><label>persistence</label><input type="range" id="visionHold" min="0" max="30" value="0" step="1"><span class="val" id="visionHold-v">0</span></div>
+        <div class="row"><label>min age</label><input type="range" id="visionMinAge" min="0" max="20" value="0" step="1"><span class="val" id="visionMinAge-v">0</span></div>
 
         <div class="st" style="margin-top:8px;">render</div>
         <div class="row"><label>style</label><select id="visionRender"><option value="hud">HUD brackets</option><option value="boxes">boxes</option><option value="crosshair">crosshairs</option><option value="dots">dots</option><option value="labels">labels</option><option value="connect">constellation</option></select></div>
-        <div class="row"><label>label</label><select id="visionLabelMode"><option value="id">id</option><option value="area">area</option><option value="coord">coords</option><option value="word">word</option></select></div>
-        <div class="row" id="vision-words-row" style="display:none;"><label>words</label><textarea id="visionWords" rows="3" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;">OBJECT
-TARGET
-UNIT</textarea></div>
+        <div class="row"><label>color mode</label><select id="visionColorMode"><option value="fixed">fixed color</option><option value="id">by id (rainbow)</option><option value="source">sample source</option><option value="speed">by speed</option></select></div>
         <div class="row"><label>color</label><input type="color" id="visionColor" value="#46ff8c"></div>
         <div class="row"><label>accent</label><input type="color" id="visionAccent" value="#ff3b6b"></div>
         <div class="row"><label>line W</label><input type="range" id="visionLineW" min="0.5" max="6" value="1.5" step="0.1"><span class="val" id="visionLineW-v">1.5</span></div>
+        <div class="row"><label>fill</label><input type="range" id="visionFill" min="0" max="1" value="0" step="0.02"><span class="val" id="visionFill-v">0.00</span></div>
+        <div class="row"><label>glow</label><input type="range" id="visionGlow" min="0" max="30" value="0" step="1"><span class="val" id="visionGlow-v">0</span></div>
+        <div class="row"><label>box pad</label><input type="range" id="visionBoxPad" min="0" max="1" value="0" step="0.02"><span class="val" id="visionBoxPad-v">0.00</span></div>
+        <div class="row"><label>velocity</label><input type="range" id="visionVelScale" min="0" max="30" value="8" step="0.5"><span class="val" id="visionVelScale-v">8.0</span></div>
+        <div class="row"><label>jitter</label><input type="range" id="visionJitter" min="0" max="1" value="0" step="0.02"><span class="val" id="visionJitter-v">0.00</span></div>
+        <div class="row" id="vision-dot-row" style="display:none;"><label>dot shape</label><select id="visionDotShape"><option value="circle">circle</option><option value="square">square</option><option value="ring">ring</option><option value="cross">cross</option></select><input type="range" id="visionDotScale" min="0.2" max="4" value="1" step="0.1" style="margin-left:4px;"><span class="val" id="visionDotScale-v">1.0</span></div>
+        <div class="st" style="margin-top:6px;">trails &amp; labels</div>
+        <div class="row"><label>trail len</label><input type="range" id="visionTrail" min="0" max="40" value="0" step="1"><span class="val" id="visionTrail-v">0</span></div>
+        <div class="row"><label>trail fade</label><input type="range" id="visionTrailFade" min="0" max="1" value="0.6" step="0.02"><span class="val" id="visionTrailFade-v">0.60</span></div>
+        <div class="row"><label>label</label><select id="visionLabelMode"><option value="id">id</option><option value="area">area</option><option value="coord">coords</option><option value="word">word</option></select></div>
+        <div class="row"><label>label size</label><input type="range" id="visionLabelSize" min="0.4" max="3" value="1" step="0.1"><span class="val" id="visionLabelSize-v">1.0</span></div>
+        <div class="row" id="vision-words-row" style="display:none;"><label>words</label><textarea id="visionWords" rows="3" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;">OBJECT
+TARGET
+UNIT</textarea></div>
         <div class="row" id="vision-connect-row" style="display:none;"><label>link dist</label><input type="range" id="visionConnectDist" min="0.05" max="1" value="0.4" step="0.01"><span class="val" id="visionConnectDist-v">0.40</span></div>
         <div class="tip" style="font-size:7px;">Tip: point <b>source</b> at the layers below and it tracks your animation in real time. Lower <b>detail</b> if it gets heavy.</div>
       </div>
@@ -3636,12 +3655,16 @@ function defaultLayerParams(){
     gestJitter:0, gestSmooth:0.35, gestSpin:0, gestOrbit:0,
     // ── VISION LAYER (perception: detect things in a source, re-render them) ──
     visionSource:'below', visionDetector:'blob', visionRender:'hud',
-    visionChannel:'luma', visionThreshold:0.62, visionMinSize:0.012, visionMaxBlobs:24,
-    visionSmooth:0.4, visionColor:'#46ff8c', visionAccent:'#ff3b6b',
+    visionChannel:'luma', visionThreshold:0.62, visionMinSize:0.012, visionMaxSize:1, visionMaxBlobs:24,
+    visionBlur:0, visionTargetColor:'#ff3b6b', visionColorTol:0.25,
+    visionSmooth:0.4, visionMatchDist:0.16, visionHold:0, visionMinAge:0,
+    visionColor:'#46ff8c', visionAccent:'#ff3b6b', visionColorMode:'fixed',
     visionShowSource:false, visionSourceDim:0.22,
     visionLabelMode:'id', visionWords:'OBJECT\nTARGET\nUNIT\nFORM\nNODE',
-    visionFont:"'JetBrains Mono','SF Mono',monospace",
+    visionFont:"'JetBrains Mono','SF Mono',monospace", visionLabelSize:1,
     visionLineW:1.5, visionConnectDist:0.4, visionAnalysisRes:72,
+    visionTrail:0, visionTrailFade:0.6, visionFill:0, visionGlow:0, visionBoxPad:0,
+    visionDotShape:'circle', visionDotScale:1, visionVelScale:8, visionJitter:0,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -9993,58 +10016,76 @@ function _visionAnalyze(layer, src, aw, ah){
   if(cv.width!==aw||cv.height!==ah){ cv.width=aw; cv.height=ah; }
   const ctx=cv.getContext('2d',{willReadFrequently:true});
   ctx.clearRect(0,0,aw,ah);
-  try{ ctx.drawImage(src,0,0,aw,ah); }catch(e){ return null; }
+  const blur=Math.max(0,layer.visionBlur||0);
+  ctx.filter = blur>0 ? ('blur('+blur+'px)') : 'none';
+  try{ ctx.drawImage(src,0,0,aw,ah); }catch(e){ ctx.filter='none'; return null; }
+  ctx.filter='none';
   return ctx.getImageData(0,0,aw,ah).data;
 }
 function _visionLuma(d,N){ const a=new Float32Array(N); for(let p=0;p<N;p++){ const i=p*4; a[p]=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)/255; } return a; }
-function _visionComponents(bin,aw,ah,minArea){
+function _visionComponents(bin,aw,ah,minArea,maxArea,d){
   const N=aw*ah, blobs=[], stack=[];
   for(let p=0;p<N;p++){
     if(bin[p]!==1) continue;
-    let minx=aw,miny=ah,maxx=0,maxy=0,cnt=0,sx=0,sy=0;
+    let minx=aw,miny=ah,maxx=0,maxy=0,cnt=0,sx=0,sy=0,sr=0,sg=0,sb=0;
     stack.length=0; stack.push(p); bin[p]=0;
     while(stack.length){ const q=stack.pop(); const x=q%aw, y=(q/aw)|0;
       cnt++; sx+=x; sy+=y; if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+      if(d){ const i=q*4; sr+=d[i]; sg+=d[i+1]; sb+=d[i+2]; }
       if(x>0&&bin[q-1]===1){bin[q-1]=0;stack.push(q-1);}
       if(x<aw-1&&bin[q+1]===1){bin[q+1]=0;stack.push(q+1);}
       if(y>0&&bin[q-aw]===1){bin[q-aw]=0;stack.push(q-aw);}
       if(y<ah-1&&bin[q+aw]===1){bin[q+aw]=0;stack.push(q+aw);}
     }
-    if(cnt>=minArea) blobs.push({cx:(sx/cnt)/aw, cy:(sy/cnt)/ah, x:minx/aw, y:miny/ah, w:(maxx-minx+1)/aw, h:(maxy-miny+1)/ah, area:cnt/N});
+    if(cnt>=minArea && cnt<=maxArea) blobs.push({cx:(sx/cnt)/aw, cy:(sy/cnt)/ah, x:minx/aw, y:miny/ah, w:(maxx-minx+1)/aw, h:(maxy-miny+1)/ah, area:cnt/N,
+      r:d?sr/cnt:255, g:d?sg/cnt:255, b:d?sb/cnt:255});
   }
   return blobs;
 }
-function _visionBlobs(d,aw,ah,channel,thresh,minArea){
+function _visionBlobs(d,aw,ah,channel,thresh,minArea,maxArea,tgt,tol){
   const N=aw*ah, bin=new Uint8Array(N);
-  for(let p=0;p<N;p++){ const i=p*4, r=d[i],g=d[i+1],b=d[i+2]; let v;
-    if(channel==='dark') v=1-(r*0.299+g*0.587+b*0.114)/255;
-    else if(channel==='red') v=r/255; else if(channel==='green') v=g/255; else if(channel==='blue') v=b/255;
-    else v=(r*0.299+g*0.587+b*0.114)/255;
-    bin[p]= v>=thresh?1:0;
+  if(channel==='color' && tgt){
+    const tr=tgt[0],tg=tgt[1],tb=tgt[2], t2=(tol*441.67)*(tol*441.67); // tol 0..1 over RGB diagonal
+    for(let p=0;p<N;p++){ const i=p*4, dr=d[i]-tr,dg=d[i+1]-tg,db=d[i+2]-tb; bin[p]= (dr*dr+dg*dg+db*db)<=t2?1:0; }
+  } else {
+    for(let p=0;p<N;p++){ const i=p*4, r=d[i],g=d[i+1],b=d[i+2]; let v;
+      if(channel==='dark') v=1-(r*0.299+g*0.587+b*0.114)/255;
+      else if(channel==='red') v=r/255; else if(channel==='green') v=g/255; else if(channel==='blue') v=b/255;
+      else v=(r*0.299+g*0.587+b*0.114)/255;
+      bin[p]= v>=thresh?1:0;
+    }
   }
-  return _visionComponents(bin,aw,ah,minArea);
+  return _visionComponents(bin,aw,ah,minArea,maxArea,d);
 }
-function _visionMotionBlobs(luma,prev,aw,ah,thresh,minArea){
+function _visionMotionBlobs(luma,prev,aw,ah,thresh,minArea,maxArea,d){
   if(!prev||prev.length!==luma.length) return [];
   const N=aw*ah, bin=new Uint8Array(N);
   for(let p=0;p<N;p++) bin[p]= Math.abs(luma[p]-prev[p])>=thresh?1:0;
-  return _visionComponents(bin,aw,ah,minArea);
+  return _visionComponents(bin,aw,ah,minArea,maxArea,d);
 }
 function _visionTrack(layer, blobs){
   const prev=layer._visionTracks||[]; const smooth=Math.max(0,Math.min(0.95,layer.visionSmooth??0.4));
-  const used=new Set(), out=[];
+  const md=Math.max(0.02,layer.visionMatchDist??0.16), md2=md*md;
+  const hold=Math.max(0,Math.round(layer.visionHold||0));
+  const trailLen=Math.max(0,Math.round(layer.visionTrail||0));
+  const used=new Set(), out=[], matchedPrev=new Set();
   for(const b of blobs){
-    let best=-1, bd=0.16*0.16;
+    let best=-1, bd=md2;
     for(let k=0;k<prev.length;k++){ if(used.has(k))continue; const t=prev[k]; const dx=t.cx-b.cx,dy=t.cy-b.cy,dd=dx*dx+dy*dy; if(dd<bd){bd=dd;best=k;} }
-    if(best>=0){ const t=prev[best]; used.add(best);
+    if(best>=0){ const t=prev[best]; used.add(best); matchedPrev.add(best);
       const ncx=t.cx+(b.cx-t.cx)*(1-smooth), ncy=t.cy+(b.cy-t.cy)*(1-smooth);
-      out.push({id:t.id, cx:ncx, cy:ncy, x:b.x,y:b.y,w:b.w,h:b.h, area:b.area, vx:ncx-t.cx, vy:ncy-t.cy, age:(t.age||0)+1, word:t.word});
+      const trail=t.trail||[]; if(trailLen){ trail.push({x:ncx,y:ncy}); while(trail.length>trailLen) trail.shift(); }
+      out.push({id:t.id, cx:ncx, cy:ncy, x:b.x,y:b.y,w:b.w,h:b.h, area:b.area, vx:ncx-t.cx, vy:ncy-t.cy, age:(t.age||0)+1, lost:0, word:t.word, r:b.r,g:b.g,b:b.b, trail});
     } else {
       layer._visionNextId=(layer._visionNextId||0)+1;
       const words=String(layer.visionWords||'OBJECT').split('\n').map(s=>s.trim()).filter(Boolean);
-      out.push({id:layer._visionNextId, cx:b.cx,cy:b.cy,x:b.x,y:b.y,w:b.w,h:b.h,area:b.area,vx:0,vy:0,age:0, word:words.length?words[layer._visionNextId%words.length]:'OBJ'});
+      out.push({id:layer._visionNextId, cx:b.cx,cy:b.cy,x:b.x,y:b.y,w:b.w,h:b.h,area:b.area,vx:0,vy:0,age:0,lost:0,
+        word:words.length?words[layer._visionNextId%words.length]:'OBJ', r:b.r,g:b.g,b:b.b, trail:trailLen?[{x:b.cx,y:b.cy}]:[]});
     }
   }
+  // carry unmatched previous tracks for `hold` frames (anti-flicker / ghost trails)
+  if(hold>0){ for(let k=0;k<prev.length;k++){ if(matchedPrev.has(k))continue; const t=prev[k]; const lost=(t.lost||0)+1; if(lost>hold) continue;
+    out.push({...t, cx:t.cx+t.vx*0.5, cy:t.cy+t.vy*0.5, vx:t.vx*0.6, vy:t.vy*0.6, age:(t.age||0)+1, lost}); } }
   layer._visionTracks=out;
   return out;
 }
@@ -10054,37 +10095,74 @@ function _visionLabel(t,mode){
   if(mode==='word') return t.word||'OBJ';
   return ('0'+t.id).slice(-2);
 }
+function _visionTrackColor(t,layer){
+  const mode=layer.visionColorMode||'fixed';
+  if(mode==='id') return 'hsl('+((t.id*47)%360)+',80%,62%)';
+  if(mode==='source') return 'rgb('+(t.r|0)+','+(t.g|0)+','+(t.b|0)+')';
+  if(mode==='speed'){ const s=Math.min(1,Math.hypot(t.vx,t.vy)*20); return 'hsl('+Math.round(200-s*200)+',88%,60%)'; }
+  return layer.visionColor||'#46ff8c';
+}
 function _visionDraw(lctx,layer,W,H,tracks){
-  const col=layer.visionColor||'#46ff8c', acc=layer.visionAccent||'#ff3b6b';
+  const acc=layer.visionAccent||'#ff3b6b';
   const lw=parseFloat(layer.visionLineW)||1.5, mode=layer.visionRender||'hud';
   const font=layer.visionFont||"'JetBrains Mono',monospace";
   const labelMode=layer.visionLabelMode||'id';
-  lctx.save(); lctx.strokeStyle=col; lctx.fillStyle=col; lctx.lineWidth=lw; lctx.font='700 '+Math.max(8,Math.round(W*0.018))+'px '+font; lctx.textBaseline='alphabetic';
+  const minAge=Math.max(0,Math.round(layer.visionMinAge||0));
+  const hold=Math.max(0,Math.round(layer.visionHold||0));
+  const fill=Math.max(0,Math.min(1,layer.visionFill||0));
+  const glow=Math.max(0,layer.visionGlow||0);
+  const pad=Math.max(0,layer.visionBoxPad||0);
+  const dotShape=layer.visionDotShape||'circle', dotScale=parseFloat(layer.visionDotScale)||1;
+  const velScale=parseFloat(layer.visionVelScale); const showVel=(velScale===undefined?8:velScale)>0;
+  const vs=(velScale===undefined?8:velScale);
+  const labelSize=parseFloat(layer.visionLabelSize)||1;
+  const jit=Math.max(0,layer.visionJitter||0)*W*0.02;
+  const trailFade=Math.max(0,Math.min(1,layer.visionTrailFade??0.6));
+  lctx.save(); lctx.lineWidth=lw; lctx.font='700 '+Math.max(8,Math.round(W*0.018*labelSize))+'px '+font; lctx.textBaseline='alphabetic';
   const px=f=>f*W, py=f=>f*H;
+  const vis=tracks.filter(t=>(t.age||0)>=minAge);
+  const aOf=t=> hold>0&&t.lost? Math.max(0.12,1-t.lost/(hold+1)) : 1;
+  // trails (under markers)
+  if((layer.visionTrail||0)>0){
+    for(const t of vis){ const tr=t.trail; if(!tr||tr.length<2) continue; lctx.strokeStyle=_visionTrackColor(t,layer);
+      for(let k=1;k<tr.length;k++){ lctx.globalAlpha=aOf(t)*trailFade*(k/tr.length); lctx.beginPath(); lctx.moveTo(px(tr[k-1].x),py(tr[k-1].y)); lctx.lineTo(px(tr[k].x),py(tr[k].y)); lctx.stroke(); } }
+    lctx.globalAlpha=1;
+  }
   if(mode==='connect'){
     const md=(layer.visionConnectDist??0.4); const md2=md*md;
-    lctx.globalAlpha=0.5;
-    for(let a=0;a<tracks.length;a++)for(let b=a+1;b<tracks.length;b++){
-      const dx=tracks[a].cx-tracks[b].cx, dy=tracks[a].cy-tracks[b].cy; if(dx*dx+dy*dy<md2){
-        lctx.beginPath(); lctx.moveTo(px(tracks[a].cx),py(tracks[a].cy)); lctx.lineTo(px(tracks[b].cx),py(tracks[b].cy)); lctx.stroke(); }
+    lctx.strokeStyle=layer.visionColor||'#46ff8c';
+    for(let a=0;a<vis.length;a++)for(let b=a+1;b<vis.length;b++){
+      const dx=vis[a].cx-vis[b].cx, dy=vis[a].cy-vis[b].cy, dd=dx*dx+dy*dy; if(dd<md2){
+        lctx.globalAlpha=0.6*(1-dd/md2); lctx.beginPath(); lctx.moveTo(px(vis[a].cx),py(vis[a].cy)); lctx.lineTo(px(vis[b].cx),py(vis[b].cy)); lctx.stroke(); }
     }
     lctx.globalAlpha=1;
-    for(const t of tracks){ lctx.beginPath(); lctx.arc(px(t.cx),py(t.cy),Math.max(2,W*0.006),0,6.283); lctx.fill(); }
+    for(const t of vis){ lctx.fillStyle=_visionTrackColor(t,layer); lctx.beginPath(); lctx.arc(px(t.cx),py(t.cy),Math.max(2,W*0.006*dotScale),0,6.283); lctx.fill(); }
     lctx.restore(); return;
   }
-  for(const t of tracks){
-    const x=px(t.x), y=py(t.y), w=px(t.w), h=py(t.h), cx=px(t.cx), cy=py(t.cy);
+  for(const t of vis){
+    const jx=jit?(Math.random()-0.5)*jit:0, jy=jit?(Math.random()-0.5)*jit:0;
+    const pw=pad*Math.min(t.w,t.h);
+    const x=px(t.x-pw)+jx, y=py(t.y-pw)+jy, w=px(t.w+pw*2), h=py(t.h+pw*2), cx=px(t.cx)+jx, cy=py(t.cy)+jy;
+    const col=_visionTrackColor(t,layer);
+    lctx.globalAlpha=aOf(t); lctx.strokeStyle=col; lctx.fillStyle=col;
+    if(glow>0){ lctx.shadowColor=col; lctx.shadowBlur=glow; } else lctx.shadowBlur=0;
+    if(fill>0 && mode!=='labels'){ lctx.save(); lctx.globalAlpha=aOf(t)*fill; lctx.fillRect(x,y,w,h); lctx.restore(); }
     if(mode==='dots'){
-      const r=Math.max(2, Math.sqrt(t.area)*W*0.5);
-      lctx.beginPath(); lctx.arc(cx,cy,r,0,6.283); lctx.fill();
+      const r=Math.max(2, Math.sqrt(t.area)*W*0.5*dotScale);
+      lctx.beginPath();
+      if(dotShape==='square') lctx.rect(cx-r,cy-r,r*2,r*2);
+      else if(dotShape==='ring'){ lctx.arc(cx,cy,r,0,6.283); lctx.stroke(); continue; }
+      else if(dotShape==='cross'){ lctx.moveTo(cx-r,cy);lctx.lineTo(cx+r,cy);lctx.moveTo(cx,cy-r);lctx.lineTo(cx,cy+r); lctx.stroke(); continue; }
+      else lctx.arc(cx,cy,r,0,6.283);
+      lctx.fill();
     } else if(mode==='boxes'){
       lctx.strokeRect(x,y,w,h);
     } else if(mode==='crosshair'){
-      lctx.globalAlpha=0.7; lctx.beginPath(); lctx.moveTo(cx,0);lctx.lineTo(cx,H);lctx.moveTo(0,cy);lctx.lineTo(W,cy); lctx.stroke(); lctx.globalAlpha=1;
-      lctx.beginPath(); lctx.arc(cx,cy,Math.max(4,W*0.012),0,6.283); lctx.stroke();
+      lctx.save(); lctx.globalAlpha=aOf(t)*0.6; lctx.beginPath(); lctx.moveTo(cx,0);lctx.lineTo(cx,H);lctx.moveTo(0,cy);lctx.lineTo(W,cy); lctx.stroke(); lctx.restore();
+      lctx.beginPath(); lctx.arc(cx,cy,Math.max(4,W*0.012*dotScale),0,6.283); lctx.stroke();
     } else if(mode==='labels'){
       lctx.fillText(_visionLabel(t,labelMode), cx, cy);
-    } else { // hud: corner brackets + id + velocity
+    } else { // hud
       const cw=Math.min(w,h)*0.28+2;
       lctx.beginPath();
       lctx.moveTo(x,y+cw);lctx.lineTo(x,y);lctx.lineTo(x+cw,y);
@@ -10092,10 +10170,8 @@ function _visionDraw(lctx,layer,W,H,tracks){
       lctx.moveTo(x+w,y+h-cw);lctx.lineTo(x+w,y+h);lctx.lineTo(x+w-cw,y+h);
       lctx.moveTo(x+cw,y+h);lctx.lineTo(x,y+h);lctx.lineTo(x,y+h-cw);
       lctx.stroke();
-      // velocity vector
-      const vmag=Math.hypot(t.vx,t.vy);
-      if(vmag>0.002){ lctx.save(); lctx.strokeStyle=acc; lctx.beginPath(); lctx.moveTo(cx,cy); lctx.lineTo(cx+t.vx*W*8,cy+t.vy*H*8); lctx.stroke(); lctx.restore(); }
-      lctx.fillText(_visionLabel(t,labelMode), x, y-3);
+      if(showVel){ const vmag=Math.hypot(t.vx,t.vy); if(vmag>0.002){ lctx.save(); lctx.strokeStyle=acc; lctx.shadowBlur=0; lctx.beginPath(); lctx.moveTo(cx,cy); lctx.lineTo(cx+t.vx*W*vs,cy+t.vy*H*vs); lctx.stroke(); lctx.restore(); } }
+      lctx.shadowBlur=0; lctx.fillText(_visionLabel(t,labelMode), x, y-3);
     }
   }
   lctx.restore();
@@ -10109,13 +10185,15 @@ function renderVisionLayer(lctx,layer,W,H){
   const N=aw*ah;
   const thresh=layer.visionThreshold??0.62;
   const minArea=Math.max(1,(layer.visionMinSize??0.012)*N);
+  const maxArea=Math.max(minArea,(layer.visionMaxSize??1)*N);
   let blobs;
   if(layer.visionDetector==='motion'){
     const luma=_visionLuma(d,N);
-    blobs=_visionMotionBlobs(luma,layer._visionPrevLuma,aw,ah,Math.max(0.03,(1-thresh)*0.45),minArea);
+    blobs=_visionMotionBlobs(luma,layer._visionPrevLuma,aw,ah,Math.max(0.03,(1-thresh)*0.45),minArea,maxArea,d);
     layer._visionPrevLuma=luma;
   } else {
-    blobs=_visionBlobs(d,aw,ah,layer.visionChannel||'luma',thresh,minArea);
+    let tgt=null; if((layer.visionChannel||'luma')==='color'){ const c=hexToRgb(layer.visionTargetColor||'#ff3b6b'); tgt=[c[0],c[1],c[2]]; }
+    blobs=_visionBlobs(d,aw,ah,layer.visionChannel||'luma',thresh,minArea,maxArea,tgt,Math.max(0.02,layer.visionColorTol??0.25));
   }
   blobs.sort((a,b)=>b.area-a.area);
   const cap=Math.max(1,Math.round(layer.visionMaxBlobs||24));
@@ -17041,16 +17119,20 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
 // ── VISION UI MODULE ─────────────────────────────────────────
 (function(){
   const vLayer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='vision')?l:null; };
-  const MAP=['visionSource','visionDetector','visionRender','visionChannel','visionThreshold','visionMinSize',
-    'visionMaxBlobs','visionSmooth','visionAnalysisRes','visionColor','visionAccent','visionShowSource','visionSourceDim',
-    'visionLabelMode','visionWords','visionFont','visionLineW','visionConnectDist'];
+  const MAP=['visionSource','visionDetector','visionRender','visionChannel','visionThreshold','visionMinSize','visionMaxSize',
+    'visionMaxBlobs','visionBlur','visionTargetColor','visionColorTol','visionSmooth','visionMatchDist','visionHold','visionMinAge',
+    'visionAnalysisRes','visionColor','visionAccent','visionColorMode','visionShowSource','visionSourceDim',
+    'visionLabelMode','visionWords','visionFont','visionLabelSize','visionLineW','visionConnectDist',
+    'visionTrail','visionTrailFade','visionFill','visionGlow','visionBoxPad','visionDotShape','visionDotScale','visionVelScale','visionJitter'];
   const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
   function syncRows(l){
     const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
     show('vision-img-row', l.visionSource==='image');
     show('vision-channel-row', l.visionDetector!=='motion');
+    show('vision-target-row', l.visionDetector!=='motion' && l.visionChannel==='color');
     show('vision-words-row', l.visionLabelMode==='word');
     show('vision-connect-row', l.visionRender==='connect');
+    show('vision-dot-row', l.visionRender==='dots');
   }
   MAP.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
@@ -17059,7 +17141,7 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
       const l=vLayer(); if(!l) return;
       l[id]=readEl(el);
       const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); }
-      if(id==='visionSource'||id==='visionDetector'||id==='visionLabelMode'||id==='visionRender') syncRows(l);
+      if(id==='visionSource'||id==='visionDetector'||id==='visionLabelMode'||id==='visionRender'||id==='visionChannel') syncRows(l);
     });
   });
   document.getElementById('vision-img-load')?.addEventListener('click',()=>document.getElementById('vision-img-input')?.click());
