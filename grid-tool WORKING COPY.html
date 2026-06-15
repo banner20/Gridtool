@@ -24,6 +24,7 @@
     <div class="ptab" data-tab="blobby" id="ptab-blobby" style="display:none;color:#ff8ad4;">🫧</div>
     <div class="ptab" data-tab="marble" id="ptab-marble" style="display:none;color:#66d9c2;">🫟</div>
     <div class="ptab" data-tab="gesture" id="ptab-gesture" style="display:none;color:#7af0ff;">🩰</div>
+    <div class="ptab" data-tab="vision" id="ptab-vision" style="display:none;color:#46ff8c;">⊹</div>
   </div>
   <div id="panel-body">
 
@@ -40,6 +41,7 @@
           <button id="btn-add-blobby-layer" title="Add a Blobby tool layer — paint interactive vector blobs, connect & label them" style="color:#ff8ad4;border-color:#663355;">🫧 blobby</button>
           <button id="btn-add-marble-layer" title="Add a Marbling layer — drop inks on water, comb & swirl them (suminagashi/ebru)" style="color:#66d9c2;border-color:#2e5f54;">🫟 marble</button>
           <button id="btn-add-gesture-layer" title="Add a Gesture loop layer — record canvas gestures, they replay forever, BPM-synced" style="color:#7af0ff;border-color:#2e5566;">🩰 gesture</button>
+          <button id="btn-add-vision-layer" title="Add a Vision layer — perceives the layers below (or an image) and re-renders what it finds: blob/motion tracking, HUD, dots, constellations" style="color:#46ff8c;border-color:#2e6644;">⊹ vision</button>
           <button id="btn-dup-layer">dup</button>
           <button id="btn-del-layer" class="danger">✕</button>
         </div>
@@ -1947,6 +1949,43 @@
     </div>
 
     <!-- 🩰 GESTURE LOOP PANEL -->
+    <div data-section="vision" style="display:none">
+      <div class="sec">
+        <div style="font-size:10px;color:#46ff8c;font-family:monospace;font-weight:700;letter-spacing:.05em;margin-bottom:6px;">⊹ vision</div>
+        <div class="tip" style="margin-bottom:6px;">Perceives a source and re-renders what it finds. Detects blobs (or motion), tracks them across frames, and draws them as a HUD, dots, boxes or a constellation.</div>
+        <div class="st">source</div>
+        <div class="row"><label>source</label><select id="visionSource"><option value="below">layers below</option><option value="image">loaded image</option></select></div>
+        <div class="row" id="vision-img-row" style="display:none;">
+          <button id="vision-img-load" style="font-size:8px;padding:3px 8px;">load image</button>
+          <button class="gt-paste-img" data-target="vision-img-input" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button>
+          <span id="vision-img-name" style="font-size:8px;color:#555;margin-left:4px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no image</span>
+          <input id="vision-img-input" type="file" accept="image/*" style="display:none;">
+        </div>
+        <div class="row"><label>show source</label><input type="checkbox" id="visionShowSource"><input type="range" id="visionSourceDim" min="0" max="1" value="0.22" step="0.01" style="margin-left:4px;"><span class="val" id="visionSourceDim-v">0.22</span></div>
+
+        <div class="st" style="margin-top:8px;">detect</div>
+        <div class="row"><label>detector</label><select id="visionDetector"><option value="blob">blobs (regions)</option><option value="motion">motion (frame diff)</option></select></div>
+        <div class="row" id="vision-channel-row"><label>channel</label><select id="visionChannel"><option value="luma">bright</option><option value="dark">dark</option><option value="red">red</option><option value="green">green</option><option value="blue">blue</option></select></div>
+        <div class="row"><label>threshold</label><input type="range" id="visionThreshold" min="0.05" max="0.95" value="0.62" step="0.01"><span class="val" id="visionThreshold-v">0.62</span></div>
+        <div class="row"><label>min size</label><input type="range" id="visionMinSize" min="0.002" max="0.15" value="0.012" step="0.002"><span class="val" id="visionMinSize-v">0.012</span></div>
+        <div class="row"><label>max count</label><input type="range" id="visionMaxBlobs" min="1" max="60" value="24" step="1"><span class="val" id="visionMaxBlobs-v">24</span></div>
+        <div class="row"><label>tracking</label><input type="range" id="visionSmooth" min="0" max="0.95" value="0.4" step="0.05"><span class="val" id="visionSmooth-v">0.40</span></div>
+        <div class="row"><label>detail</label><input type="range" id="visionAnalysisRes" min="32" max="160" value="72" step="4"><span class="val" id="visionAnalysisRes-v">72</span></div>
+
+        <div class="st" style="margin-top:8px;">render</div>
+        <div class="row"><label>style</label><select id="visionRender"><option value="hud">HUD brackets</option><option value="boxes">boxes</option><option value="crosshair">crosshairs</option><option value="dots">dots</option><option value="labels">labels</option><option value="connect">constellation</option></select></div>
+        <div class="row"><label>label</label><select id="visionLabelMode"><option value="id">id</option><option value="area">area</option><option value="coord">coords</option><option value="word">word</option></select></div>
+        <div class="row" id="vision-words-row" style="display:none;"><label>words</label><textarea id="visionWords" rows="3" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;">OBJECT
+TARGET
+UNIT</textarea></div>
+        <div class="row"><label>color</label><input type="color" id="visionColor" value="#46ff8c"></div>
+        <div class="row"><label>accent</label><input type="color" id="visionAccent" value="#ff3b6b"></div>
+        <div class="row"><label>line W</label><input type="range" id="visionLineW" min="0.5" max="6" value="1.5" step="0.1"><span class="val" id="visionLineW-v">1.5</span></div>
+        <div class="row" id="vision-connect-row" style="display:none;"><label>link dist</label><input type="range" id="visionConnectDist" min="0.05" max="1" value="0.4" step="0.01"><span class="val" id="visionConnectDist-v">0.40</span></div>
+        <div class="tip" style="font-size:7px;">Tip: point <b>source</b> at the layers below and it tracks your animation in real time. Lower <b>detail</b> if it gets heavy.</div>
+      </div>
+    </div>
+
     <div data-section="gesture" style="display:none">
       <div class="sec">
         <div style="font-size:10px;color:#7af0ff;font-family:monospace;font-weight:700;letter-spacing:.05em;margin-bottom:6px;">🩰 gesture loops</div>

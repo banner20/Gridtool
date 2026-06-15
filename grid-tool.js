@@ -263,6 +263,14 @@ function defaultLayerParams(){
     gestEchoes:1, gestEchoFade:0.55,
     gestSpeed:1, gestDir:'fwd', gestSync:'free',
     gestJitter:0, gestSmooth:0.35, gestSpin:0, gestOrbit:0,
+    // ── VISION LAYER (perception: detect things in a source, re-render them) ──
+    visionSource:'below', visionDetector:'blob', visionRender:'hud',
+    visionChannel:'luma', visionThreshold:0.62, visionMinSize:0.012, visionMaxBlobs:24,
+    visionSmooth:0.4, visionColor:'#46ff8c', visionAccent:'#ff3b6b',
+    visionShowSource:false, visionSourceDim:0.22,
+    visionLabelMode:'id', visionWords:'OBJECT\nTARGET\nUNIT\nFORM\nNODE',
+    visionFont:"'JetBrains Mono','SF Mono',monospace",
+    visionLineW:1.5, visionConnectDist:0.4, visionAnalysisRes:72,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6603,6 +6611,148 @@ function _marbleLiveRender(lctx,layer,staticOps,extras,W,H){
   for(const poly of polys){ poly.pts=_marbleSubdiv(poly.pts,maxLen,cap); if(poly.inner)poly.inner=_marbleSubdiv(poly.inner,maxLen,Math.round(cap*0.6)); }
   _marblePaint(lctx,polys,layer,W,H);
 }
+// ═══════════════ VISION LAYER (perceive a source → re-render what it finds) ═══════════════
+// Pipeline: DETECT (blobs / motion) → TRACK (persistent ids across frames) → RENDER.
+function _visionSourceCanvas(layer){
+  if(layer.visionSource==='image' && layer._visionImg && layer._visionImg.complete && layer._visionImg.naturalWidth) return layer._visionImg;
+  return (typeof _gfxBelowCv!=='undefined') ? _gfxBelowCv : null; // composite of layers below
+}
+function _visionAnalyze(layer, src, aw, ah){
+  let cv=layer._visionAcv||(layer._visionAcv=document.createElement('canvas'));
+  if(cv.width!==aw||cv.height!==ah){ cv.width=aw; cv.height=ah; }
+  const ctx=cv.getContext('2d',{willReadFrequently:true});
+  ctx.clearRect(0,0,aw,ah);
+  try{ ctx.drawImage(src,0,0,aw,ah); }catch(e){ return null; }
+  return ctx.getImageData(0,0,aw,ah).data;
+}
+function _visionLuma(d,N){ const a=new Float32Array(N); for(let p=0;p<N;p++){ const i=p*4; a[p]=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)/255; } return a; }
+function _visionComponents(bin,aw,ah,minArea){
+  const N=aw*ah, blobs=[], stack=[];
+  for(let p=0;p<N;p++){
+    if(bin[p]!==1) continue;
+    let minx=aw,miny=ah,maxx=0,maxy=0,cnt=0,sx=0,sy=0;
+    stack.length=0; stack.push(p); bin[p]=0;
+    while(stack.length){ const q=stack.pop(); const x=q%aw, y=(q/aw)|0;
+      cnt++; sx+=x; sy+=y; if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+      if(x>0&&bin[q-1]===1){bin[q-1]=0;stack.push(q-1);}
+      if(x<aw-1&&bin[q+1]===1){bin[q+1]=0;stack.push(q+1);}
+      if(y>0&&bin[q-aw]===1){bin[q-aw]=0;stack.push(q-aw);}
+      if(y<ah-1&&bin[q+aw]===1){bin[q+aw]=0;stack.push(q+aw);}
+    }
+    if(cnt>=minArea) blobs.push({cx:(sx/cnt)/aw, cy:(sy/cnt)/ah, x:minx/aw, y:miny/ah, w:(maxx-minx+1)/aw, h:(maxy-miny+1)/ah, area:cnt/N});
+  }
+  return blobs;
+}
+function _visionBlobs(d,aw,ah,channel,thresh,minArea){
+  const N=aw*ah, bin=new Uint8Array(N);
+  for(let p=0;p<N;p++){ const i=p*4, r=d[i],g=d[i+1],b=d[i+2]; let v;
+    if(channel==='dark') v=1-(r*0.299+g*0.587+b*0.114)/255;
+    else if(channel==='red') v=r/255; else if(channel==='green') v=g/255; else if(channel==='blue') v=b/255;
+    else v=(r*0.299+g*0.587+b*0.114)/255;
+    bin[p]= v>=thresh?1:0;
+  }
+  return _visionComponents(bin,aw,ah,minArea);
+}
+function _visionMotionBlobs(luma,prev,aw,ah,thresh,minArea){
+  if(!prev||prev.length!==luma.length) return [];
+  const N=aw*ah, bin=new Uint8Array(N);
+  for(let p=0;p<N;p++) bin[p]= Math.abs(luma[p]-prev[p])>=thresh?1:0;
+  return _visionComponents(bin,aw,ah,minArea);
+}
+function _visionTrack(layer, blobs){
+  const prev=layer._visionTracks||[]; const smooth=Math.max(0,Math.min(0.95,layer.visionSmooth??0.4));
+  const used=new Set(), out=[];
+  for(const b of blobs){
+    let best=-1, bd=0.16*0.16;
+    for(let k=0;k<prev.length;k++){ if(used.has(k))continue; const t=prev[k]; const dx=t.cx-b.cx,dy=t.cy-b.cy,dd=dx*dx+dy*dy; if(dd<bd){bd=dd;best=k;} }
+    if(best>=0){ const t=prev[best]; used.add(best);
+      const ncx=t.cx+(b.cx-t.cx)*(1-smooth), ncy=t.cy+(b.cy-t.cy)*(1-smooth);
+      out.push({id:t.id, cx:ncx, cy:ncy, x:b.x,y:b.y,w:b.w,h:b.h, area:b.area, vx:ncx-t.cx, vy:ncy-t.cy, age:(t.age||0)+1, word:t.word});
+    } else {
+      layer._visionNextId=(layer._visionNextId||0)+1;
+      const words=String(layer.visionWords||'OBJECT').split('\n').map(s=>s.trim()).filter(Boolean);
+      out.push({id:layer._visionNextId, cx:b.cx,cy:b.cy,x:b.x,y:b.y,w:b.w,h:b.h,area:b.area,vx:0,vy:0,age:0, word:words.length?words[layer._visionNextId%words.length]:'OBJ'});
+    }
+  }
+  layer._visionTracks=out;
+  return out;
+}
+function _visionLabel(t,mode){
+  if(mode==='area') return Math.round(t.area*1000)+'';
+  if(mode==='coord') return Math.round(t.cx*100)+','+Math.round(t.cy*100);
+  if(mode==='word') return t.word||'OBJ';
+  return ('0'+t.id).slice(-2);
+}
+function _visionDraw(lctx,layer,W,H,tracks){
+  const col=layer.visionColor||'#46ff8c', acc=layer.visionAccent||'#ff3b6b';
+  const lw=parseFloat(layer.visionLineW)||1.5, mode=layer.visionRender||'hud';
+  const font=layer.visionFont||"'JetBrains Mono',monospace";
+  const labelMode=layer.visionLabelMode||'id';
+  lctx.save(); lctx.strokeStyle=col; lctx.fillStyle=col; lctx.lineWidth=lw; lctx.font='700 '+Math.max(8,Math.round(W*0.018))+'px '+font; lctx.textBaseline='alphabetic';
+  const px=f=>f*W, py=f=>f*H;
+  if(mode==='connect'){
+    const md=(layer.visionConnectDist??0.4); const md2=md*md;
+    lctx.globalAlpha=0.5;
+    for(let a=0;a<tracks.length;a++)for(let b=a+1;b<tracks.length;b++){
+      const dx=tracks[a].cx-tracks[b].cx, dy=tracks[a].cy-tracks[b].cy; if(dx*dx+dy*dy<md2){
+        lctx.beginPath(); lctx.moveTo(px(tracks[a].cx),py(tracks[a].cy)); lctx.lineTo(px(tracks[b].cx),py(tracks[b].cy)); lctx.stroke(); }
+    }
+    lctx.globalAlpha=1;
+    for(const t of tracks){ lctx.beginPath(); lctx.arc(px(t.cx),py(t.cy),Math.max(2,W*0.006),0,6.283); lctx.fill(); }
+    lctx.restore(); return;
+  }
+  for(const t of tracks){
+    const x=px(t.x), y=py(t.y), w=px(t.w), h=py(t.h), cx=px(t.cx), cy=py(t.cy);
+    if(mode==='dots'){
+      const r=Math.max(2, Math.sqrt(t.area)*W*0.5);
+      lctx.beginPath(); lctx.arc(cx,cy,r,0,6.283); lctx.fill();
+    } else if(mode==='boxes'){
+      lctx.strokeRect(x,y,w,h);
+    } else if(mode==='crosshair'){
+      lctx.globalAlpha=0.7; lctx.beginPath(); lctx.moveTo(cx,0);lctx.lineTo(cx,H);lctx.moveTo(0,cy);lctx.lineTo(W,cy); lctx.stroke(); lctx.globalAlpha=1;
+      lctx.beginPath(); lctx.arc(cx,cy,Math.max(4,W*0.012),0,6.283); lctx.stroke();
+    } else if(mode==='labels'){
+      lctx.fillText(_visionLabel(t,labelMode), cx, cy);
+    } else { // hud: corner brackets + id + velocity
+      const cw=Math.min(w,h)*0.28+2;
+      lctx.beginPath();
+      lctx.moveTo(x,y+cw);lctx.lineTo(x,y);lctx.lineTo(x+cw,y);
+      lctx.moveTo(x+w-cw,y);lctx.lineTo(x+w,y);lctx.lineTo(x+w,y+cw);
+      lctx.moveTo(x+w,y+h-cw);lctx.lineTo(x+w,y+h);lctx.lineTo(x+w-cw,y+h);
+      lctx.moveTo(x+cw,y+h);lctx.lineTo(x,y+h);lctx.lineTo(x,y+h-cw);
+      lctx.stroke();
+      // velocity vector
+      const vmag=Math.hypot(t.vx,t.vy);
+      if(vmag>0.002){ lctx.save(); lctx.strokeStyle=acc; lctx.beginPath(); lctx.moveTo(cx,cy); lctx.lineTo(cx+t.vx*W*8,cy+t.vy*H*8); lctx.stroke(); lctx.restore(); }
+      lctx.fillText(_visionLabel(t,labelMode), x, y-3);
+    }
+  }
+  lctx.restore();
+}
+function renderVisionLayer(lctx,layer,W,H){
+  lctx.clearRect(0,0,W,H);
+  const src=_visionSourceCanvas(layer); if(!src||!src.width) return;
+  const aw=Math.max(24,Math.min(180,Math.round(layer.visionAnalysisRes||72)));
+  const ah=Math.max(16,Math.round(aw*H/W));
+  const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
+  const N=aw*ah;
+  const thresh=layer.visionThreshold??0.62;
+  const minArea=Math.max(1,(layer.visionMinSize??0.012)*N);
+  let blobs;
+  if(layer.visionDetector==='motion'){
+    const luma=_visionLuma(d,N);
+    blobs=_visionMotionBlobs(luma,layer._visionPrevLuma,aw,ah,Math.max(0.03,(1-thresh)*0.45),minArea);
+    layer._visionPrevLuma=luma;
+  } else {
+    blobs=_visionBlobs(d,aw,ah,layer.visionChannel||'luma',thresh,minArea);
+  }
+  blobs.sort((a,b)=>b.area-a.area);
+  const cap=Math.max(1,Math.round(layer.visionMaxBlobs||24));
+  if(blobs.length>cap) blobs.length=cap;
+  const tracks=_visionTrack(layer,blobs);
+  if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
+  _visionDraw(lctx,layer,W,H,tracks);
+}
 function renderMarbleLayer(lctx,layer,W,H){
   const U=Math.min(W,H); const t=(globalT||0)*(layer.marbleMotionSpeed||1);
   let ops=layer.marbleOps||[];
@@ -6911,6 +7061,11 @@ function renderLayer(layer,lc,fbBuf,W,H){
   // ── GESTURE LOOP LAYER ──────────────────────────────────────
   if(layer.layerType==='gesture'){
     renderGestureLayer(lctx,layer,W,H);
+    return;
+  }
+  // ── VISION LAYER ────────────────────────────────────────────
+  if(layer.layerType==='vision'){
+    renderVisionLayer(lctx,layer,W,H);
     return;
   }
   // ── FLYER MODE (legacy) ──────────────────────────────────────
@@ -10584,8 +10739,8 @@ function compositeAll(){
       );
       mainCtx.globalAlpha=1;mainCtx.globalCompositeOperation='source-over';
     } else {
-      // For graphic layers using "visual" text-fill, snapshot the below-composite
-      if(layer.layerType==='graphic'){
+      // Snapshot the below-composite for graphic "visual" fill AND vision layers (their source).
+      if(layer.layerType==='graphic'||layer.layerType==='vision'){
         if(!_gfxBelowCv){ _gfxBelowCv=document.createElement('canvas'); _gfxBelowCtx=_gfxBelowCv.getContext('2d'); }
         if(_gfxBelowCv.width!==W||_gfxBelowCv.height!==H){ _gfxBelowCv.width=W; _gfxBelowCv.height=H; }
         _gfxBelowCtx.clearRect(0,0,W,H);
@@ -11231,7 +11386,7 @@ function renderSeqArrange(){
   layers.forEach((layer,li)=>{
     const row=document.createElement('div'); row.className='seq-layer-row';
     const lbl=document.createElement('div'); lbl.className='seq-layer-label';
-    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':'▦';
+    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':layer.layerType==='vision'?'⊹':'▦';
     lbl.textContent=badge+' '+(layer.name||('Layer '+(li+1)));
     row.appendChild(lbl);
     const track=document.createElement('div'); track.className='seq-layer-track'; track.dataset.li=li;
@@ -12093,6 +12248,12 @@ function renderLayerList(){
       badge.style.cssText='font-size:9px;color:#7af0ff;margin-right:2px;flex-shrink:0;';
       badge.title='Gesture loop layer';
       div.appendChild(badge);
+    } else if(layer.layerType==='vision'){
+      const badge=document.createElement('span');
+      badge.textContent='⊹';
+      badge.style.cssText='font-size:9px;color:#46ff8c;margin-right:2px;flex-shrink:0;';
+      badge.title='Vision layer';
+      div.appendChild(badge);
     }
     // Name + blend
     const name=document.createElement('span');
@@ -12507,12 +12668,14 @@ function wireParamInputs(){
     const isBlobby=layer.layerType==='blobby';
     const isMarble=layer.layerType==='marble';
     const isGesture=layer.layerType==='gesture';
+    const isVision=layer.layerType==='vision';
     if(window._gfxLayersDock) window._gfxLayersDock.style.display=isGraphic?'block':'none';
     const gfxTab=document.getElementById('ptab-graphic');
     const mediaTab=document.getElementById('ptab-media');
     const blobbyTab=document.getElementById('ptab-blobby');
     const marbleTab=document.getElementById('ptab-marble');
     const gestureTab=document.getElementById('ptab-gesture');
+    const visionTab=document.getElementById('ptab-vision');
     const gridTab=document.getElementById('ptab-grid');
     const colorTab=document.getElementById('ptab-color');
     const motionTab=document.getElementById('ptab-motion');
@@ -12521,7 +12684,8 @@ function wireParamInputs(){
     if(blobbyTab) blobbyTab.style.display=isBlobby?'':'none';
     if(marbleTab) marbleTab.style.display=isMarble?'':'none';
     if(gestureTab) gestureTab.style.display=isGesture?'':'none';
-    const hideGen = isMedia||isBlobby||isMarble||isGesture; // generative grid/color/motion tabs hidden for tool layers
+    if(visionTab) visionTab.style.display=isVision?'':'none';
+    const hideGen = isMedia||isBlobby||isMarble||isGesture||isVision; // generative grid/color/motion tabs hidden for tool layers
     if(gridTab){ gridTab.style.display=hideGen?'none':''; gridTab.textContent=isGraphic?'elements':'grid'; }
     if(colorTab){ colorTab.style.display=hideGen?'none':''; colorTab.textContent=isGraphic?'style':'color'; }
     if(motionTab){ motionTab.style.display=hideGen?'none':''; motionTab.textContent='motion'; }
@@ -12532,16 +12696,18 @@ function wireParamInputs(){
       else if(isBlobby){ at='blobby'; }
       else if(isMarble){ at='marble'; }
       else if(isGesture){ at='gesture'; }
-      else { if(at==='media'||at==='blobby'||at==='marble'||at==='gesture') at=null; if(!at) at='grid'; }
+      else if(isVision){ at='vision'; }
+      else { if(at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision') at=null; if(!at) at='grid'; }
       document.querySelectorAll('[data-section]').forEach(s=>s.style.display='none');
       document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
       const tb=document.querySelector('.ptab[data-tab="'+at+'"]'); if(tb) tb.classList.add('on');
-      const secName = (at==='media'||at==='blobby'||at==='marble'||at==='gesture') ? at : gfxSectionForTab(at);
+      const secName = (at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision') ? at : gfxSectionForTab(at);
       const sec=document.querySelector('[data-section="'+secName+'"]'); if(sec) sec.style.display='block';
     }
     if(isBlobby && window.syncBlobbyUI) syncBlobbyUI(layer);
     if(isMarble && window.syncMarbleUI) syncMarbleUI(layer);
     if(isGesture && window.syncGestureUI) syncGestureUI(layer);
+    if(isVision && window.syncVisionUI) syncVisionUI(layer);
     // Media layer panel sync
     if(isMedia){
       const nm=document.getElementById('media-name'); if(nm) nm.textContent=layer._mediaName||'no media loaded';
@@ -13485,6 +13651,62 @@ document.getElementById('btn-add-gesture-layer')?.addEventListener('click',()=>{
   updateConditionalUI(newLayer);
   snapshotState();
 });
+
+document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
+  const n=layers.length+1;
+  const newLayer={...defaultLayerParams(),name:'Vision '+n,layerType:'vision',bg:'#00000000',opacity:1,blend:'source-over'};
+  newLayer.mask=defaultMask();
+  layers.push(newLayer);
+  selectedLayer=layers.length-1;
+  renderLayerList();syncLayerUI();
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('[data-section]').forEach(s=>s.style.display='none');
+  const bt=document.getElementById('ptab-vision'); if(bt){ bt.style.display=''; bt.classList.add('on'); }
+  const bs=document.querySelector('[data-section="vision"]'); if(bs) bs.style.display='block';
+  updateConditionalUI(newLayer);
+  snapshotState();
+});
+
+// ── VISION UI MODULE ─────────────────────────────────────────
+(function(){
+  const vLayer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='vision')?l:null; };
+  const MAP=['visionSource','visionDetector','visionRender','visionChannel','visionThreshold','visionMinSize',
+    'visionMaxBlobs','visionSmooth','visionAnalysisRes','visionColor','visionAccent','visionShowSource','visionSourceDim',
+    'visionLabelMode','visionWords','visionFont','visionLineW','visionConnectDist'];
+  const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
+  function syncRows(l){
+    const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
+    show('vision-img-row', l.visionSource==='image');
+    show('vision-channel-row', l.visionDetector!=='motion');
+    show('vision-words-row', l.visionLabelMode==='word');
+    show('vision-connect-row', l.visionRender==='connect');
+  }
+  MAP.forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const ev=(el.tagName==='SELECT'||el.type==='checkbox')?'change':'input';
+    el.addEventListener(ev,()=>{
+      const l=vLayer(); if(!l) return;
+      l[id]=readEl(el);
+      const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); }
+      if(id==='visionSource'||id==='visionDetector'||id==='visionLabelMode'||id==='visionRender') syncRows(l);
+    });
+  });
+  document.getElementById('vision-img-load')?.addEventListener('click',()=>document.getElementById('vision-img-input')?.click());
+  document.getElementById('vision-img-input')?.addEventListener('change',e=>{
+    const f=e.target.files[0],l=vLayer(); if(!f||!l) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ l._visionImg=img; l._visionImgName=f.name; const nm=document.getElementById('vision-img-name'); if(nm) nm.textContent=f.name; }; img.src=ev.target.result; };
+    rd.readAsDataURL(f); e.target.value='';
+  });
+  window.syncVisionUI=function(layer){
+    if(!layer) return;
+    MAP.forEach(id=>{ const el=document.getElementById(id); if(!el) return; const v=layer[id];
+      if(el.type==='checkbox') el.checked=!!v; else if(v!==undefined&&v!==null) el.value=v;
+      const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); } });
+    const nm=document.getElementById('vision-img-name'); if(nm) nm.textContent=layer._visionImgName||'no image';
+    syncRows(layer);
+  };
+})();
 
 // ── MARBLING UI MODULE ───────────────────────────────────────
 (function(){
