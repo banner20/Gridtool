@@ -4820,36 +4820,26 @@ function renderGraphicLayer(lctx,layer,W,H){
     // font cycling runs last so it wins over a font role when both are on
     if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
-    if(anyClip){
-      // Unified buffered path: every element renders to its own buffer so a clipped
-      // element can be masked by the alpha of the anchor element below it.
+    const hasMask = eff.mask && eff.mask.enabled;
+    const useBuf = anyClip || fx.length || hasMask;
+    if(useBuf){
+      // Buffered path: element renders to its own buffer so we can run its appearance
+      // stack, apply its OWN mask, and clip it to the anchor element below.
       const buf=_gfxElBuf(W,H);
       const bctx=buf.getContext('2d',{willReadFrequently:true});
       bctx.clearRect(0,0,W,H);
       const bbox=renderGfxEl(bctx,eff,layer,W,H);
       if(fx.length) gfxApplyElementEffects(buf,fx,W,H,bbox);
-      if(eff.clipBelow && clipBase){ bctx.save(); bctx.globalCompositeOperation='destination-in'; bctx.drawImage(clipBase,0,0); bctx.restore(); }
+      if(hasMask){ const md=resolveLayerMaskData(eff.mask,W,H,globalT||0,el); if(md) applyMaskData(bctx,md,W,H,eff.mask.opacity??1); }
+      if(anyClip && eff.clipBelow && clipBase){ bctx.save(); bctx.globalCompositeOperation='destination-in'; bctx.drawImage(clipBase,0,0); bctx.restore(); }
       lctx.save();
       lctx.globalAlpha=(parseFloat(eff.opacity)||1);
       if(eff.blend&&eff.blend!=='source-over') lctx.globalCompositeOperation=eff.blend;
       lctx.drawImage(buf,0,0);
       lctx.restore();
-      if(!eff.clipBelow){ // becomes the clip anchor for following clipped elements
+      if(anyClip && !eff.clipBelow){ // becomes the clip anchor for following clipped elements
         const cb=_gfxClipBaseBuf(W,H), cbx=cb.getContext('2d'); cbx.clearRect(0,0,W,H); cbx.drawImage(buf,0,0); clipBase=cb;
       }
-      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
-    } else if(fx.length){
-      // Render element to its own buffer, run the appearance stack, composite back
-      const buf=_gfxElBuf(W,H);
-      const bctx=buf.getContext('2d',{willReadFrequently:true});
-      bctx.clearRect(0,0,W,H);
-      const bbox=renderGfxEl(bctx,eff,layer,W,H);
-      gfxApplyElementEffects(buf,fx,W,H,bbox);
-      lctx.save();
-      lctx.globalAlpha=(parseFloat(eff.opacity)||1);
-      if(eff.blend&&eff.blend!=='source-over') lctx.globalCompositeOperation=eff.blend;
-      lctx.drawImage(buf,0,0);
-      lctx.restore();
       if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
     } else {
       const bbox=renderGfxEl(lctx,eff,layer,W,H);
@@ -11701,10 +11691,27 @@ function syncLayerUI(){
 }
 
 // ── MASK UI ──────────────────────────────────────────────────
+// Resolve what the mask panel currently edits: the selected graphic element (element-level
+// masking) when available and scope isn't forced to 'layer', otherwise the whole layer.
+function gfxMaskTarget(){
+  const l=layers[selectedLayer];
+  if(l && l.layerType==='graphic' && window._maskScope!=='layer'){
+    const el=(l.gfxElements||[]).find(e=>e.id===l._gfxSelectedEl);
+    if(el){ if(!el.mask) el.mask=defaultMask(); return {mask:el.mask,isEl:true,name:(el.type||'element')}; }
+  }
+  if(l && !l.mask) l.mask=defaultMask();
+  return {mask:l?l.mask:null,isEl:false,name:'layer'};
+}
 function syncMaskUI(layer){
   if(!layer) return;
-  if(!layer.mask) layer.mask = defaultMask();
-  const m = layer.mask;
+  const tgt=gfxMaskTarget();
+  const m = tgt.mask; if(!m) return;
+  // header + scope toggle reflect what's being masked
+  const l=layers[selectedLayer], isGfx=l&&l.layerType==='graphic';
+  const hasEl=isGfx && (l.gfxElements||[]).some(e=>e.id===l._gfxSelectedEl);
+  const hdr=document.getElementById('mask-sec-title'); if(hdr) hdr.textContent= tgt.isEl ? ('element mask · '+tgt.name) : 'layer mask';
+  const scopeRow=document.getElementById('mask-scope-row'); if(scopeRow) scopeRow.style.display=hasEl?'flex':'none';
+  document.querySelectorAll('.mask-scope-btn').forEach(b=>b.classList.toggle('on', b.dataset.scope===(tgt.isEl?'element':'layer')));
 
   document.getElementById('mask-enabled').checked = !!m.enabled;
   document.getElementById('mask-mod-enabled').checked = !!m.modEnabled;
@@ -11822,12 +11829,11 @@ function wireMaskInputs(){
   // lift it out of the tab-switched "layers" section so it's always visible at the panel bottom.
   try{ const ms=document.querySelector('.mask-sec'), pb=document.getElementById('panel-body');
     if(ms&&pb&&ms.parentElement!==pb) pb.appendChild(ms); }catch(_){}
-  const getMask = () => {
-    const layer = layers[selectedLayer];
-    if(!layer) return null;
-    if(!layer.mask) layer.mask = defaultMask();
-    return layer.mask;
-  };
+  window._maskScope='element';
+  document.querySelectorAll('.mask-scope-btn').forEach(b=>b.addEventListener('click',()=>{
+    window._maskScope=b.dataset.scope; syncMaskUI(layers[selectedLayer]);
+  }));
+  const getMask = () => gfxMaskTarget().mask;
   const refresh = () => { syncMaskUI(layers[selectedLayer]); debouncedSnapshot(); };
 
   document.getElementById('mask-enabled').addEventListener('change', e => {
@@ -12433,6 +12439,7 @@ function wireParamInputs(){
     const isBlobby=layer.layerType==='blobby';
     const isMarble=layer.layerType==='marble';
     const isGesture=layer.layerType==='gesture';
+    if(window._gfxLayersDock) window._gfxLayersDock.style.display=isGraphic?'block':'none';
     const gfxTab=document.getElementById('ptab-graphic');
     const mediaTab=document.getElementById('ptab-media');
     const blobbyTab=document.getElementById('ptab-blobby');
@@ -16277,6 +16284,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
   };
 
   window.syncGfxProps=function(){
+    if(typeof syncMaskUI==='function') try{ syncMaskUI(layers[selectedLayer]); }catch(_){}
     const props=document.getElementById('gfx-props'); if(!props) return;
     const l=gfxLayer(); if(!l){ props.style.display='none'; return; }
     props.style.display='block';
@@ -16711,6 +16719,25 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
   // Hook into layer sync — refresh element list whenever UI syncs
   const _sy=syncLayerUI;
   syncLayerUI=function(){ _sy.apply(this,arguments); try{ renderGfxElList(); }catch(e){} };
+
+  // ── STICKY LAYERS DOCK: pin the element list to the bottom of the panel ──
+  (function(){
+    const list=document.getElementById('gfx-el-list'); const pb=document.getElementById('panel-body'); if(!list||!pb) return;
+    const sec=list.closest('.sec');
+    const addBtns=sec?sec.querySelector('.gfx-add-btns'):null;
+    const layoutBar=document.getElementById('gfx-layout-bar');
+    const dock=document.createElement('div'); dock.id='gfx-layers-dock'; dock.style.display='none';
+    const hdr=document.createElement('div'); hdr.className='st'; hdr.style.margin='0 0 4px'; hdr.textContent='▤ layers';
+    dock.appendChild(hdr);
+    if(addBtns) dock.appendChild(addBtns);
+    dock.appendChild(list);
+    if(layoutBar) dock.appendChild(layoutBar);
+    pb.appendChild(dock); // last child of the scroll container → sticky-bottom docks it
+    // remove the now-empty "elements" label + its tip from the section
+    if(sec){ const lab=[...sec.querySelectorAll('.st')].find(e=>e.textContent.trim()==='elements');
+      if(lab){ const tip=lab.nextElementSibling; if(tip&&tip.classList.contains('tip')) tip.remove(); lab.remove(); } }
+    window._gfxLayersDock=dock;
+  })();
 })();
 
 // ============================================================

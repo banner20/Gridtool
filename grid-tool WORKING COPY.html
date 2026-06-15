@@ -71,8 +71,13 @@
 
       <!-- LAYER MASK -->
       <div class="mask-sec">
-        <div class="st">layer mask</div>
-        <div class="tip">Shape, pattern, text or another layer controls where this layer shows. Masks can move on their own, and can also drive parameters.</div>
+        <div class="st" id="mask-sec-title">layer mask</div>
+        <div class="row" id="mask-scope-row" style="display:none;gap:4px;">
+          <label>masking</label>
+          <button class="mask-scope-btn on" data-scope="element" style="flex:1;font-size:8px;">selected element</button>
+          <button class="mask-scope-btn" data-scope="layer" style="flex:1;font-size:8px;">whole layer</button>
+        </div>
+        <div class="tip">Shape, pattern, text, grid or another layer controls where this shows. On a graphic layer, masks the <b>selected element</b> (switch to whole-layer above). Masks can move on their own and drive parameters.</div>
         <div id="mask-presets" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px;">
           <button class="mask-preset" data-preset="vignette" title="Soft radial fade at the edges">◙ vignette</button>
           <button class="mask-preset" data-preset="spotlight" title="Hard movable circle">🔦 spotlight</button>
