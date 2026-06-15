@@ -16370,9 +16370,15 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       list.appendChild(row);
     });
     const bar=document.getElementById('gfx-layout-bar');
+    const m=(l._gfxMultiSel||[]).length;
     if(bar){ bar.style.display=els.length?'block':'none';
-      const sc=document.getElementById('gfx-layout-scope'); const m=(l._gfxMultiSel||[]).length;
+      const sc=document.getElementById('gfx-layout-scope');
       if(sc) sc.textContent = m>=2 ? '— '+m+' selected' : '— selected vs canvas'; }
+    // dock header group/ungroup buttons reflect selection
+    const gbtn=document.getElementById('gfx-dock-group'), ubtn=document.getElementById('gfx-dock-ungroup');
+    if(gbtn){ const ready=m>=2; gbtn.textContent= ready?('▦ group '+m):'▦ group';
+      gbtn.style.opacity= ready?'1':'0.5'; gbtn.style.borderColor= ready?'#cc88ff':''; gbtn.style.color= ready?'#cc88ff':''; }
+    if(ubtn) ubtn.style.display = l._gfxSelectedGroup ? '' : 'none';
     syncGfxProps();
   };
 
@@ -16846,7 +16852,13 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const addBtns=sec?sec.querySelector('.gfx-add-btns'):null;
     const layoutBar=document.getElementById('gfx-layout-bar');
     const dock=document.createElement('div'); dock.id='gfx-layers-dock'; dock.style.display='none';
-    const hdr=document.createElement('div'); hdr.className='st'; hdr.style.margin='0 0 4px'; hdr.textContent='▤ layers';
+    const hdr=document.createElement('div'); hdr.style.cssText='display:flex;align-items:center;gap:4px;margin:0 0 4px;';
+    const title=document.createElement('div'); title.className='st'; title.style.cssText='margin:0;flex:1;'; title.textContent='▤ layers';
+    const gbtn=document.createElement('button'); gbtn.id='gfx-dock-group'; gbtn.textContent='▦ group'; gbtn.title='Group the selected elements (⇧-click 2+ in the list first)'; gbtn.style.cssText='font-size:8px;padding:2px 6px;';
+    const ubtn=document.createElement('button'); ubtn.id='gfx-dock-ungroup'; ubtn.textContent='⊟ ungroup'; ubtn.title='Ungroup the selected group'; ubtn.style.cssText='font-size:8px;padding:2px 6px;display:none;';
+    gbtn.onclick=()=>gfxGroupSelected();
+    ubtn.onclick=()=>{ if(window.gfxUngroup) gfxUngroup(); };
+    hdr.appendChild(title); hdr.appendChild(gbtn); hdr.appendChild(ubtn);
     dock.appendChild(hdr);
     if(addBtns) dock.appendChild(addBtns);
     dock.appendChild(list);
