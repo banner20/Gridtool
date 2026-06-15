@@ -3045,6 +3045,7 @@ function gfxDefaultEl(type){
     gridOn:false,gridCol:0,gridColSpan:6,gridRow:0,gridRowSpan:1,gridSetH:false,
     anchorH:'free',anchorV:'free',
     colorRole:'none',sizeRole:'none',fontRole:'none',
+    clipBelow:false,
     effects:[]};
   if(type==='text') return{...base,y:0.1,content:'TITLE',font:"'Bebas Neue',Impact,sans-serif",weight:'900',italic:false,size:5,sizeMode:'fit',tracking:0,lineHeight:0.93,uppercase:true,color:'#ffffff',align:'left',
     fillMode:'solid',color2:'#ff4466',gradAngle:0,_fillImgEl:null,_fillImgName:null,
@@ -4386,6 +4387,12 @@ function _gfxScratchBuf(W,H){
   if(_gfxElScratch.width!==W||_gfxElScratch.height!==H){ _gfxElScratch.width=W; _gfxElScratch.height=H; }
   return _gfxElScratch;
 }
+let _gfxClipBaseCv=null;
+function _gfxClipBaseBuf(W,H){
+  if(!_gfxClipBaseCv){ _gfxClipBaseCv=document.createElement('canvas'); }
+  if(_gfxClipBaseCv.width!==W||_gfxClipBaseCv.height!==H){ _gfxClipBaseCv.width=W; _gfxClipBaseCv.height=H; }
+  return _gfxClipBaseCv;
+}
 
 // Definitions: each effect has params (with [min,max,default]) and an apply(ctx,W,H,p,bbox)
 // Gradient palettes for the Spectrum/Pleats fill (index = `palette` param)
@@ -4787,6 +4794,8 @@ function renderGraphicLayer(lctx,layer,W,H){
   layer.gfxLayerOpacity=1; // used inside renderGfxEl
   layer._gfxBBoxes=[];
   const els=layer.gfxElements||[];
+  const anyClip=els.some(e=>e.clipBelow);
+  let clipBase=null; // standalone canvas of the last non-clipped element (the clip anchor)
   for(let _i=0;_i<els.length;_i++){
     const el=els[_i];
     let eff=gfxEffectiveEl(el);
@@ -4811,7 +4820,25 @@ function renderGraphicLayer(lctx,layer,W,H){
     // font cycling runs last so it wins over a font role when both are on
     if(layer.fontCycleOn && eff.font) eff.font=fontCycleFont(layer, eff.font);
     const fx=(eff.effects||[]).filter(f=>f.on!==false);
-    if(fx.length){
+    if(anyClip){
+      // Unified buffered path: every element renders to its own buffer so a clipped
+      // element can be masked by the alpha of the anchor element below it.
+      const buf=_gfxElBuf(W,H);
+      const bctx=buf.getContext('2d',{willReadFrequently:true});
+      bctx.clearRect(0,0,W,H);
+      const bbox=renderGfxEl(bctx,eff,layer,W,H);
+      if(fx.length) gfxApplyElementEffects(buf,fx,W,H,bbox);
+      if(eff.clipBelow && clipBase){ bctx.save(); bctx.globalCompositeOperation='destination-in'; bctx.drawImage(clipBase,0,0); bctx.restore(); }
+      lctx.save();
+      lctx.globalAlpha=(parseFloat(eff.opacity)||1);
+      if(eff.blend&&eff.blend!=='source-over') lctx.globalCompositeOperation=eff.blend;
+      lctx.drawImage(buf,0,0);
+      lctx.restore();
+      if(!eff.clipBelow){ // becomes the clip anchor for following clipped elements
+        const cb=_gfxClipBaseBuf(W,H), cbx=cb.getContext('2d'); cbx.clearRect(0,0,W,H); cbx.drawImage(buf,0,0); clipBase=cb;
+      }
+      if(bbox){ bbox.id=el.id; layer._gfxBBoxes.push(bbox); }
+    } else if(fx.length){
       // Render element to its own buffer, run the appearance stack, composite back
       const buf=_gfxElBuf(W,H);
       const bctx=buf.getContext('2d',{willReadFrequently:true});
@@ -16205,6 +16232,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
         : el.type==='barcode'?('▥ '+(el.data||'barcode'))
         : el.type;
       row.innerHTML='<span class="gfx-el-icon">'+(EL_ICON[el.type]||'?')+'</span>'
+        +(el.clipBelow?'<span class="gfx-el-clip" title="clipped to element below">⤣</span>':'')
         +'<span class="gfx-el-preview">'+(prev||el.type).replace(/</g,'&lt;')+'</span>'
         +'<span class="gfx-el-vis '+(el.visible!==false?'on':'')+'">'+(el.visible!==false?'●':'○')+'</span>'
         +'<span class="gfx-el-vis" data-up style="color:#555;">↑</span>'
@@ -16225,6 +16253,20 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       row.querySelector('.gfx-el-vis').onclick=(ev)=>{ ev.stopPropagation(); el.visible=el.visible===false; renderGfxElList(); };
       row.querySelector('[data-up]').onclick=(ev)=>{ ev.stopPropagation(); if(i<els.length-1){ els.splice(i,1); els.splice(i+1,0,el); renderGfxElList(); } };
       row.querySelector('[data-dn]').onclick=(ev)=>{ ev.stopPropagation(); if(i>0){ els.splice(i,1); els.splice(i-1,0,el); renderGfxElList(); } };
+      // ── drag-and-drop reordering ──
+      row.draggable=true;
+      row.addEventListener('dragstart',ev=>{ ev.dataTransfer.setData('text/plain',String(i)); ev.dataTransfer.effectAllowed='move'; row.classList.add('gfx-dragging'); });
+      row.addEventListener('dragend',()=>{ document.querySelectorAll('.gfx-el-row').forEach(r=>r.classList.remove('gfx-dragging','gfx-drop-before','gfx-drop-after')); });
+      row.addEventListener('dragover',ev=>{ ev.preventDefault(); ev.dataTransfer.dropEffect='move';
+        const rc=row.getBoundingClientRect(), after=ev.clientY>rc.top+rc.height/2;
+        row.classList.toggle('gfx-drop-after',after); row.classList.toggle('gfx-drop-before',!after); });
+      row.addEventListener('dragleave',()=>row.classList.remove('gfx-drop-before','gfx-drop-after'));
+      row.addEventListener('drop',ev=>{ ev.preventDefault();
+        const from=parseInt(ev.dataTransfer.getData('text/plain'));
+        const rc=row.getBoundingClientRect(), after=ev.clientY>rc.top+rc.height/2;
+        let to=i+(after?1:0); if(from<to) to--;
+        if(!isNaN(from)&&from!==to){ const moved=els.splice(from,1)[0]; els.splice(to,0,moved); }
+        renderGfxElList(); syncGfxProps(); if(window.snapshotState) snapshotState(); });
       list.appendChild(row);
     });
     const bar=document.getElementById('gfx-layout-bar');
@@ -16256,6 +16298,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     setV('gfx-p-rot',el.rotate||0); setV('gfx-p-blend',el.blend||'source-over');
     setV('gfx-p-gridon',!!el.gridOn);setV('gfx-p-gridcol',el.gridCol||0);setV('gfx-p-gridcolspan',el.gridColSpan||6);setV('gfx-p-gridrow',el.gridRow||0);setV('gfx-p-gridrowspan',el.gridRowSpan||1);setV('gfx-p-gridseth',!!el.gridSetH);
     setV('gfx-p-colorrole',el.colorRole||'none');setV('gfx-p-sizerole',el.sizeRole||'none');setV('gfx-p-fontrole',el.fontRole||'none');
+    setV('gfx-p-clipbelow',!!el.clipBelow);
     setV('gfx-p-manim',el.mAnim||'none'); setV('gfx-p-mspeed',el.mSpeed); setV('gfx-p-mamount',el.mAmount);
     setV('gfx-p-mwave',el.mWave||'sine'); setV('gfx-p-mphase',el.mPhase||0); setV('gfx-p-mstagger',el.mStagger||0);
     if(el.type==='text'){
@@ -16370,6 +16413,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-mwave','mWave','str'],['gfx-p-mphase','mPhase','num'],['gfx-p-mstagger','mStagger','num'],
     ['gfx-p-gridon','gridOn','bool'],['gfx-p-gridcol','gridCol','num'],['gfx-p-gridcolspan','gridColSpan','num'],['gfx-p-gridrow','gridRow','num'],['gfx-p-gridrowspan','gridRowSpan','num'],['gfx-p-gridseth','gridSetH','bool'],
     ['gfx-p-colorrole','colorRole','str'],['gfx-p-sizerole','sizeRole','str'],['gfx-p-fontrole','fontRole','str'],
+    ['gfx-p-clipbelow','clipBelow','bool'],
     ['gfx-p-content','content','str'],['gfx-p-align','align','str'],['gfx-p-upper','uppercase','bool'],
     ['gfx-p-font','font','str'],['gfx-p-weight','weight','str'],['gfx-p-italic','italic','bool'],
     ['gfx-p-szmode','sizeMode','str'],['gfx-p-size','size','num'],['gfx-p-track','tracking','num'],
@@ -16445,7 +16489,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       el[field]= kind==='bool'?e.checked : kind==='num'?parseFloat(e.value) : e.value;
       const vs=document.getElementById(id+'-v');
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
-      if(['content','items','date','location','time','label','text','words','data','mode'].includes(field)) renderGfxElList();
+      if(['content','items','date','location','time','label','text','words','data','mode','clipBelow'].includes(field)) renderGfxElList();
       if(field==='mosaicMode'){ const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(e.value==='text')?'flex':'none'; renderGfxElList(); }
     });
   });

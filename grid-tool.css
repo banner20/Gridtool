@@ -100,6 +100,10 @@ button.danger:hover{background:var(--red);color:#000;}
 .gfx-el-row:hover{border-color:#2a2a2a;}
 .gfx-el-row.gfx-sel{border-color:#7744aa;background:#120d1a;}
 .gfx-el-row.gfx-multisel{border-color:#cc88ff;background:#160f22;box-shadow:inset 2px 0 0 #cc88ff;}
+.gfx-el-row.gfx-dragging{opacity:0.4;}
+.gfx-el-row.gfx-drop-before{box-shadow:inset 0 2px 0 #ffcc44;}
+.gfx-el-row.gfx-drop-after{box-shadow:inset 0 -2px 0 #ffcc44;}
+.gfx-el-clip{font-size:8px;color:#ffcc44;flex-shrink:0;}
 .gfx-lay-grp{display:flex;align-items:center;gap:2px;}
 .gfx-lay{font-size:10px;line-height:1;padding:3px 5px;min-width:22px;background:#141418;border:1px solid #2a2a32;border-radius:3px;color:#bbb;cursor:pointer;font-family:monospace;}
 .gfx-lay:hover{border-color:#cc88ff;color:#fff;background:#1c1622;}
