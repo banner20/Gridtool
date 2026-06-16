@@ -6870,6 +6870,38 @@ function _visionRegions(lctx,layer,src,W,H){
   }
   lctx.restore();
 }
+// PERCEPTION → ENGINE: extract a 5-role palette from the source (vision drives the design system).
+function _visionRgbHex(r,g,b){ return '#'+[r,g,b].map(v=>('0'+(Math.max(0,Math.min(255,v|0)).toString(16))).slice(-2)).join(''); }
+function _visionScenePalette(layer){
+  const src=_visionSourceCanvas(layer); if(!src||!src.width) return null;
+  const aw=48, ah=Math.max(12,Math.round(aw*((src.height||src.naturalHeight||1.4)/(src.width||src.naturalWidth||1))));
+  const d=_visionAnalyze(layer,src,aw,ah); if(!d) return null;
+  const N=aw*ah, bins=new Map();
+  let bestLum=-1,darkLum=2,brightCol='#f4f4f0',darkCol='#0c0c0e',bestSat=-1,satCol=null;
+  for(let p=0;p<N;p++){ const i=p*4,R=d[i],G=d[i+1],B=d[i+2];
+    bins.set(((R>>3)<<10)|((G>>3)<<5)|(B>>3), (bins.get(((R>>3)<<10)|((G>>3)<<5)|(B>>3))||0)+1);
+    const lum=(R*0.299+G*0.587+B*0.114)/255, mx=Math.max(R,G,B), mn=Math.min(R,G,B), sat=mx===0?0:(mx-mn)/mx;
+    if(lum>bestLum){bestLum=lum;brightCol=_visionRgbHex(R,G,B);}
+    if(lum<darkLum){darkLum=lum;darkCol=_visionRgbHex(R,G,B);}
+    if(sat>bestSat){bestSat=sat;satCol=_visionRgbHex(R,G,B);}
+  }
+  const sorted=[...bins.entries()].sort((a,b)=>b[1]-a[1]).slice(0,16).map(([k])=>{ const R=((k>>10)&31)<<3,G=((k>>5)&31)<<3,B=(k&31)<<3; const mx=Math.max(R,G,B),mn=Math.min(R,G,B); return {hex:_visionRgbHex(R,G,B),sat:mx?(mx-mn)/mx:0}; });
+  const accents=sorted.filter(c=>c.sat>0.22);
+  return { on:true, bg:darkCol, ink:brightCol,
+    accent: satCol||(accents[0]&&accents[0].hex)||'#ff3b30',
+    accent2: (accents[1]&&accents[1].hex)||(accents[0]&&accents[0].hex)||'#ffd166',
+    muted: (sorted[3]&&sorted[3].hex)||(sorted[1]&&sorted[1].hex)||'#8a8a92' };
+}
+function gfxApplyScenePalette(layer){
+  const pal=_visionScenePalette(layer);
+  if(!pal){ alert('No source to sample. Point the vision layer at the layers below, or load an image.'); return null; }
+  let n=0; layers.forEach(l=>{ if(l.layerType==='graphic'){ l.gfxPalette={...pal}; n++; } });
+  layer._visionLastPalette=pal;
+  if(!n) alert('Palette extracted, but there are no graphic layers to receive it. Add a graphic layer and bind elements to color roles.');
+  if(window.syncLayerUI) try{ syncLayerUI(); }catch(e){}
+  if(window.snapshotState) snapshotState();
+  return pal;
+}
 function renderVisionLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
   const src=_visionSourceCanvas(layer); if(!src||!src.width) return;
@@ -6898,6 +6930,9 @@ function renderVisionLayer(lctx,layer,W,H){
   const cap=Math.max(1,Math.round(layer.visionMaxBlobs||24));
   if(blobs.length>cap) blobs.length=cap;
   const tracks=_visionTrack(layer,blobs);
+  // export live signals so the vision layer can drive the rest of the engine
+  { const big=tracks.reduce((a,b)=>(b.area>(a?a.area:0)?b:a),null);
+    layer._visionSignals={count:tracks.length, bx:big?big.cx:0.5, by:big?big.cy:0.5, br:big?Math.sqrt(big.area):0}; }
   if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
   _visionDraw(lctx,layer,W,H,tracks);
 }
@@ -13861,13 +13896,19 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
     rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ l._visionImg=img; l._visionImgName=f.name; const nm=document.getElementById('vision-img-name'); if(nm) nm.textContent=f.name; }; img.src=ev.target.result; };
     rd.readAsDataURL(f); e.target.value='';
   });
+  function renderPalettePreview(layer){
+    const box=document.getElementById('vision-palette-preview'); if(!box) return; box.innerHTML='';
+    const p=layer&&layer._visionLastPalette; if(!p) return;
+    ['bg','ink','accent','accent2','muted'].forEach(role=>{ const sw=document.createElement('div'); sw.style.cssText='flex:1;border-radius:2px;border:1px solid #0008;background:'+(p[role]||'#000'); sw.title=role+': '+(p[role]||''); box.appendChild(sw); });
+  }
+  document.getElementById('vision-sample-palette')?.addEventListener('click',()=>{ const l=vLayer(); if(!l) return; if(gfxApplyScenePalette(l)) renderPalettePreview(l); });
   window.syncVisionUI=function(layer){
     if(!layer) return;
     MAP.forEach(id=>{ const el=document.getElementById(id); if(!el) return; const v=layer[id];
       if(el.type==='checkbox') el.checked=!!v; else if(v!==undefined&&v!==null) el.value=v;
       const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); } });
     const nm=document.getElementById('vision-img-name'); if(nm) nm.textContent=layer._visionImgName||'no image';
-    syncRows(layer);
+    syncRows(layer); renderPalettePreview(layer);
   };
 })();
 

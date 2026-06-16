@@ -2018,6 +2018,11 @@ TARGET
 UNIT</textarea></div>
         <div class="row" id="vision-connect-row" style="display:none;"><label>link dist</label><input type="range" id="visionConnectDist" min="0.05" max="1" value="0.4" step="0.01"><span class="val" id="visionConnectDist-v">0.40</span></div>
         <div class="tip" style="font-size:7px;">Tip: point <b>source</b> at the layers below and it tracks your animation in real time. Lower <b>detail</b> if it gets heavy.</div>
+
+        <div class="st" style="margin-top:8px;color:#46ff8c;">◈ drive the engine</div>
+        <button id="vision-sample-palette" style="width:100%;font-size:9px;padding:5px 0;border-color:#2e6644;color:#46ff8c;background:rgba(70,255,140,.08);">◈ scene palette → graphic layers</button>
+        <div id="vision-palette-preview" style="display:flex;gap:2px;margin-top:4px;height:16px;"></div>
+        <div class="tip" style="font-size:7px;">Extracts the dominant colors from the source and writes them into every graphic layer's design-system palette (bg/ink/accent…). Role-bound elements restyle to the scene instantly.</div>
       </div>
     </div>
 
