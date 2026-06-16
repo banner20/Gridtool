@@ -278,6 +278,17 @@ function defaultLayerParams(){
     visionTimeSpeed:2, visionSlitPos:0.5, visionSlitDir:'left', visionEchoFade:0.85,
     visionFlowGrid:24, visionFlowScale:1, visionFlowThresh:0.04,
     visionLevels:3, visionRegionOutline:1, visionRegionFill:true,
+    // ── PARTICLE LAYER (continuous emitter-based particle systems) ──
+    pEmitShape:'point', pEmitX:0.5, pEmitY:0.7, pEmitRadius:0.15, pEmitW:0.4, pEmitH:0.2, pEmitAngle:0,
+    pEmitText:'GRID', pEmitFont:"'Bebas Neue',Impact,sans-serif", pEmitSize:0.32,
+    pRate:160, pMax:2500, pLife:2.2, pLifeVar:0.4,
+    pSpeed:1, pSpeedVar:0.5, pDir:270, pSpread:60,
+    pGravity:0.4, pGravityAngle:90, pDrag:0.1, pTurb:0, pTurbScale:3, pTurbSpeed:1,
+    pAttract:0, pAttractX:0.5, pAttractY:0.4, pVortex:0,
+    pSizeStart:0.5, pSizeEnd:0.1, pColorMode:'gradient', pColor1:'#ffd36b', pColor2:'#ff3b6b',
+    pAlphaStart:1, pAlphaEnd:0, pFadeIn:0.12,
+    pRender:'point', pGlyph:'•', pAdditive:true, pTrailFade:0.9, pGlow:0,
+    pBgOn:false, pBg:'#06070c', pSimSpeed:1,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6936,6 +6947,108 @@ function renderVisionLayer(lctx,layer,W,H){
   if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
   _visionDraw(lctx,layer,W,H,tracks);
 }
+// ═══════════════ PARTICLE LAYER (emitters → forces → lifecycle → render) ═══════════════
+function _pLerpHex(a,b,t){
+  a=a||'#ffffff'; b=b||'#ffffff';
+  const ar=parseInt(a.slice(1,3),16),ag=parseInt(a.slice(3,5),16),ab=parseInt(a.slice(5,7),16);
+  const br=parseInt(b.slice(1,3),16),bg=parseInt(b.slice(3,5),16),bb=parseInt(b.slice(5,7),16);
+  const r=Math.round(ar+(br-ar)*t),g=Math.round(ag+(bg-ag)*t),bl=Math.round(ab+(bb-ab)*t);
+  return 'rgb('+r+','+g+','+bl+')';
+}
+// emit-point sampling for text/shape emitters (cached on the layer)
+function _pEmitPoints(layer,W,H){
+  const sig=[layer.pEmitShape,layer.pEmitText,layer.pEmitFont,layer.pEmitSize,layer.pEmitX,layer.pEmitY,layer.pEmitW,layer.pEmitH,W,H].join('|');
+  if(layer._pEmitSig===sig && layer._pEmitPts) return layer._pEmitPts;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.clearRect(0,0,W,H); cx.fillStyle='#fff';
+  if(layer.pEmitShape==='text'){
+    const fs=(layer.pEmitSize??0.32)*Math.min(W,H);
+    cx.font='900 '+fs+'px '+(layer.pEmitFont||"'Bebas Neue',Impact,sans-serif");
+    cx.textAlign='center'; cx.textBaseline='middle';
+    const lines=String(layer.pEmitText||'GRID').split('\n');
+    lines.forEach((ln,i)=>cx.fillText(ln,(layer.pEmitX??0.5)*W,(layer.pEmitY??0.5)*H+(i-(lines.length-1)/2)*fs));
+  } else { // shape (ellipse region)
+    cx.beginPath(); cx.ellipse((layer.pEmitX??0.5)*W,(layer.pEmitY??0.5)*H,Math.max(2,(layer.pEmitW??0.3)*W/2),Math.max(2,(layer.pEmitH??0.3)*H/2),0,0,6.28318); cx.fill();
+  }
+  const d=cx.getImageData(0,0,W,H).data, pts=[], stride=3;
+  for(let y=0;y<H;y+=stride)for(let x=0;x<W;x+=stride){ if(d[(y*W+x)*4+3]>128) pts.push({x,y}); }
+  layer._pEmitSig=sig; layer._pEmitPts=pts.length?pts:[{x:(layer.pEmitX??0.5)*W,y:(layer.pEmitY??0.5)*H}];
+  return layer._pEmitPts;
+}
+function _pSpawn(layer,W,H,U){
+  const ex=(layer.pEmitX??0.5), ey=(layer.pEmitY??0.5), shape=layer.pEmitShape||'point';
+  let x,y;
+  if(shape==='ring'){ const a=Math.random()*6.28318, r=(layer.pEmitRadius??0.15)*U; x=ex*W+Math.cos(a)*r; y=ey*H+Math.sin(a)*r; }
+  else if(shape==='line'){ const a=(layer.pEmitAngle||0)*Math.PI/180, len=(layer.pEmitRadius??0.3)*U, tt=(Math.random()-0.5); x=ex*W+Math.cos(a)*len*tt; y=ey*H+Math.sin(a)*len*tt; }
+  else if(shape==='rect'){ x=ex*W+(Math.random()-0.5)*(layer.pEmitW??0.3)*W; y=ey*H+(Math.random()-0.5)*(layer.pEmitH??0.2)*H; }
+  else if(shape==='text'||shape==='shape'){ const pts=_pEmitPoints(layer,W,H); const p=pts[(Math.random()*pts.length)|0]; x=p.x; y=p.y; }
+  else { x=ex*W; y=ey*H; }
+  const spd=Math.max(0,(layer.pSpeed??1)*(1+(Math.random()*2-1)*(layer.pSpeedVar??0.3)))*U*0.3;
+  const base=(layer.pDir||0)*Math.PI/180, spread=(layer.pSpread??60)*Math.PI/180;
+  const ang=base+(Math.random()-0.5)*spread;
+  const life=Math.max(0.1,(layer.pLife??2)*(1+(Math.random()*2-1)*(layer.pLifeVar??0.3)));
+  return {x,y,px:x,py:y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,age:0,life,seed:Math.random()*1000};
+}
+function renderParticleLayer(lctx,layer,W,H){
+  const U=Math.min(W,H), t=globalT||0;
+  const ps=layer._particles||(layer._particles=[]);
+  const dt=(1/60)*Math.max(0,(layer.pSimSpeed??1));
+  // SPAWN (rate accumulator)
+  const max=Math.max(10,Math.round(layer.pMax||2500));
+  let acc=(layer._pAcc||0)+(layer.pRate||0)*dt; let n=Math.floor(acc); layer._pAcc=acc-n;
+  for(let i=0;i<n && ps.length<max;i++) ps.push(_pSpawn(layer,W,H,U));
+  // FORCES + integrate
+  const gA=(layer.pGravityAngle||90)*Math.PI/180, gx=Math.cos(gA)*(layer.pGravity||0)*U*0.45, gy=Math.sin(gA)*(layer.pGravity||0)*U*0.45;
+  const drag=Math.max(0,Math.min(0.99,(layer.pDrag||0)*dt*4));
+  const turb=(layer.pTurb||0), tsc=(layer.pTurbScale||3)/U, tsp=(layer.pTurbSpeed||1);
+  const att=(layer.pAttract||0), ax=(layer.pAttractX??0.5)*W, ay=(layer.pAttractY??0.4)*H, vor=(layer.pVortex||0);
+  for(let i=ps.length-1;i>=0;i--){ const p=ps[i];
+    p.vx+=gx*dt; p.vy+=gy*dt;
+    if(turb){ const a=_mnNoise(p.x*tsc,p.y*tsc,t*0.0006*tsp)*12.566; p.vx+=Math.cos(a)*turb*U*0.6*dt; p.vy+=Math.sin(a)*turb*U*0.6*dt; }
+    if(att||vor){ const dx=ax-p.x,dy=ay-p.y,dd=Math.sqrt(dx*dx+dy*dy)+1;
+      if(att){ const f=att*U*1.2*dt/dd; p.vx+=dx*f; p.vy+=dy*f; }
+      if(vor){ const f=vor*U*1.2*dt/dd; p.vx+=-dy*f; p.vy+=dx*f; } }
+    p.vx*=(1-drag); p.vy*=(1-drag);
+    p.px=p.x; p.py=p.y; p.x+=p.vx*dt; p.y+=p.vy*dt; p.age+=dt;
+    if(p.age>=p.life) ps.splice(i,1);
+  }
+  // RENDER
+  const mode=layer.pRender||'point', additive=!!layer.pAdditive;
+  const draw=(ctx)=>{
+    if(layer.pGlow>0){ ctx.shadowBlur=layer.pGlow; }
+    if(additive) ctx.globalCompositeOperation='lighter';
+    if(mode==='glyph'){ ctx.textAlign='center'; ctx.textBaseline='middle'; }
+    for(const p of ps){ const f=p.age/p.life;
+      let al=(layer.pAlphaStart??1)+((layer.pAlphaEnd??0)-(layer.pAlphaStart??1))*f;
+      const fi=layer.pFadeIn||0; if(fi>0&&f<fi) al*=f/fi;
+      if(al<=0.003) continue;
+      const sz=Math.max(0.2,((layer.pSizeStart??0.5)+((layer.pSizeEnd??0.1)-(layer.pSizeStart??0.5))*f)*U*0.012);
+      let col;
+      if(layer.pColorMode==='velocity'){ const s=Math.min(1,Math.hypot(p.vx,p.vy)/(U*1.2)); col='hsl('+Math.round(60-s*60+200*(1-s))+',90%,62%)'; }
+      else if(layer.pColorMode==='gradient') col=_pLerpHex(layer.pColor1,layer.pColor2,f);
+      else col=layer.pColor1||'#fff';
+      ctx.globalAlpha=Math.max(0,Math.min(1,al)); ctx.fillStyle=col; ctx.strokeStyle=col; if(layer.pGlow>0)ctx.shadowColor=col;
+      if(mode==='streak'){ ctx.lineWidth=sz; ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+      else if(mode==='glyph'){ ctx.font='700 '+(sz*3)+'px sans-serif'; ctx.fillText(layer.pGlyph||'•',p.x,p.y); }
+      else { ctx.beginPath(); ctx.arc(p.x,p.y,sz,0,6.28318); ctx.fill(); }
+    }
+    ctx.globalAlpha=1; ctx.shadowBlur=0; ctx.globalCompositeOperation='source-over';
+  };
+  if(mode==='trail'){
+    let tc=layer._pTrailCv; if(!tc||tc.width!==W||tc.height!==H){ tc=layer._pTrailCv=document.createElement('canvas'); tc.width=W; tc.height=H; }
+    const tx=tc.getContext('2d');
+    tx.globalCompositeOperation='destination-out'; tx.globalAlpha=1-Math.max(0.5,Math.min(0.995,layer.pTrailFade??0.9)); tx.fillStyle='#000'; tx.fillRect(0,0,W,H);
+    tx.globalAlpha=1; tx.globalCompositeOperation='source-over';
+    draw(tx);
+    lctx.clearRect(0,0,W,H);
+    if(layer.pBgOn){ lctx.fillStyle=layer.pBg||'#06070c'; lctx.fillRect(0,0,W,H); }
+    lctx.drawImage(tc,0,0);
+  } else {
+    lctx.clearRect(0,0,W,H);
+    if(layer.pBgOn){ lctx.fillStyle=layer.pBg||'#06070c'; lctx.fillRect(0,0,W,H); }
+    lctx.save(); draw(lctx); lctx.restore();
+  }
+}
 function renderMarbleLayer(lctx,layer,W,H){
   const U=Math.min(W,H); const t=(globalT||0)*(layer.marbleMotionSpeed||1);
   let ops=layer.marbleOps||[];
@@ -7249,6 +7362,11 @@ function renderLayer(layer,lc,fbBuf,W,H){
   // ── VISION LAYER ────────────────────────────────────────────
   if(layer.layerType==='vision'){
     renderVisionLayer(lctx,layer,W,H);
+    return;
+  }
+  // ── PARTICLE LAYER ──────────────────────────────────────────
+  if(layer.layerType==='particles'){
+    renderParticleLayer(lctx,layer,W,H);
     return;
   }
   // ── FLYER MODE (legacy) ──────────────────────────────────────
@@ -11569,7 +11687,7 @@ function renderSeqArrange(){
   layers.forEach((layer,li)=>{
     const row=document.createElement('div'); row.className='seq-layer-row';
     const lbl=document.createElement('div'); lbl.className='seq-layer-label';
-    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':layer.layerType==='vision'?'⊹':'▦';
+    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':layer.layerType==='vision'?'⊹':layer.layerType==='particles'?'✸':'▦';
     lbl.textContent=badge+' '+(layer.name||('Layer '+(li+1)));
     row.appendChild(lbl);
     const track=document.createElement('div'); track.className='seq-layer-track'; track.dataset.li=li;
@@ -12437,6 +12555,12 @@ function renderLayerList(){
       badge.style.cssText='font-size:9px;color:#46ff8c;margin-right:2px;flex-shrink:0;';
       badge.title='Vision layer';
       div.appendChild(badge);
+    } else if(layer.layerType==='particles'){
+      const badge=document.createElement('span');
+      badge.textContent='✸';
+      badge.style.cssText='font-size:9px;color:#ff9d4d;margin-right:2px;flex-shrink:0;';
+      badge.title='Particle layer';
+      div.appendChild(badge);
     }
     // Name + blend
     const name=document.createElement('span');
@@ -12852,6 +12976,7 @@ function wireParamInputs(){
     const isMarble=layer.layerType==='marble';
     const isGesture=layer.layerType==='gesture';
     const isVision=layer.layerType==='vision';
+    const isParticles=layer.layerType==='particles';
     if(window._gfxLayersDock) window._gfxLayersDock.style.display=isGraphic?'block':'none';
     const gfxTab=document.getElementById('ptab-graphic');
     const mediaTab=document.getElementById('ptab-media');
@@ -12859,6 +12984,7 @@ function wireParamInputs(){
     const marbleTab=document.getElementById('ptab-marble');
     const gestureTab=document.getElementById('ptab-gesture');
     const visionTab=document.getElementById('ptab-vision');
+    const particlesTab=document.getElementById('ptab-particles');
     const gridTab=document.getElementById('ptab-grid');
     const colorTab=document.getElementById('ptab-color');
     const motionTab=document.getElementById('ptab-motion');
@@ -12868,7 +12994,8 @@ function wireParamInputs(){
     if(marbleTab) marbleTab.style.display=isMarble?'':'none';
     if(gestureTab) gestureTab.style.display=isGesture?'':'none';
     if(visionTab) visionTab.style.display=isVision?'':'none';
-    const hideGen = isMedia||isBlobby||isMarble||isGesture||isVision; // generative grid/color/motion tabs hidden for tool layers
+    if(particlesTab) particlesTab.style.display=isParticles?'':'none';
+    const hideGen = isMedia||isBlobby||isMarble||isGesture||isVision||isParticles; // generative grid/color/motion tabs hidden for tool layers
     if(gridTab){ gridTab.style.display=hideGen?'none':''; gridTab.textContent=isGraphic?'elements':'grid'; }
     if(colorTab){ colorTab.style.display=hideGen?'none':''; colorTab.textContent=isGraphic?'style':'color'; }
     if(motionTab){ motionTab.style.display=hideGen?'none':''; motionTab.textContent='motion'; }
@@ -12880,17 +13007,19 @@ function wireParamInputs(){
       else if(isMarble){ at='marble'; }
       else if(isGesture){ at='gesture'; }
       else if(isVision){ at='vision'; }
-      else { if(at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision') at=null; if(!at) at='grid'; }
+      else if(isParticles){ at='particles'; }
+      else { if(at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision'||at==='particles') at=null; if(!at) at='grid'; }
       document.querySelectorAll('[data-section]').forEach(s=>s.style.display='none');
       document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
       const tb=document.querySelector('.ptab[data-tab="'+at+'"]'); if(tb) tb.classList.add('on');
-      const secName = (at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision') ? at : gfxSectionForTab(at);
+      const secName = (at==='media'||at==='blobby'||at==='marble'||at==='gesture'||at==='vision'||at==='particles') ? at : gfxSectionForTab(at);
       const sec=document.querySelector('[data-section="'+secName+'"]'); if(sec) sec.style.display='block';
     }
     if(isBlobby && window.syncBlobbyUI) syncBlobbyUI(layer);
     if(isMarble && window.syncMarbleUI) syncMarbleUI(layer);
     if(isGesture && window.syncGestureUI) syncGestureUI(layer);
     if(isVision && window.syncVisionUI) syncVisionUI(layer);
+    if(isParticles && window.syncParticleUI) syncParticleUI(layer);
     // Media layer panel sync
     if(isMedia){
       const nm=document.getElementById('media-name'); if(nm) nm.textContent=layer._mediaName||'no media loaded';
@@ -13849,6 +13978,66 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
   updateConditionalUI(newLayer);
   snapshotState();
 });
+
+document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>{
+  const n=layers.length+1;
+  const newLayer={...defaultLayerParams(),name:'Particles '+n,layerType:'particles',bg:'#00000000',opacity:1,blend:'source-over'};
+  newLayer.mask=defaultMask(); newLayer._particles=[];
+  layers.push(newLayer);
+  selectedLayer=layers.length-1;
+  renderLayerList();syncLayerUI();
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('[data-section]').forEach(s=>s.style.display='none');
+  const bt=document.getElementById('ptab-particles'); if(bt){ bt.style.display=''; bt.classList.add('on'); }
+  const bs=document.querySelector('[data-section="particles"]'); if(bs) bs.style.display='block';
+  updateConditionalUI(newLayer);
+  snapshotState();
+});
+
+// ── PARTICLE UI MODULE ───────────────────────────────────────
+(function(){
+  const pLayer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='particles')?l:null; };
+  const MAP=['pEmitShape','pEmitX','pEmitY','pEmitRadius','pEmitW','pEmitH','pEmitAngle','pEmitText','pEmitFont','pEmitSize',
+    'pRate','pMax','pLife','pLifeVar','pSpeed','pSpeedVar','pDir','pSpread',
+    'pGravity','pGravityAngle','pDrag','pTurb','pTurbScale','pTurbSpeed','pAttract','pVortex','pAttractX','pAttractY',
+    'pSizeStart','pSizeEnd','pAlphaStart','pAlphaEnd','pFadeIn','pColorMode','pColor1','pColor2',
+    'pRender','pGlyph','pAdditive','pTrailFade','pGlow','pSimSpeed','pBgOn','pBg'];
+  const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
+  function syncRows(l){
+    const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
+    const sh=l.pEmitShape||'point';
+    show('p-radius-row', sh==='ring'||sh==='line');
+    show('p-rectw-row', sh==='rect'||sh==='shape');
+    show('p-recth-row', sh==='rect'||sh==='shape');
+    show('p-line-row', sh==='line');
+    show('p-text-row', sh==='text');
+    show('p-textsize-row', sh==='text');
+    show('p-color2-row', l.pColorMode==='gradient');
+    show('p-glyph-row', l.pRender==='glyph');
+    show('p-trailfade-row', l.pRender==='trail');
+  }
+  MAP.forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const ev=(el.tagName==='SELECT'||el.type==='checkbox')?'change':'input';
+    el.addEventListener(ev,()=>{
+      const l=pLayer(); if(!l) return;
+      l[id]=readEl(el); l._pEmitSig=null;
+      const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); }
+      if(id==='pEmitShape'||id==='pColorMode'||id==='pRender') syncRows(l);
+    });
+  });
+  document.getElementById('p-burst')?.addEventListener('click',()=>{ const l=pLayer(); if(!l) return; const W=mainCanvas.width,H=mainCanvas.height,U=Math.min(W,H);
+    l._particles=l._particles||[]; const burst=Math.min(800, Math.round((l.pRate||160)*1.5)+120); for(let i=0;i<burst;i++) l._particles.push(_pSpawn(l,W,H,U)); });
+  document.getElementById('p-clear')?.addEventListener('click',()=>{ const l=pLayer(); if(l){ l._particles=[]; if(l._pTrailCv){ l._pTrailCv.getContext('2d').clearRect(0,0,l._pTrailCv.width,l._pTrailCv.height); } } });
+  window.syncParticleUI=function(layer){
+    if(!layer) return;
+    MAP.forEach(id=>{ const el=document.getElementById(id); if(!el) return; const v=layer[id];
+      if(el.type==='checkbox') el.checked=!!v; else if(v!==undefined&&v!==null) el.value=v;
+      const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); } });
+    const cnt=document.getElementById('p-count'); if(cnt) cnt.textContent='('+((layer._particles||[]).length)+' particles)';
+    syncRows(layer);
+  };
+})();
 
 // ── VISION UI MODULE ─────────────────────────────────────────
 (function(){

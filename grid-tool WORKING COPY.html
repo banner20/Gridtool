@@ -25,6 +25,7 @@
     <div class="ptab" data-tab="marble" id="ptab-marble" style="display:none;color:#66d9c2;">🫟</div>
     <div class="ptab" data-tab="gesture" id="ptab-gesture" style="display:none;color:#7af0ff;">🩰</div>
     <div class="ptab" data-tab="vision" id="ptab-vision" style="display:none;color:#46ff8c;">⊹</div>
+    <div class="ptab" data-tab="particles" id="ptab-particles" style="display:none;color:#ff9d4d;">✸</div>
   </div>
   <div id="panel-body">
 
@@ -42,6 +43,7 @@
           <button id="btn-add-marble-layer" title="Add a Marbling layer — drop inks on water, comb & swirl them (suminagashi/ebru)" style="color:#66d9c2;border-color:#2e5f54;">🫟 marble</button>
           <button id="btn-add-gesture-layer" title="Add a Gesture loop layer — record canvas gestures, they replay forever, BPM-synced" style="color:#7af0ff;border-color:#2e5566;">🩰 gesture</button>
           <button id="btn-add-vision-layer" title="Add a Vision layer — perceives the layers below (or an image) and re-renders what it finds: blob/motion tracking, HUD, dots, constellations" style="color:#46ff8c;border-color:#2e6644;">⊹ vision</button>
+          <button id="btn-add-particle-layer" title="Add a Particle layer — continuous emitter-based particle systems: emit from a point/shape/text, push with gravity/turbulence/attractors, render as points/streaks/trails" style="color:#ff9d4d;border-color:#6a4628;">✸ particles</button>
           <button id="btn-dup-layer">dup</button>
           <button id="btn-del-layer" class="danger">✕</button>
         </div>
@@ -1949,6 +1951,68 @@
     </div>
 
     <!-- 🩰 GESTURE LOOP PANEL -->
+    <div data-section="particles" style="display:none">
+      <div class="sec">
+        <div style="font-size:10px;color:#ff9d4d;font-family:monospace;font-weight:700;letter-spacing:.05em;margin-bottom:6px;">✸ particles</div>
+        <div class="tip" style="margin-bottom:6px;">Continuous particle system. <b>Emit</b> from a point, shape or text; push with <b>forces</b>; shape the look <b>over each particle's life</b>; render as points, streaks or trails.</div>
+
+        <div class="st">emitter</div>
+        <div class="row"><label>emit from</label><select id="pEmitShape"><option value="point">point</option><option value="ring">ring</option><option value="line">line</option><option value="rect">rectangle</option><option value="shape">ellipse area</option><option value="text">text outline</option></select></div>
+        <div class="row"><label>pos X</label><input type="range" id="pEmitX" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pEmitX-v">0.50</span></div>
+        <div class="row"><label>pos Y</label><input type="range" id="pEmitY" min="0" max="1" value="0.7" step="0.01"><span class="val" id="pEmitY-v">0.70</span></div>
+        <div class="row" id="p-radius-row"><label>radius</label><input type="range" id="pEmitRadius" min="0.01" max="0.6" value="0.15" step="0.01"><span class="val" id="pEmitRadius-v">0.15</span></div>
+        <div class="row" id="p-rectw-row" style="display:none;"><label>width</label><input type="range" id="pEmitW" min="0.02" max="1" value="0.4" step="0.01"><span class="val" id="pEmitW-v">0.40</span></div>
+        <div class="row" id="p-recth-row" style="display:none;"><label>height</label><input type="range" id="pEmitH" min="0.02" max="1" value="0.2" step="0.01"><span class="val" id="pEmitH-v">0.20</span></div>
+        <div class="row" id="p-line-row" style="display:none;"><label>line angle</label><input type="range" id="pEmitAngle" min="0" max="360" value="0" step="1"><span class="val" id="pEmitAngle-v">0</span></div>
+        <div class="row" id="p-text-row" style="display:none;"><label>text</label><input type="text" id="pEmitText" value="GRID" style="flex:1;font-size:10px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+        <div class="row" id="p-textsize-row" style="display:none;"><label>text size</label><input type="range" id="pEmitSize" min="0.08" max="0.9" value="0.32" step="0.01"><span class="val" id="pEmitSize-v">0.32</span></div>
+        <div class="row"><label>rate /s</label><input type="range" id="pRate" min="0" max="800" value="160" step="5"><span class="val" id="pRate-v">160</span></div>
+        <div class="row"><label>max count</label><input type="range" id="pMax" min="50" max="6000" value="2500" step="50"><span class="val" id="pMax-v">2500</span></div>
+        <div class="row"><label>life (s)</label><input type="range" id="pLife" min="0.2" max="8" value="2.2" step="0.1"><span class="val" id="pLife-v">2.2</span></div>
+        <div class="row"><label>life var</label><input type="range" id="pLifeVar" min="0" max="1" value="0.4" step="0.02"><span class="val" id="pLifeVar-v">0.40</span></div>
+        <div class="row"><label>speed</label><input type="range" id="pSpeed" min="0" max="6" value="1" step="0.05"><span class="val" id="pSpeed-v">1.00</span></div>
+        <div class="row"><label>speed var</label><input type="range" id="pSpeedVar" min="0" max="1" value="0.5" step="0.02"><span class="val" id="pSpeedVar-v">0.50</span></div>
+        <div class="row"><label>direction</label><input type="range" id="pDir" min="0" max="360" value="270" step="1"><span class="val" id="pDir-v">270</span></div>
+        <div class="row"><label>spread</label><input type="range" id="pSpread" min="0" max="360" value="60" step="1"><span class="val" id="pSpread-v">60</span></div>
+
+        <div class="st" style="margin-top:8px;">forces</div>
+        <div class="row"><label>gravity</label><input type="range" id="pGravity" min="0" max="3" value="0.4" step="0.02"><span class="val" id="pGravity-v">0.40</span></div>
+        <div class="row"><label>grav angle</label><input type="range" id="pGravityAngle" min="0" max="360" value="90" step="1"><span class="val" id="pGravityAngle-v">90</span></div>
+        <div class="row"><label>drag</label><input type="range" id="pDrag" min="0" max="1" value="0.1" step="0.01"><span class="val" id="pDrag-v">0.10</span></div>
+        <div class="row"><label>turbulence</label><input type="range" id="pTurb" min="0" max="2" value="0" step="0.02"><span class="val" id="pTurb-v">0.00</span></div>
+        <div class="row"><label>turb scale</label><input type="range" id="pTurbScale" min="0.5" max="12" value="3" step="0.1"><span class="val" id="pTurbScale-v">3.0</span></div>
+        <div class="row"><label>turb speed</label><input type="range" id="pTurbSpeed" min="0" max="4" value="1" step="0.05"><span class="val" id="pTurbSpeed-v">1.00</span></div>
+        <div class="row"><label>attract</label><input type="range" id="pAttract" min="-2" max="2" value="0" step="0.02"><span class="val" id="pAttract-v">0.00</span></div>
+        <div class="row"><label>vortex</label><input type="range" id="pVortex" min="-2" max="2" value="0" step="0.02"><span class="val" id="pVortex-v">0.00</span></div>
+        <div class="row"><label>attract X</label><input type="range" id="pAttractX" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pAttractX-v">0.50</span></div>
+        <div class="row"><label>attract Y</label><input type="range" id="pAttractY" min="0" max="1" value="0.4" step="0.01"><span class="val" id="pAttractY-v">0.40</span></div>
+
+        <div class="st" style="margin-top:8px;">over lifetime</div>
+        <div class="row"><label>size start</label><input type="range" id="pSizeStart" min="0.05" max="4" value="0.5" step="0.05"><span class="val" id="pSizeStart-v">0.50</span></div>
+        <div class="row"><label>size end</label><input type="range" id="pSizeEnd" min="0" max="4" value="0.1" step="0.05"><span class="val" id="pSizeEnd-v">0.10</span></div>
+        <div class="row"><label>alpha start</label><input type="range" id="pAlphaStart" min="0" max="1" value="1" step="0.02"><span class="val" id="pAlphaStart-v">1.00</span></div>
+        <div class="row"><label>alpha end</label><input type="range" id="pAlphaEnd" min="0" max="1" value="0" step="0.02"><span class="val" id="pAlphaEnd-v">0.00</span></div>
+        <div class="row"><label>fade in</label><input type="range" id="pFadeIn" min="0" max="0.8" value="0.12" step="0.02"><span class="val" id="pFadeIn-v">0.12</span></div>
+        <div class="row"><label>color mode</label><select id="pColorMode"><option value="solid">solid</option><option value="gradient">gradient (life)</option><option value="velocity">by speed</option></select></div>
+        <div class="row"><label>color 1</label><input type="color" id="pColor1" value="#ffd36b"></div>
+        <div class="row" id="p-color2-row"><label>color 2</label><input type="color" id="pColor2" value="#ff3b6b"></div>
+
+        <div class="st" style="margin-top:8px;">render</div>
+        <div class="row"><label>style</label><select id="pRender"><option value="point">points</option><option value="streak">velocity streaks</option><option value="trail">trails</option><option value="glyph">glyph</option></select></div>
+        <div class="row" id="p-glyph-row" style="display:none;"><label>glyph</label><input type="text" id="pGlyph" value="•" maxlength="2" style="width:40px;font-size:12px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;text-align:center;"></div>
+        <div class="row" id="p-trailfade-row" style="display:none;"><label>trail length</label><input type="range" id="pTrailFade" min="0.5" max="0.99" value="0.9" step="0.01"><span class="val" id="pTrailFade-v">0.90</span></div>
+        <div class="row"><label>additive glow</label><input type="checkbox" id="pAdditive" checked></div>
+        <div class="row"><label>glow</label><input type="range" id="pGlow" min="0" max="30" value="0" step="1"><span class="val" id="pGlow-v">0</span></div>
+        <div class="row"><label>sim speed</label><input type="range" id="pSimSpeed" min="0" max="3" value="1" step="0.05"><span class="val" id="pSimSpeed-v">1.00</span></div>
+        <div class="row"><label>background</label><input type="checkbox" id="pBgOn"><input type="color" id="pBg" value="#06070c" style="margin-left:4px;"></div>
+        <div style="display:flex;gap:4px;margin-top:5px;">
+          <button id="p-burst" style="flex:1;font-size:8px;" title="Spawn a one-off burst">burst</button>
+          <button id="p-clear" style="flex:1;font-size:8px;" title="Clear all live particles">clear</button>
+        </div>
+        <div class="tip" id="p-count" style="color:#ff9d4d;margin-top:3px;">(0 particles)</div>
+      </div>
+    </div>
+
     <div data-section="vision" style="display:none">
       <div class="sec">
         <div style="font-size:10px;color:#46ff8c;font-family:monospace;font-weight:700;letter-spacing:.05em;margin-bottom:6px;">⊹ vision</div>
