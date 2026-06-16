@@ -291,6 +291,8 @@ function defaultLayerParams(){
     pBgOn:false, pBg:'#06070c', pSimSpeed:1,
     pForm:0, pFormText:'FORM', pFormSize:0.32, pFormX:0.5, pFormY:0.45,
     pFormStrength:0.45, pFormJitter:0.15, pFormAnim:'static', pFormSpeed:0.6,
+    pShape:'circle', pRotate:'none', pSpinRate:1, pImgScale:1,
+    pPath:'off', pPathX:0.5, pPathY:0.5, pPathScale:0.32, pPathFreq:3, pPathB:2, pPathAngle:0, pPathJitter:0.02, pPathSpread:1,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6957,6 +6959,36 @@ function _pLerpHex(a,b,t){
   const r=Math.round(ar+(br-ar)*t),g=Math.round(ag+(bg-ag)*t),bl=Math.round(ab+(bb-ab)*t);
   return 'rgb('+r+','+g+','+bl+')';
 }
+// draw one particle sprite (vector shapes incl. a pointer cursor)
+function _pDrawShape(ctx,shape,x,y,r,ang){
+  if(shape==='circle' && !ang){ ctx.beginPath(); ctx.arc(x,y,r,0,6.28318); ctx.fill(); return; }
+  ctx.save(); ctx.translate(x,y); if(ang) ctx.rotate(ang); ctx.beginPath();
+  if(shape==='square'){ ctx.rect(-r,-r,2*r,2*r); ctx.fill(); }
+  else if(shape==='triangle'){ ctx.moveTo(0,-r); ctx.lineTo(r*0.87,r*0.6); ctx.lineTo(-r*0.87,r*0.6); ctx.closePath(); ctx.fill(); }
+  else if(shape==='star'){ for(let i=0;i<10;i++){ const rr=i%2?r*0.45:r, a=i/10*6.28318-1.5708; ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);} ctx.closePath(); ctx.fill(); }
+  else if(shape==='ring'){ ctx.arc(0,0,r,0,6.28318); ctx.lineWidth=Math.max(1,r*0.4); ctx.stroke(); }
+  else if(shape==='cross'){ const w=r*0.34; ctx.fillRect(-w,-r,2*w,2*r); ctx.fillRect(-r,-w,2*r,2*w); }
+  else if(shape==='cursor'){ // classic pointer arrow, tip at origin
+    const s=r/7; const P=[[0,0],[0,16],[3.5,12.5],[6.5,18.5],[8.6,17.6],[5.6,11.8],[10.5,11.5]];
+    ctx.moveTo(P[0][0]*s,P[0][1]*s); for(let i=1;i<P.length;i++) ctx.lineTo(P[i][0]*s,P[i][1]*s); ctx.closePath(); ctx.fill();
+  }
+  else { ctx.arc(0,0,r,0,6.28318); ctx.fill(); }
+  ctx.restore();
+}
+// parametric path point at progress u (0..1), returns {x,y} in pixels
+function _pPathPoint(path,u,layer,W,H,U){
+  const cx=(layer.pPathX??0.5)*W, cy=(layer.pPathY??0.5)*H, sc=(layer.pPathScale??0.32)*U, rot=(layer.pPathAngle||0)*Math.PI/180, tau=6.28318;
+  const fr=(layer.pPathFreq||3), b=(layer.pPathB||2);
+  let x=0,y=0;
+  if(path==='circle'){ x=Math.cos(u*tau)*sc; y=Math.sin(u*tau)*sc; }
+  else if(path==='wave'){ x=(u-0.5)*3.2*sc; y=Math.sin(u*tau*fr)*sc*0.5; }
+  else if(path==='spiral'){ const rr=u*sc; x=Math.cos(u*tau*fr)*rr; y=Math.sin(u*tau*fr)*rr; }
+  else if(path==='lissajous'){ x=Math.sin(u*tau*fr)*sc; y=Math.sin(u*tau*b+1)*sc; }
+  else if(path==='heart'){ const a=u*tau; x=Math.pow(Math.sin(a),3)*sc; y=-(13*Math.cos(a)-5*Math.cos(2*a)-2*Math.cos(3*a)-Math.cos(4*a))/16*sc; }
+  else { x=(u-0.5)*3.2*sc; y=0; } // line
+  const rx=x*Math.cos(rot)-y*Math.sin(rot), ry=x*Math.sin(rot)+y*Math.cos(rot);
+  return {x:cx+rx, y:cy+ry};
+}
 // emit-point sampling for text/shape emitters (cached on the layer)
 function _pEmitPoints(layer,W,H){
   const sig=[layer.pEmitShape,layer.pEmitText,layer.pEmitFont,layer.pEmitSize,layer.pEmitX,layer.pEmitY,layer.pEmitW,layer.pEmitH,W,H].join('|');
@@ -7028,6 +7060,19 @@ function renderParticleLayer(lctx,layer,W,H){
   const drag=Math.max(0,Math.min(0.99,(layer.pDrag||0)*dt*4));
   const turb=(layer.pTurb||0), tsc=(layer.pTurbScale||3)/U, tsp=(layer.pTurbSpeed||1);
   const att=(layer.pAttract||0), ax=(layer.pAttractX??0.5)*W, ay=(layer.pAttractY??0.4)*H, vor=(layer.pVortex||0);
+  const path=layer.pPath||'off', pathOn=(path!=='off' && !formActive);
+  const pSpread=(layer.pPathSpread??1), pJit=(layer.pPathJitter||0)*U;
+  if(pathOn){
+    // PATH-FOLLOW: each particle flows along the curve over its life (forces ignored)
+    for(let i=ps.length-1;i>=0;i--){ const p=ps[i];
+      const u=((p.age/p.life)+p.seed*0.001*pSpread)%1;
+      const pt=_pPathPoint(path,(u+1)%1,layer,W,H,U);
+      p.px=p.x; p.py=p.y;
+      p.x=pt.x+(p._jx||(p._jx=(Math.random()-0.5)*pJit)); p.y=pt.y+(p._jy||(p._jy=(Math.random()-0.5)*pJit));
+      p.vx=(p.x-p.px); p.vy=(p.y-p.py);
+      p.age+=dt; if(p.age>=p.life) ps.splice(i,1);
+    }
+  } else
   for(let i=ps.length-1;i>=0;i--){ const p=ps[i];
     p.vx+=gx*dt*freeMul; p.vy+=gy*dt*freeMul;
     if(turb){ const a=_mnNoise(p.x*tsc,p.y*tsc,t*0.0006*tsp)*12.566; p.vx+=Math.cos(a)*turb*U*0.6*dt*freeMul; p.vy+=Math.sin(a)*turb*U*0.6*dt*freeMul; }
@@ -7046,10 +7091,15 @@ function renderParticleLayer(lctx,layer,W,H){
   }
   // RENDER
   const mode=layer.pRender||'point', additive=!!layer.pAdditive;
+  // baseShape: what each particle is drawn as. 'point'/'trail' -> the vector pShape.
+  const baseShape=(mode==='glyph')?'glyph':(mode==='image')?'image':(mode==='streak')?'streak':(layer.pShape||'circle');
+  const rotMode=layer.pRotate||'none', spin=(layer.pSpinRate||0);
+  const img=(layer._pImg&&layer._pImg.complete&&layer._pImg.naturalWidth)?layer._pImg:null;
+  const imgScale=(layer.pImgScale||1);
   const draw=(ctx)=>{
     if(layer.pGlow>0){ ctx.shadowBlur=layer.pGlow; }
     if(additive) ctx.globalCompositeOperation='lighter';
-    if(mode==='glyph'){ ctx.textAlign='center'; ctx.textBaseline='middle'; }
+    if(baseShape==='glyph'){ ctx.textAlign='center'; ctx.textBaseline='middle'; }
     for(const p of ps){ const f=p.age/p.life;
       let al=(layer.pAlphaStart??1)+((layer.pAlphaEnd??0)-(layer.pAlphaStart??1))*f;
       const fi=layer.pFadeIn||0; if(fi>0&&f<fi) al*=f/fi;
@@ -7060,9 +7110,17 @@ function renderParticleLayer(lctx,layer,W,H){
       else if(layer.pColorMode==='gradient') col=_pLerpHex(layer.pColor1,layer.pColor2,f);
       else col=layer.pColor1||'#fff';
       ctx.globalAlpha=Math.max(0,Math.min(1,al)); ctx.fillStyle=col; ctx.strokeStyle=col; if(layer.pGlow>0)ctx.shadowColor=col;
-      if(mode==='streak'){ ctx.lineWidth=sz; ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke(); }
-      else if(mode==='glyph'){ ctx.font='700 '+(sz*3)+'px sans-serif'; ctx.fillText(layer.pGlyph||'•',p.x,p.y); }
-      else { ctx.beginPath(); ctx.arc(p.x,p.y,sz,0,6.28318); ctx.fill(); }
+      // rotation per particle
+      let ang=0;
+      if(rotMode==='velocity') ang=Math.atan2(p.vy,p.vx)+1.5708;
+      else if(rotMode==='spin') ang=p.seed*0.13 + (t*0.001*spin*6.28318);
+      if(baseShape==='streak'){ ctx.lineWidth=sz; ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+      else if(baseShape==='glyph'){ ctx.save(); ctx.translate(p.x,p.y); if(ang)ctx.rotate(ang); ctx.font='700 '+(sz*3)+'px sans-serif'; ctx.fillText(layer.pGlyph||'•',0,0); ctx.restore(); }
+      else if(baseShape==='image'){
+        if(img){ const iw=img.naturalWidth,ih=img.naturalHeight, w=sz*3*imgScale, h=w*ih/iw; ctx.save(); ctx.translate(p.x,p.y); if(ang)ctx.rotate(ang); ctx.globalAlpha=Math.max(0,Math.min(1,al)); ctx.drawImage(img,-w/2,-h/2,w,h); ctx.restore(); }
+        else { ctx.beginPath(); ctx.arc(p.x,p.y,sz,0,6.28318); ctx.fill(); }
+      }
+      else _pDrawShape(ctx,baseShape,p.x,p.y,sz,ang);
     }
     ctx.globalAlpha=1; ctx.shadowBlur=0; ctx.globalCompositeOperation='source-over';
   };
@@ -14034,7 +14092,8 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
     'pGravity','pGravityAngle','pDrag','pTurb','pTurbScale','pTurbSpeed','pAttract','pVortex','pAttractX','pAttractY',
     'pSizeStart','pSizeEnd','pAlphaStart','pAlphaEnd','pFadeIn','pColorMode','pColor1','pColor2',
     'pRender','pGlyph','pAdditive','pTrailFade','pGlow','pSimSpeed','pBgOn','pBg',
-    'pForm','pFormText','pFormSize','pFormX','pFormY','pFormStrength','pFormJitter','pFormAnim','pFormSpeed'];
+    'pForm','pFormText','pFormSize','pFormX','pFormY','pFormStrength','pFormJitter','pFormAnim','pFormSpeed',
+    'pShape','pRotate','pSpinRate','pImgScale','pPath','pPathX','pPathY','pPathScale','pPathFreq','pPathB','pPathAngle','pPathSpread','pPathJitter'];
   const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
   function syncRows(l){
     const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
@@ -14049,6 +14108,11 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
     show('p-glyph-row', l.pRender==='glyph');
     show('p-trailfade-row', l.pRender==='trail');
     show('p-formspeed-row', (l.pFormAnim||'static')!=='static');
+    show('p-shape-row', l.pRender==='point'||l.pRender==='trail');
+    const isImg=l.pRender==='image'; show('p-img-row',isImg); show('p-imgscale-row',isImg);
+    show('p-spin-row', (l.pRotate||'none')==='spin');
+    const onPath=(l.pPath||'off')!=='off'; const e=document.getElementById('p-path-rows'); if(e) e.style.display=onPath?'block':'none';
+    show('p-pathb-row', l.pPath==='lissajous');
   }
   MAP.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
@@ -14057,8 +14121,14 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
       const l=pLayer(); if(!l) return;
       l[id]=readEl(el); l._pEmitSig=null; l._pFormSig=null;
       const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); }
-      if(id==='pEmitShape'||id==='pColorMode'||id==='pRender'||id==='pFormAnim') syncRows(l);
+      if(id==='pEmitShape'||id==='pColorMode'||id==='pRender'||id==='pFormAnim'||id==='pRotate'||id==='pPath') syncRows(l);
     });
+  });
+  document.getElementById('p-img-load')?.addEventListener('click',()=>document.getElementById('p-img-input')?.click());
+  document.getElementById('p-img-input')?.addEventListener('change',e=>{
+    const f=e.target.files[0],l=pLayer(); if(!f||!l) return;
+    const rd=new FileReader(); rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ l._pImg=img; l._pImgName=f.name; const nm=document.getElementById('p-img-name'); if(nm) nm.textContent=f.name; }; img.src=ev.target.result; };
+    rd.readAsDataURL(f); e.target.value='';
   });
   document.getElementById('p-burst')?.addEventListener('click',()=>{ const l=pLayer(); if(!l) return; const W=mainCanvas.width,H=mainCanvas.height,U=Math.min(W,H);
     l._particles=l._particles||[]; const burst=Math.min(800, Math.round((l.pRate||160)*1.5)+120); for(let i=0;i<burst;i++) l._particles.push(_pSpawn(l,W,H,U)); });
@@ -14069,6 +14139,7 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
       if(el.type==='checkbox') el.checked=!!v; else if(v!==undefined&&v!==null) el.value=v;
       const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); } });
     const cnt=document.getElementById('p-count'); if(cnt) cnt.textContent='('+((layer._particles||[]).length)+' particles)';
+    const nm=document.getElementById('p-img-name'); if(nm) nm.textContent=layer._pImgName||'no image';
     syncRows(layer);
   };
 })();

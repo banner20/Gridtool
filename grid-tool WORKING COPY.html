@@ -1987,6 +1987,20 @@
         <div class="row"><label>attract X</label><input type="range" id="pAttractX" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pAttractX-v">0.50</span></div>
         <div class="row"><label>attract Y</label><input type="range" id="pAttractY" min="0" max="1" value="0.4" step="0.01"><span class="val" id="pAttractY-v">0.40</span></div>
 
+        <div class="st" style="margin-top:8px;color:#ff9d4d;">⟿ path</div>
+        <div class="tip" style="font-size:7px;">Make particles flow along a curve over their life (overrides the forces above).</div>
+        <div class="row"><label>follow path</label><select id="pPath"><option value="off">off (use forces)</option><option value="circle">circle</option><option value="wave">wave</option><option value="spiral">spiral</option><option value="lissajous">lissajous</option><option value="heart">heart</option><option value="line">line</option></select></div>
+        <div id="p-path-rows" style="display:none;">
+          <div class="row"><label>pos X</label><input type="range" id="pPathX" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pPathX-v">0.50</span></div>
+          <div class="row"><label>pos Y</label><input type="range" id="pPathY" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pPathY-v">0.50</span></div>
+          <div class="row"><label>scale</label><input type="range" id="pPathScale" min="0.05" max="0.9" value="0.32" step="0.01"><span class="val" id="pPathScale-v">0.32</span></div>
+          <div class="row"><label>frequency</label><input type="range" id="pPathFreq" min="1" max="12" value="3" step="0.5"><span class="val" id="pPathFreq-v">3.0</span></div>
+          <div class="row" id="p-pathb-row"><label>freq B</label><input type="range" id="pPathB" min="1" max="12" value="2" step="0.5"><span class="val" id="pPathB-v">2.0</span></div>
+          <div class="row"><label>rotate</label><input type="range" id="pPathAngle" min="0" max="360" value="0" step="1"><span class="val" id="pPathAngle-v">0</span></div>
+          <div class="row"><label>spread</label><input type="range" id="pPathSpread" min="0" max="4" value="1" step="0.05"><span class="val" id="pPathSpread-v">1.00</span></div>
+          <div class="row"><label>thickness</label><input type="range" id="pPathJitter" min="0" max="0.15" value="0.02" step="0.005"><span class="val" id="pPathJitter-v">0.020</span></div>
+        </div>
+
         <div class="st" style="margin-top:8px;">over lifetime</div>
         <div class="row"><label>size start</label><input type="range" id="pSizeStart" min="0.05" max="4" value="0.5" step="0.05"><span class="val" id="pSizeStart-v">0.50</span></div>
         <div class="row"><label>size end</label><input type="range" id="pSizeEnd" min="0" max="4" value="0.1" step="0.05"><span class="val" id="pSizeEnd-v">0.10</span></div>
@@ -2010,8 +2024,13 @@
         <div class="row"><label>shimmer</label><input type="range" id="pFormJitter" min="0" max="0.6" value="0.15" step="0.01"><span class="val" id="pFormJitter-v">0.15</span></div>
 
         <div class="st" style="margin-top:8px;">render</div>
-        <div class="row"><label>style</label><select id="pRender"><option value="point">points</option><option value="streak">velocity streaks</option><option value="trail">trails</option><option value="glyph">glyph</option></select></div>
+        <div class="row"><label>draw as</label><select id="pRender"><option value="point">shape</option><option value="streak">velocity streaks</option><option value="trail">trails (shape)</option><option value="glyph">glyph</option><option value="image">custom image</option></select></div>
+        <div class="row" id="p-shape-row"><label>shape</label><select id="pShape"><option value="circle">● circle</option><option value="square">■ square</option><option value="triangle">▲ triangle</option><option value="star">★ star</option><option value="ring">○ ring</option><option value="cross">＋ cross</option><option value="cursor">➤ cursor</option></select></div>
         <div class="row" id="p-glyph-row" style="display:none;"><label>glyph</label><input type="text" id="pGlyph" value="•" maxlength="2" style="width:40px;font-size:12px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;text-align:center;"></div>
+        <div class="row" id="p-img-row" style="display:none;"><button id="p-img-load" style="font-size:8px;padding:3px 8px;">load image</button><button class="gt-paste-img" data-target="p-img-input" title="Paste image from clipboard" style="font-size:8px;padding:3px 6px;">📋</button><span id="p-img-name" style="font-size:8px;color:#555;margin-left:4px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">no image</span><input id="p-img-input" type="file" accept="image/*" style="display:none;"></div>
+        <div class="row" id="p-imgscale-row" style="display:none;"><label>image scale</label><input type="range" id="pImgScale" min="0.2" max="6" value="1" step="0.1"><span class="val" id="pImgScale-v">1.0</span></div>
+        <div class="row"><label>rotation</label><select id="pRotate"><option value="none">none</option><option value="velocity">face velocity</option><option value="spin">spin</option></select></div>
+        <div class="row" id="p-spin-row" style="display:none;"><label>spin rate</label><input type="range" id="pSpinRate" min="-5" max="5" value="1" step="0.1"><span class="val" id="pSpinRate-v">1.0</span></div>
         <div class="row" id="p-trailfade-row" style="display:none;"><label>trail length</label><input type="range" id="pTrailFade" min="0.5" max="0.99" value="0.9" step="0.01"><span class="val" id="pTrailFade-v">0.90</span></div>
         <div class="row"><label>additive glow</label><input type="checkbox" id="pAdditive" checked></div>
         <div class="row"><label>glow</label><input type="range" id="pGlow" min="0" max="30" value="0" step="1"><span class="val" id="pGlow-v">0</span></div>
