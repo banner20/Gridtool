@@ -275,6 +275,7 @@ function defaultLayerParams(){
     visionLineW:1.5, visionConnectDist:0.4, visionAnalysisRes:72,
     visionTrail:0, visionTrailFade:0.6, visionFill:0, visionGlow:0, visionBoxPad:0,
     visionDotShape:'circle', visionDotScale:1, visionVelScale:8, visionJitter:0,
+    visionTimeSpeed:2, visionSlitPos:0.5, visionSlitDir:'left', visionEchoFade:0.85,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6786,9 +6787,41 @@ function _visionDraw(lctx,layer,W,H,tracks){
   }
   lctx.restore();
 }
+// TIME axis — these bypass detection: they perceive *time itself* via a persistent buffer.
+function _visionTimeBuf(layer,W,H){
+  let cv=layer._visionTimeCv;
+  if(!cv||cv.width!==W||cv.height!==H){ cv=layer._visionTimeCv=document.createElement('canvas'); cv.width=W; cv.height=H; }
+  return cv;
+}
+function _visionSlitScan(lctx,layer,src,W,H){
+  const cv=_visionTimeBuf(layer,W,H), cx=cv.getContext('2d');
+  const dir=layer.visionSlitDir||'left', sp=Math.max(1,Math.round(layer.visionTimeSpeed||2));
+  const pos=Math.max(0,Math.min(1,layer.visionSlitPos??0.5)), horiz=(dir==='left'||dir==='right');
+  cx.save(); cx.globalCompositeOperation='copy';
+  if(dir==='left') cx.drawImage(cv,-sp,0); else if(dir==='right') cx.drawImage(cv,sp,0);
+  else if(dir==='up') cx.drawImage(cv,0,-sp); else cx.drawImage(cv,0,sp);
+  cx.restore();
+  try{
+    if(horiz){ const sxp=Math.round(pos*(src.width-1)), dx=(dir==='left')?W-sp:0; cx.drawImage(src,sxp,0,1,src.height,dx,0,sp,H); }
+    else { const syp=Math.round(pos*(src.height-1)), dy=(dir==='up')?H-sp:0; cx.drawImage(src,0,syp,src.width,1,0,dy,W,sp); }
+  }catch(e){}
+  lctx.drawImage(cv,0,0);
+}
+function _visionEcho(lctx,layer,src,W,H){
+  // long-exposure chronophotography: decay the buffer toward black, then 'lighten' the new
+  // frame in — bright/moving things leave fading trails, the bg stays put.
+  const cv=_visionTimeBuf(layer,W,H), cx=cv.getContext('2d');
+  const fade=Math.max(0.5,Math.min(0.99,layer.visionEchoFade??0.85));
+  cx.save(); cx.globalCompositeOperation='source-over'; cx.globalAlpha=1-fade; cx.fillStyle='#000'; cx.fillRect(0,0,W,H); cx.restore();
+  cx.save(); cx.globalCompositeOperation='lighten'; cx.globalAlpha=1; try{ cx.drawImage(src,0,0,W,H); }catch(e){} cx.restore();
+  lctx.drawImage(cv,0,0);
+}
 function renderVisionLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
   const src=_visionSourceCanvas(layer); if(!src||!src.width) return;
+  const rmode=layer.visionRender||'hud';
+  if(rmode==='slitscan'){ _visionSlitScan(lctx,layer,src,W,H); return; }
+  if(rmode==='echo'){ _visionEcho(lctx,layer,src,W,H); return; }
   const aw=Math.max(24,Math.min(180,Math.round(layer.visionAnalysisRes||72)));
   const ah=Math.max(16,Math.round(aw*H/W));
   const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
@@ -13733,7 +13766,8 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
     'visionMaxBlobs','visionBlur','visionTargetColor','visionColorTol','visionSmooth','visionMatchDist','visionHold','visionMinAge',
     'visionAnalysisRes','visionColor','visionAccent','visionColorMode','visionShowSource','visionSourceDim',
     'visionLabelMode','visionWords','visionFont','visionLabelSize','visionLineW','visionConnectDist',
-    'visionTrail','visionTrailFade','visionFill','visionGlow','visionBoxPad','visionDotShape','visionDotScale','visionVelScale','visionJitter'];
+    'visionTrail','visionTrailFade','visionFill','visionGlow','visionBoxPad','visionDotShape','visionDotScale','visionVelScale','visionJitter',
+    'visionTimeSpeed','visionSlitPos','visionSlitDir','visionEchoFade'];
   const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
   function syncRows(l){
     const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
@@ -13743,6 +13777,11 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
     show('vision-words-row', l.visionLabelMode==='word');
     show('vision-connect-row', l.visionRender==='connect');
     show('vision-dot-row', l.visionRender==='dots');
+    const isTime=(l.visionRender==='slitscan'||l.visionRender==='echo');
+    { const e=document.getElementById('vision-time-row'); if(e) e.style.display=isTime?'block':'none'; }
+    show('vision-slit-row', l.visionRender==='slitscan');
+    show('vision-slitpos-row', l.visionRender==='slitscan');
+    show('vision-echo-row', l.visionRender==='echo');
   }
   MAP.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;

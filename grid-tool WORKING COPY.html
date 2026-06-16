@@ -1981,7 +1981,13 @@
         <div class="row"><label>min age</label><input type="range" id="visionMinAge" min="0" max="20" value="0" step="1"><span class="val" id="visionMinAge-v">0</span></div>
 
         <div class="st" style="margin-top:8px;">render</div>
-        <div class="row"><label>style</label><select id="visionRender"><option value="hud">HUD brackets</option><option value="boxes">boxes</option><option value="crosshair">crosshairs</option><option value="dots">dots</option><option value="labels">labels</option><option value="connect">constellation</option></select></div>
+        <div class="row"><label>style</label><select id="visionRender"><optgroup label="track &amp; mark"><option value="hud">HUD brackets</option><option value="boxes">boxes</option><option value="crosshair">crosshairs</option><option value="dots">dots</option><option value="labels">labels</option><option value="connect">constellation</option></optgroup><optgroup label="time"><option value="slitscan">slit-scan</option><option value="echo">chronophotography</option></optgroup></select></div>
+        <div id="vision-time-row" style="display:none;">
+          <div class="row"><label>time speed</label><input type="range" id="visionTimeSpeed" min="1" max="16" value="2" step="1"><span class="val" id="visionTimeSpeed-v">2</span></div>
+          <div class="row" id="vision-slit-row"><label>slit dir</label><select id="visionSlitDir"><option value="left">scroll ←</option><option value="right">scroll →</option><option value="up">scroll ↑</option><option value="down">scroll ↓</option></select></div>
+          <div class="row" id="vision-slitpos-row"><label>slit at</label><input type="range" id="visionSlitPos" min="0" max="1" value="0.5" step="0.01"><span class="val" id="visionSlitPos-v">0.50</span></div>
+          <div class="row" id="vision-echo-row" style="display:none;"><label>persistence</label><input type="range" id="visionEchoFade" min="0.5" max="0.99" value="0.85" step="0.01"><span class="val" id="visionEchoFade-v">0.85</span></div>
+        </div>
         <div class="row"><label>color mode</label><select id="visionColorMode"><option value="fixed">fixed color</option><option value="id">by id (rainbow)</option><option value="source">sample source</option><option value="speed">by speed</option></select></div>
         <div class="row"><label>color</label><input type="color" id="visionColor" value="#46ff8c"></div>
         <div class="row"><label>accent</label><input type="color" id="visionAccent" value="#ff3b6b"></div>
