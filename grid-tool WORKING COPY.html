@@ -1997,6 +1997,18 @@
         <div class="row"><label>color 1</label><input type="color" id="pColor1" value="#ffd36b"></div>
         <div class="row" id="p-color2-row"><label>color 2</label><input type="color" id="pColor2" value="#ff3b6b"></div>
 
+        <div class="st" style="margin-top:8px;color:#ff9d4d;">⌬ form → type</div>
+        <div class="tip" style="font-size:7px;">Particles assemble into a word, then dissolve back. Animate <b>amount</b> (or use breathe) for the build↔scatter transition.</div>
+        <div class="row"><label>amount</label><input type="range" id="pForm" min="0" max="1" value="0" step="0.01"><span class="val" id="pForm-v">0.00</span></div>
+        <div class="row"><label>assemble</label><select id="pFormAnim"><option value="static">manual (amount)</option><option value="breathe">breathe (loop)</option><option value="build">build once</option></select></div>
+        <div class="row" id="p-formspeed-row" style="display:none;"><label>speed</label><input type="range" id="pFormSpeed" min="0.05" max="3" value="0.6" step="0.05"><span class="val" id="pFormSpeed-v">0.60</span></div>
+        <div class="row"><label>text</label><input type="text" id="pFormText" value="FORM" style="flex:1;font-size:10px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+        <div class="row"><label>size</label><input type="range" id="pFormSize" min="0.08" max="0.9" value="0.32" step="0.01"><span class="val" id="pFormSize-v">0.32</span></div>
+        <div class="row"><label>pos X</label><input type="range" id="pFormX" min="0" max="1" value="0.5" step="0.01"><span class="val" id="pFormX-v">0.50</span></div>
+        <div class="row"><label>pos Y</label><input type="range" id="pFormY" min="0" max="1" value="0.45" step="0.01"><span class="val" id="pFormY-v">0.45</span></div>
+        <div class="row"><label>strength</label><input type="range" id="pFormStrength" min="0.05" max="1" value="0.45" step="0.01"><span class="val" id="pFormStrength-v">0.45</span></div>
+        <div class="row"><label>shimmer</label><input type="range" id="pFormJitter" min="0" max="0.6" value="0.15" step="0.01"><span class="val" id="pFormJitter-v">0.15</span></div>
+
         <div class="st" style="margin-top:8px;">render</div>
         <div class="row"><label>style</label><select id="pRender"><option value="point">points</option><option value="streak">velocity streaks</option><option value="trail">trails</option><option value="glyph">glyph</option></select></div>
         <div class="row" id="p-glyph-row" style="display:none;"><label>glyph</label><input type="text" id="pGlyph" value="•" maxlength="2" style="width:40px;font-size:12px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;text-align:center;"></div>

@@ -289,6 +289,8 @@ function defaultLayerParams(){
     pAlphaStart:1, pAlphaEnd:0, pFadeIn:0.12,
     pRender:'point', pGlyph:'•', pAdditive:true, pTrailFade:0.9, pGlow:0,
     pBgOn:false, pBg:'#06070c', pSimSpeed:1,
+    pForm:0, pFormText:'FORM', pFormSize:0.32, pFormX:0.5, pFormY:0.45,
+    pFormStrength:0.45, pFormJitter:0.15, pFormAnim:'static', pFormSpeed:0.6,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6975,6 +6977,21 @@ function _pEmitPoints(layer,W,H){
   layer._pEmitSig=sig; layer._pEmitPts=pts.length?pts:[{x:(layer.pEmitX??0.5)*W,y:(layer.pEmitY??0.5)*H}];
   return layer._pEmitPts;
 }
+// target points for the "form into text" transition (particles seek these to assemble a word)
+function _pFormPoints(layer,W,H){
+  const sig=['form',layer.pFormText,layer.pEmitFont,layer.pFormSize,layer.pFormX,layer.pFormY,W,H].join('|');
+  if(layer._pFormSig===sig && layer._pFormPts) return layer._pFormPts;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const cx=cv.getContext('2d',{willReadFrequently:true});
+  cx.clearRect(0,0,W,H); cx.fillStyle='#fff';
+  const fs=(layer.pFormSize??0.32)*Math.min(W,H);
+  cx.font='900 '+fs+'px '+(layer.pEmitFont||"'Bebas Neue',Impact,sans-serif"); cx.textAlign='center'; cx.textBaseline='middle';
+  const lines=String(layer.pFormText||'FORM').split('\n');
+  lines.forEach((ln,i)=>cx.fillText(ln,(layer.pFormX??0.5)*W,(layer.pFormY??0.45)*H+(i-(lines.length-1)/2)*fs));
+  const d=cx.getImageData(0,0,W,H).data, pts=[], stride=3;
+  for(let y=0;y<H;y+=stride)for(let x=0;x<W;x+=stride){ if(d[(y*W+x)*4+3]>128) pts.push({x,y}); }
+  layer._pFormSig=sig; layer._pFormPts=pts.length?pts:[{x:(layer.pFormX??0.5)*W,y:(layer.pFormY??0.45)*H}];
+  return layer._pFormPts;
+}
 function _pSpawn(layer,W,H,U){
   const ex=(layer.pEmitX??0.5), ey=(layer.pEmitY??0.5), shape=layer.pEmitShape||'point';
   let x,y;
@@ -6997,17 +7014,32 @@ function renderParticleLayer(lctx,layer,W,H){
   const max=Math.max(10,Math.round(layer.pMax||2500));
   let acc=(layer._pAcc||0)+(layer.pRate||0)*dt; let n=Math.floor(acc); layer._pAcc=acc-n;
   for(let i=0;i<n && ps.length<max;i++) ps.push(_pSpawn(layer,W,H,U));
+  // FORM transition: how strongly particles assemble into the target text (0=free, 1=word)
+  const fAnim=layer.pFormAnim||'static';
+  let form=Math.max(0,Math.min(1,layer.pForm||0));
+  if(fAnim==='breathe') form=0.5+0.5*Math.sin(t*0.001*(layer.pFormSpeed||0.6));
+  else if(fAnim==='build') form=Math.max(0,Math.min(1,t*0.0004*(layer.pFormSpeed||0.6)));
+  form=Math.max(0,Math.min(1,form));
+  const formActive=form>0.01;
+  const formPts=formActive?_pFormPoints(layer,W,H):null;
+  const formK=(layer.pFormStrength??0.45), formJit=(layer.pFormJitter??0.15), freeMul=1-form*0.9;
   // FORCES + integrate
   const gA=(layer.pGravityAngle||90)*Math.PI/180, gx=Math.cos(gA)*(layer.pGravity||0)*U*0.45, gy=Math.sin(gA)*(layer.pGravity||0)*U*0.45;
   const drag=Math.max(0,Math.min(0.99,(layer.pDrag||0)*dt*4));
   const turb=(layer.pTurb||0), tsc=(layer.pTurbScale||3)/U, tsp=(layer.pTurbSpeed||1);
   const att=(layer.pAttract||0), ax=(layer.pAttractX??0.5)*W, ay=(layer.pAttractY??0.4)*H, vor=(layer.pVortex||0);
   for(let i=ps.length-1;i>=0;i--){ const p=ps[i];
-    p.vx+=gx*dt; p.vy+=gy*dt;
-    if(turb){ const a=_mnNoise(p.x*tsc,p.y*tsc,t*0.0006*tsp)*12.566; p.vx+=Math.cos(a)*turb*U*0.6*dt; p.vy+=Math.sin(a)*turb*U*0.6*dt; }
+    p.vx+=gx*dt*freeMul; p.vy+=gy*dt*freeMul;
+    if(turb){ const a=_mnNoise(p.x*tsc,p.y*tsc,t*0.0006*tsp)*12.566; p.vx+=Math.cos(a)*turb*U*0.6*dt*freeMul; p.vy+=Math.sin(a)*turb*U*0.6*dt*freeMul; }
     if(att||vor){ const dx=ax-p.x,dy=ay-p.y,dd=Math.sqrt(dx*dx+dy*dy)+1;
-      if(att){ const f=att*U*1.2*dt/dd; p.vx+=dx*f; p.vy+=dy*f; }
-      if(vor){ const f=vor*U*1.2*dt/dd; p.vx+=-dy*f; p.vy+=dx*f; } }
+      if(att){ const f=att*U*1.2*dt*freeMul/dd; p.vx+=dx*f; p.vy+=dy*f; }
+      if(vor){ const f=vor*U*1.2*dt*freeMul/dd; p.vx+=-dy*f; p.vy+=dx*f; } }
+    if(formActive){
+      if(p.tx==null){ const fp=formPts[(Math.random()*formPts.length)|0]; p.tx=fp.x; p.ty=fp.y; }
+      const sx=p.tx-p.x, sy=p.ty-p.y, k=formK*form*dt*26; p.vx+=sx*k; p.vy+=sy*k;
+      const damp=form*0.34; p.vx*=(1-damp); p.vy*=(1-damp);
+      if(formJit){ p.vx+=(Math.random()-0.5)*formJit*U*0.25*form; p.vy+=(Math.random()-0.5)*formJit*U*0.25*form; }
+    }
     p.vx*=(1-drag); p.vy*=(1-drag);
     p.px=p.x; p.py=p.y; p.x+=p.vx*dt; p.y+=p.vy*dt; p.age+=dt;
     if(p.age>=p.life) ps.splice(i,1);
@@ -14001,7 +14033,8 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
     'pRate','pMax','pLife','pLifeVar','pSpeed','pSpeedVar','pDir','pSpread',
     'pGravity','pGravityAngle','pDrag','pTurb','pTurbScale','pTurbSpeed','pAttract','pVortex','pAttractX','pAttractY',
     'pSizeStart','pSizeEnd','pAlphaStart','pAlphaEnd','pFadeIn','pColorMode','pColor1','pColor2',
-    'pRender','pGlyph','pAdditive','pTrailFade','pGlow','pSimSpeed','pBgOn','pBg'];
+    'pRender','pGlyph','pAdditive','pTrailFade','pGlow','pSimSpeed','pBgOn','pBg',
+    'pForm','pFormText','pFormSize','pFormX','pFormY','pFormStrength','pFormJitter','pFormAnim','pFormSpeed'];
   const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
   function syncRows(l){
     const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
@@ -14015,15 +14048,16 @@ document.getElementById('btn-add-particle-layer')?.addEventListener('click',()=>
     show('p-color2-row', l.pColorMode==='gradient');
     show('p-glyph-row', l.pRender==='glyph');
     show('p-trailfade-row', l.pRender==='trail');
+    show('p-formspeed-row', (l.pFormAnim||'static')!=='static');
   }
   MAP.forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     const ev=(el.tagName==='SELECT'||el.type==='checkbox')?'change':'input';
     el.addEventListener(ev,()=>{
       const l=pLayer(); if(!l) return;
-      l[id]=readEl(el); l._pEmitSig=null;
+      l[id]=readEl(el); l._pEmitSig=null; l._pFormSig=null;
       const vs=document.getElementById(id+'-v'); if(vs&&el.type==='range'){ const dec=(el.step||'1').includes('.')?el.step.split('.')[1].length:0; vs.textContent=parseFloat(el.value).toFixed(dec); }
-      if(id==='pEmitShape'||id==='pColorMode'||id==='pRender') syncRows(l);
+      if(id==='pEmitShape'||id==='pColorMode'||id==='pRender'||id==='pFormAnim') syncRows(l);
     });
   });
   document.getElementById('p-burst')?.addEventListener('click',()=>{ const l=pLayer(); if(!l) return; const W=mainCanvas.width,H=mainCanvas.height,U=Math.min(W,H);
