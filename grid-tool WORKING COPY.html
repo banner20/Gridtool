@@ -2871,8 +2871,8 @@ FARBE</textarea></div>
     </div>
 
     <!-- ════ SEQUENCES VIEW ════ -->
-    <div id="timeline-seq-body" style="display:none;flex:1;min-height:0;background:#101010;">
-      <div id="seq-arrange" style="height:100%;display:flex;flex-direction:column;">
+    <div id="timeline-seq-body" style="display:none;flex:1;min-height:0;min-width:0;flex-direction:column;background:#101010;">
+      <div id="seq-arrange" style="flex:1;min-height:0;width:100%;display:flex;flex-direction:column;">
         <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #202020;flex-shrink:0;">
           <span style="font-size:8px;color:#888;font-family:monospace;text-transform:uppercase;letter-spacing:.08em;">arrange — one track per layer</span>
           <span id="seq-editor-hint" style="font-size:8px;color:#555;margin-left:auto;">double-click a clip to edit its sequence · click empty track to add</span>
@@ -2880,7 +2880,7 @@ FARBE</textarea></div>
         <div id="seq-tracklist" style="flex:1;overflow-y:auto;padding:6px 0;"></div>
       </div>
       <!-- Sequence editor (slides over arrange when editing) -->
-      <div id="seq-editor" style="display:none;height:100%;flex-direction:column;">
+      <div id="seq-editor" style="display:none;flex:1;min-height:0;width:100%;flex-direction:column;">
         <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #202020;flex-shrink:0;background:#141414;">
           <button class="cbtn" id="seq-editor-back" style="font-size:8px;">← arrange</button>
           <input id="seq-editor-name" style="font-size:9px;width:120px;padding:2px 5px;background:#0d0d0d;color:#ddd;border:1px solid #2a2a2a;border-radius:3px;" placeholder="sequence name">
