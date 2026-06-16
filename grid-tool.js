@@ -276,6 +276,8 @@ function defaultLayerParams(){
     visionTrail:0, visionTrailFade:0.6, visionFill:0, visionGlow:0, visionBoxPad:0,
     visionDotShape:'circle', visionDotScale:1, visionVelScale:8, visionJitter:0,
     visionTimeSpeed:2, visionSlitPos:0.5, visionSlitDir:'left', visionEchoFade:0.85,
+    visionFlowGrid:24, visionFlowScale:1, visionFlowThresh:0.04,
+    visionLevels:3, visionRegionOutline:1, visionRegionFill:true,
     fxChain:[],
     filterChain:[],
     mask:defaultMask(),
@@ -6816,12 +6818,66 @@ function _visionEcho(lctx,layer,src,W,H){
   cx.save(); cx.globalCompositeOperation='lighten'; cx.globalAlpha=1; try{ cx.drawImage(src,0,0,W,H); }catch(e){} cx.restore();
   lctx.drawImage(cv,0,0);
 }
+// DETECTOR: optical flow — per-cell motion vectors between frames, drawn as an arrow field.
+function _visionFlow(lctx,layer,src,W,H){
+  const aw=Math.max(24,Math.min(180,Math.round(layer.visionAnalysisRes||72))), ah=Math.max(16,Math.round(aw*H/W));
+  const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
+  const N=aw*ah, luma=_visionLuma(d,N);
+  const prev=layer._visionPrevLuma; layer._visionPrevLuma=luma;
+  if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
+  if(!prev||prev.length!==N) return;
+  const gc=Math.max(4,Math.round(layer.visionFlowGrid||24)), gr=Math.max(3,Math.round(gc*H/W));
+  const scale=(layer.visionFlowScale||1)*4, thr=(layer.visionFlowThresh||0.04);
+  lctx.save(); lctx.lineWidth=parseFloat(layer.visionLineW)||1.5; lctx.lineCap='round';
+  for(let gy=0;gy<gr;gy++)for(let gx=0;gx<gc;gx++){
+    const x0=Math.floor(gx/gc*aw), x1=Math.floor((gx+1)/gc*aw), y0=Math.floor(gy/gr*ah), y1=Math.floor((gy+1)/gr*ah);
+    let su=0,sv=0,cnt=0;
+    for(let y=Math.max(1,y0);y<Math.min(ah-1,y1);y++)for(let x=Math.max(1,x0);x<Math.min(aw-1,x1);x++){
+      const p=y*aw+x, Ix=luma[p+1]-luma[p-1], Iy=luma[p+aw]-luma[p-aw], It=luma[p]-prev[p];
+      const den=Ix*Ix+Iy*Iy+1e-3, f=-It/den; su+=f*Ix; sv+=f*Iy; cnt++;
+    }
+    if(!cnt)continue; const u=su/cnt, v=sv/cnt, mag=Math.hypot(u,v); if(mag<thr)continue;
+    const cx=(gx+0.5)/gc*W, cy=(gy+0.5)/gr*H;
+    lctx.strokeStyle=(layer.visionColorMode==='speed')?'hsl('+Math.round(200-Math.min(1,mag*18)*200)+',88%,60%)':(layer.visionColor||'#46ff8c');
+    const ex=cx+u*W*scale, ey=cy+v*H*scale;
+    lctx.beginPath(); lctx.moveTo(cx,cy); lctx.lineTo(ex,ey);
+    const a=Math.atan2(ey-cy,ex-cx), hl=Math.min(8,Math.hypot(ex-cx,ey-cy)*0.45);
+    lctx.moveTo(ex,ey); lctx.lineTo(ex-Math.cos(a-0.4)*hl,ey-Math.sin(a-0.4)*hl);
+    lctx.moveTo(ex,ey); lctx.lineTo(ex-Math.cos(a+0.4)*hl,ey-Math.sin(a+0.4)*hl);
+    lctx.stroke();
+  }
+  lctx.restore();
+}
+// DETECTOR: region quantize — flatten the source into N-level colour cells + paint-by-numbers outlines.
+function _visionRegions(lctx,layer,src,W,H){
+  const aw=Math.max(24,Math.min(200,Math.round(layer.visionAnalysisRes||72))), ah=Math.max(16,Math.round(aw*H/W));
+  const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
+  const lv=Math.max(2,Math.round(layer.visionLevels||3)), step=255/(lv-1), N=aw*ah;
+  let qc=layer._visionQcv||(layer._visionQcv=document.createElement('canvas')); if(qc.width!==aw||qc.height!==ah){qc.width=aw;qc.height=ah;}
+  const qx=qc.getContext('2d'), idd=qx.createImageData(aw,ah), q=idd.data;
+  for(let p=0;p<N;p++){ const i=p*4;
+    q[i]=Math.round(Math.round(d[i]/255*(lv-1))*step); q[i+1]=Math.round(Math.round(d[i+1]/255*(lv-1))*step); q[i+2]=Math.round(Math.round(d[i+2]/255*(lv-1))*step); q[i+3]=255; }
+  qx.putImageData(idd,0,0);
+  lctx.save();
+  if(layer.visionRegionFill!==false){ lctx.imageSmoothingEnabled=false; lctx.drawImage(qc,0,0,W,H); lctx.imageSmoothingEnabled=true; }
+  const ow=parseFloat(layer.visionRegionOutline)||0;
+  if(ow>0){ const sxw=W/aw, syh=H/ah; lctx.strokeStyle=layer.visionColor||'#000'; lctx.lineWidth=ow; lctx.beginPath();
+    for(let y=0;y<ah;y++)for(let x=0;x<aw;x++){ const p=(y*aw+x)*4;
+      if(x<aw-1){ const rr=(y*aw+x+1)*4; if(q[p]!==q[rr]||q[p+1]!==q[rr+1]||q[p+2]!==q[rr+2]){ const lx=(x+1)*sxw; lctx.moveTo(lx,y*syh); lctx.lineTo(lx,(y+1)*syh); } }
+      if(y<ah-1){ const bb=((y+1)*aw+x)*4; if(q[p]!==q[bb]||q[p+1]!==q[bb+1]||q[p+2]!==q[bb+2]){ const ly=(y+1)*syh; lctx.moveTo(x*sxw,ly); lctx.lineTo((x+1)*sxw,ly); } }
+    }
+    lctx.stroke();
+  }
+  lctx.restore();
+}
 function renderVisionLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
   const src=_visionSourceCanvas(layer); if(!src||!src.width) return;
   const rmode=layer.visionRender||'hud';
   if(rmode==='slitscan'){ _visionSlitScan(lctx,layer,src,W,H); return; }
   if(rmode==='echo'){ _visionEcho(lctx,layer,src,W,H); return; }
+  if(layer.visionDetector==='flow'){ _visionFlow(lctx,layer,src,W,H); return; }
+  if(layer.visionDetector==='regions'){ _visionRegions(lctx,layer,src,W,H); return; }
   const aw=Math.max(24,Math.min(180,Math.round(layer.visionAnalysisRes||72)));
   const ah=Math.max(16,Math.round(aw*H/W));
   const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
@@ -13767,13 +13823,18 @@ document.getElementById('btn-add-vision-layer')?.addEventListener('click',()=>{
     'visionAnalysisRes','visionColor','visionAccent','visionColorMode','visionShowSource','visionSourceDim',
     'visionLabelMode','visionWords','visionFont','visionLabelSize','visionLineW','visionConnectDist',
     'visionTrail','visionTrailFade','visionFill','visionGlow','visionBoxPad','visionDotShape','visionDotScale','visionVelScale','visionJitter',
-    'visionTimeSpeed','visionSlitPos','visionSlitDir','visionEchoFade'];
+    'visionTimeSpeed','visionSlitPos','visionSlitDir','visionEchoFade',
+    'visionFlowGrid','visionFlowScale','visionFlowThresh','visionLevels','visionRegionOutline','visionRegionFill'];
   const readEl=el=> el.type==='checkbox'?el.checked : el.type==='range'?parseFloat(el.value) : el.value;
   function syncRows(l){
     const show=(id,on)=>{ const e=document.getElementById(id); if(e) e.style.display=on?'flex':'none'; };
+    const det=l.visionDetector||'blob';
     show('vision-img-row', l.visionSource==='image');
-    show('vision-channel-row', l.visionDetector!=='motion');
-    show('vision-target-row', l.visionDetector!=='motion' && l.visionChannel==='color');
+    show('vision-channel-row', det==='blob');
+    show('vision-target-row', det==='blob' && l.visionChannel==='color');
+    show('vision-flow-row', det==='flow');
+    show('vision-regions-row', det==='regions');
+    show('vision-renderstyle-row', det==='blob'||det==='motion');
     show('vision-words-row', l.visionLabelMode==='word');
     show('vision-connect-row', l.visionRender==='connect');
     show('vision-dot-row', l.visionRender==='dots');
