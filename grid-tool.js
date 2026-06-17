@@ -16018,7 +16018,7 @@ document.getElementById('btn-fullscreen').addEventListener('click',()=>{const w=
 
 // Video recording
 let mediaRecorder=null,recChunks=[];
-let _recPrevScale=1;
+let _recPrevScale=1, _recExt='webm';
 document.getElementById('btn-rec').addEventListener('click',function(){
   if(mediaRecorder&&mediaRecorder.state==='recording'){
     mediaRecorder.stop();this.textContent='⏺ record';this.classList.remove('active');
@@ -16034,20 +16034,31 @@ document.getElementById('btn-rec').addEventListener('click',function(){
     // Upscale to full res for recording
     _recPrevScale=liveScale;
     if(liveScale<1){ liveScale=1; applyCanvasSize(); }
-    const stream=mainCanvas.captureStream(30);
-    mediaRecorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp9'});
-    recChunks=[];
+    const fps=parseInt(document.getElementById('rec-fps')?.value)||60;
+    const bitrate=(parseInt(document.getElementById('rec-quality')?.value)||28)*1000000;
+    const fmt=document.getElementById('rec-format')?.value||'webm';
+    // pick the best supported codec for the chosen container (quality first)
+    const prefs = fmt==='mp4'
+      ? ['video/mp4;codecs=avc1.640034','video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm']
+      : ['video/webm;codecs=vp9','video/webm;codecs=av01','video/webm;codecs=vp8','video/webm'];
+    let mime=''; for(const m of prefs){ if(window.MediaRecorder && MediaRecorder.isTypeSupported(m)){ mime=m; break; } }
+    const ext=(mime.indexOf('mp4')>=0)?'mp4':'webm';
+    const stream=mainCanvas.captureStream(fps);
+    const opts={videoBitsPerSecond:bitrate}; if(mime) opts.mimeType=mime;
+    mediaRecorder=new MediaRecorder(stream,opts);
+    recChunks=[]; _recExt=ext;
     mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recChunks.push(e.data);};
     mediaRecorder.onstop=()=>{
-      const blob=new Blob(recChunks,{type:'video/webm'});
-      const a=document.createElement('a');a.download='grid-'+Date.now()+'.webm';a.href=URL.createObjectURL(blob);a.click();
+      const blob=new Blob(recChunks,{type:mime||('video/'+_recExt)});
+      const a=document.createElement('a');a.download='grid-'+mainCanvas.width+'x'+mainCanvas.height+'@'+fps+'-'+Date.now()+'.'+_recExt;a.href=URL.createObjectURL(blob);a.click();
     };
     mediaRecorder.start();
     this.textContent='⏹ stop rec';this.classList.add('active');
     document.getElementById('rec-indicator').style.display='block';
   }catch(e){
+    window._gtExporting=false;
     liveScale=_recPrevScale; applyCanvasSize();
-    alert('Recording not supported in this browser.');
+    alert('Recording failed: '+(e&&e.message||e));
   }
 });
 

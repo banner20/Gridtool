@@ -3009,6 +3009,21 @@ FARBE</textarea></div>
     <button class="cbtn" id="btn-copy-png">⧉ PNG</button>
     <button class="cbtn" id="btn-copy-svg">⧉ SVG</button>
     <button class="cbtn" id="btn-rec">⏺ record</button>
+    <select id="rec-fps" title="Record frame rate" style="font-size:8px;font-family:monospace;padding:2px 3px;background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.15);border-radius:3px;">
+      <option value="60" selected>60 fps</option>
+      <option value="30">30 fps</option>
+      <option value="24">24 fps</option>
+    </select>
+    <select id="rec-quality" title="Record quality (bitrate)" style="font-size:8px;font-family:monospace;padding:2px 3px;background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.15);border-radius:3px;">
+      <option value="6">draft</option>
+      <option value="14">good</option>
+      <option value="28" selected>high</option>
+      <option value="60">max</option>
+    </select>
+    <select id="rec-format" title="Record format" style="font-size:8px;font-family:monospace;padding:2px 3px;background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.15);border-radius:3px;">
+      <option value="webm" selected>webm</option>
+      <option value="mp4">mp4</option>
+    </select>
     <button class="cbtn" id="btn-vary" style="border-color:rgba(180,120,255,0.5);color:#cc88ff;">⊞ vary</button>
     <div style="display:flex;align-items:center;gap:4px;margin-left:8px;border-left:1px solid rgba(255,255,255,0.1);padding-left:8px;">
       <span style="font-size:8px;color:#444;font-family:monospace;">canvas</span>
