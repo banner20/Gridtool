@@ -209,6 +209,15 @@ button.danger:hover{background:var(--red);color:#000;}
 /* CANVAS AREA */
 #canvas-wrap{flex:1;position:relative;background:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;}
 #main-canvas{display:block;image-rendering:auto;position:relative;z-index:1;}
+/* Clean output mode — canvas only, black bg, no chrome (for VJ window/screen capture, OBS, TD Web Render TOP) */
+body.output-mode #panel{display:none;}
+body.output-mode #canvas-wrap{background:#000;}
+body.output-mode #canvas-bg{display:none;}
+body.output-mode #bottom-bar,
+body.output-mode #timeline-panel,
+body.output-mode #objects-dock,
+body.output-mode #objects-dock-toggle,
+body.output-mode #gfx-sel-indicator{display:none!important;}
 #canvas-bg{position:absolute;inset:0;background:repeating-conic-gradient(#1a1a1a 0% 25%,#141414 0% 50%) 0 0/16px 16px;pointer-events:none;z-index:0;}
 #objects-dock{position:absolute;top:10px;right:10px;bottom:48px;width:288px;z-index:3;background:var(--panel);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;box-shadow:0 10px 32px rgba(0,0,0,0.35);}
 #objects-dock-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:4px;background:#151515;border-radius:8px 8px 0 0;}
@@ -3393,6 +3402,7 @@ FARBE</textarea></div>
     <button class="cbtn" id="btn-undo" title="Undo (Ctrl+Z)" style="opacity:0.3;">↩ undo</button>
     <button class="cbtn" id="btn-redo" title="Redo (Ctrl+Y)" style="opacity:0.3;">↪ redo</button>
     <button class="cbtn" id="btn-fullscreen">⛶ fullscreen</button>
+    <button class="cbtn" id="btn-output" title="Clean output mode — canvas only, no UI (ESC to exit). For window/screen capture, OBS Browser Source, or TouchDesigner Web Render TOP. Add ?output=1 to the URL to start in this mode.">⧉ output</button>
     <button class="cbtn" id="btn-export-png">↓ PNG</button>
     <button class="cbtn" id="btn-copy-png">⧉ PNG</button>
     <button class="cbtn" id="btn-copy-svg">⧉ SVG</button>
@@ -19536,6 +19546,15 @@ document.getElementById('btn-copy-svg').addEventListener('click',async()=>{
   }
 });
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{const w=document.getElementById('canvas-wrap');w.requestFullscreen?w.requestFullscreen():w.webkitRequestFullscreen&&w.webkitRequestFullscreen();});
+// ── CLEAN OUTPUT MODE (for VJ window/screen capture, OBS Browser Source, TD Web Render TOP) ──
+function setOutputMode(on){
+  document.body.classList.toggle('output-mode', !!on);
+  try{ applyCanvasSize(); }catch(_){}
+}
+document.getElementById('btn-output')?.addEventListener('click',()=>setOutputMode(true));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && document.body.classList.contains('output-mode')) setOutputMode(false); });
+// auto-enable via ?output=1 / #output (load the URL like this in OBS or TouchDesigner's Web Render TOP)
+(function(){ const p=new URLSearchParams(location.search); if(p.get('output')==='1'||location.hash==='#output') setTimeout(()=>setOutputMode(true),60); })();
 
 // Video recording
 let mediaRecorder=null,recChunks=[];

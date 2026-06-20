@@ -16015,6 +16015,15 @@ document.getElementById('btn-copy-svg').addEventListener('click',async()=>{
   }
 });
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{const w=document.getElementById('canvas-wrap');w.requestFullscreen?w.requestFullscreen():w.webkitRequestFullscreen&&w.webkitRequestFullscreen();});
+// ── CLEAN OUTPUT MODE (for VJ window/screen capture, OBS Browser Source, TD Web Render TOP) ──
+function setOutputMode(on){
+  document.body.classList.toggle('output-mode', !!on);
+  try{ applyCanvasSize(); }catch(_){}
+}
+document.getElementById('btn-output')?.addEventListener('click',()=>setOutputMode(true));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && document.body.classList.contains('output-mode')) setOutputMode(false); });
+// auto-enable via ?output=1 / #output (load the URL like this in OBS or TouchDesigner's Web Render TOP)
+(function(){ const p=new URLSearchParams(location.search); if(p.get('output')==='1'||location.hash==='#output') setTimeout(()=>setOutputMode(true),60); })();
 
 // Video recording
 let mediaRecorder=null,recChunks=[];
