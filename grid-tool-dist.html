@@ -2807,6 +2807,29 @@ UNIT</textarea></div>
             <div class="row"><label>speed</label><input type="range" id="gfx-p-kinspd" min="0.1" max="5" value="1" step="0.1"><span class="val" id="gfx-p-kinspd-v">1.0</span></div>
             <div class="row"><label>stagger</label><input type="range" id="gfx-p-kinstag" min="0" max="2" value="0.5" step="0.01" title="Phase delay between consecutive glyphs — the traveling-wave / cascade feel"><span class="val" id="gfx-p-kinstag-v">0.50</span></div>
             <div class="tip" style="font-size:7px;">Uses the element <b>wave</b> shape (Motion tab). Disabled for image/visual fill &amp; curved text.</div>
+            <div style="margin:6px 0 2px;font-size:7px;color:#cc88ff;text-transform:uppercase;letter-spacing:.1em;">selector animator <span style="color:#666;">(stacks on the above)</span></div>
+            <div class="row"><label>enable</label><input type="checkbox" id="gfx-p-ksel"><span style="font-size:7px;color:#666;margin-left:4px;">a sweep that drives any property</span></div>
+            <div id="gfx-ksel-rows" style="display:none;">
+              <div class="row"><label>order</label><select id="gfx-p-kselorder"><option value="lr">left → right</option><option value="rl">right → left</option><option value="center">center → out</option><option value="edges">edges → in</option><option value="random">random</option><option value="word">by word</option></select></div>
+              <div class="row"><label>animate</label><select id="gfx-p-kselanim"><option value="sweep">sweep (loop)</option><option value="pingpong">ping-pong</option><option value="build">build once</option><option value="static">manual offset</option></select></div>
+              <div class="row"><label>range</label><input type="range" id="gfx-p-kselrange" min="0.05" max="1" value="0.4" step="0.01"><span class="val" id="gfx-p-kselrange-v">0.40</span></div>
+              <div class="row" id="gfx-kseloffset-row" style="display:none;"><label>offset</label><input type="range" id="gfx-p-kseloffset" min="0" max="1" value="0" step="0.01"><span class="val" id="gfx-p-kseloffset-v">0.00</span></div>
+              <div class="row"><label>speed</label><input type="range" id="gfx-p-kselspeed" min="0.1" max="5" value="1" step="0.1"><span class="val" id="gfx-p-kselspeed-v">1.0</span></div>
+              <div class="row"><label>easing</label><select id="gfx-p-kselease"><option value="linear">linear</option><option value="smooth">smooth</option><option value="ease">ease</option><option value="overshoot">overshoot</option><option value="elastic">elastic</option><option value="bounce">bounce</option></select></div>
+              <div style="margin:4px 0 2px;font-size:7px;color:#888;">drives (amount):</div>
+              <div class="row"><label>move X</label><input type="range" id="gfx-p-kselx" min="-2" max="2" value="0" step="0.05"><span class="val" id="gfx-p-kselx-v">0.0</span></div>
+              <div class="row"><label>move Y</label><input type="range" id="gfx-p-ksely" min="-2" max="2" value="0" step="0.05"><span class="val" id="gfx-p-ksely-v">0.0</span></div>
+              <div class="row"><label>scale</label><input type="range" id="gfx-p-kselscale" min="-1" max="3" value="0" step="0.05"><span class="val" id="gfx-p-kselscale-v">0.0</span></div>
+              <div class="row"><label>rotate</label><input type="range" id="gfx-p-kselrot" min="-1" max="1" value="0" step="0.02"><span class="val" id="gfx-p-kselrot-v">0.00</span></div>
+              <div class="row"><label>fade</label><input type="range" id="gfx-p-kselopacity" min="0" max="1" value="0" step="0.02"><span class="val" id="gfx-p-kselopacity-v">0.00</span></div>
+              <div class="row"><label>tracking</label><input type="range" id="gfx-p-kseltrack" min="-1" max="2" value="0" step="0.02"><span class="val" id="gfx-p-kseltrack-v">0.00</span></div>
+              <div class="row"><label>color</label><select id="gfx-p-kselcolmode"><option value="none">none</option><option value="wave">wave (→ color)</option><option value="gradient">gradient across</option></select></div>
+              <div class="row" id="gfx-kselcol-row" style="display:none;"><label>colors</label><input type="color" id="gfx-p-kselcol" value="#ff3b6b"><input type="color" id="gfx-p-kselcol2" value="#ffd166" style="margin-left:3px;"></div>
+              <div class="row"><label>reveal</label><select id="gfx-p-kselreveal"><option value="none">none</option><option value="fade">fade in</option><option value="cut">cut on</option><option value="scramble">scramble / decode</option><option value="blur">blur in</option></select></div>
+              <div class="row" id="gfx-kselscr-row" style="display:none;"><label>charset</label><select id="gfx-p-kselscrset"><option value="symbols">symbols</option><option value="katakana">katakana</option><option value="binary">binary</option><option value="alpha">A–Z</option><option value="digits">0–9</option><option value="custom">custom</option></select></div>
+              <div class="row" id="gfx-kselscrcustom-row" style="display:none;"><label>custom</label><input type="text" id="gfx-p-kselscrcustom" value="" style="flex:1;font-size:10px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+              <div class="tip" style="font-size:7px;">Reveals fly glyphs into place (set move/scale/rotate). For a custom build, set animate=manual and keyframe/LFO the offset.</div>
+            </div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">box</div>
             <div class="row"><label>style</label><select id="gfx-p-box"><option value="none">none</option><option value="filled">filled</option><option value="outline">outline</option><option value="pill">pill</option><option value="underline">underline</option></select></div>
             <div class="row"><label>box color</label><input type="color" id="gfx-p-bxcol" value="#ffffff"></div>
@@ -6616,6 +6639,9 @@ function gfxDefaultEl(type){
     extrude:0,extrudeColor:'#777777',extrudeAngle:45,
     curve:0,
     kinetic:'none',kineticUnit:'char',kineticAmount:0.6,kineticSpeed:1,kineticStagger:0.5,
+    kSelOn:false,kSelOrder:'lr',kSelRange:0.4,kSelOffset:0,kSelAnim:'sweep',kSelSpeed:1,kSelEase:'smooth',
+    kSelX:0,kSelY:0,kSelScale:0,kSelRot:0,kSelOpacity:0,kSelTrack:0,
+    kSelColMode:'none',kSelCol:'#ff3b6b',kSelCol2:'#ffd166',kSelReveal:'none',kSelScrambleSet:'symbols',kSelScrambleCustom:'',
     boxStyle:'none',boxColor:'#ffffff',boxOpacity:0.15,boxPad:10};
   if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true};
   if(type==='info') return{...base,y:0.35,date:'',time:'',location:'',extra:'',font:"'Helvetica Neue',Arial,sans-serif",size:0.9,align:'left',color:'#cccccc',accentColor:'#ff4466',pills:false,boxStyle:'none',boxColor:'#000000',boxOpacity:0.85,boxPad:14};
@@ -6864,6 +6890,63 @@ function _gfxKinetic(mode,i,n,t,o,sz){
   }
   return r;
 }
+// ── SELECTOR-DRIVEN ANIMATOR (range selector + multi-property + reveals; stacks on the mode above) ──
+const _GFX_SCRAMBLE_SETS={
+  symbols:_GFX_SCRAMBLE,
+  katakana:'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝ',
+  binary:'01',
+  alpha:'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  digits:'0123456789'
+};
+function _gfxScrambleChSet(set,step,seed){
+  const x=Math.sin((step+seed*7)*12.9898)*43758.5453; const f=x-Math.floor(x);
+  return set[Math.floor(f*set.length)%set.length];
+}
+function _gfxOrderPos(i,n,order,wordOf,wordN){
+  const d=Math.max(1,n-1);
+  if(order==='rl') return 1-i/d;
+  if(order==='center'){ const c=(n-1)/2; return Math.abs(i-c)/Math.max(1,c); }
+  if(order==='edges'){ const c=(n-1)/2; return 1-Math.abs(i-c)/Math.max(1,c); }
+  if(order==='random'){ const x=Math.sin((i+1)*78.233)*43758.5453; return x-Math.floor(x); }
+  if(order==='word' && wordN>1) return (wordOf||0)/(wordN-1);
+  return i/d; // lr
+}
+function _gfxSelEase(x,e){
+  x=Math.max(0,Math.min(1,x));
+  if(e==='smooth') return x*x*(3-2*x);
+  if(e==='ease') return x*x;
+  if(e==='overshoot'){ const c=1.7; return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2); }
+  if(e==='elastic'){ if(x===0||x===1)return x; return Math.pow(2,-10*x)*Math.sin((x*10-0.75)*2.094)+1; }
+  if(e==='bounce'){ let t=x; const n1=7.5625,d1=2.75; if(t<1/d1)return n1*t*t; if(t<2/d1){t-=1.5/d1;return n1*t*t+0.75;} if(t<2.5/d1){t-=2.25/d1;return n1*t*t+0.9375;} t-=2.625/d1;return n1*t*t+0.984375; }
+  return x;
+}
+// returns per-glyph selector contribution {dx,dy,sc,rot,alpha,track,col,scramble,blur} or null
+function _gfxSelector(i,n,t,s,sz,wordOf,wordN){
+  if(!s||!s.on) return null;
+  const o=_gfxOrderPos(i,n,s.order||'lr',wordOf,wordN);
+  const anim=s.anim||'sweep', spd=s.speed||1, range=Math.max(0.001,s.range??0.4);
+  let off=s.offset||0;
+  if(anim==='sweep') off=((t*0.0006*spd)%1+1)%1;
+  else if(anim==='pingpong'){ const p=((t*0.0006*spd)%1+1)%1; off=p<0.5?p*2:2-p*2; }
+  else if(anim==='build') off=Math.max(0,Math.min(1,t*0.0004*spd));
+  const r={dx:0,dy:0,sc:1,rot:0,alpha:1,track:0,col:null,scramble:false,blur:0};
+  const reveal=s.reveal||'none';
+  if(reveal!=='none'){
+    const rv=Math.max(0,Math.min(1,(off*(1+range)-o)/range)); // 0 hidden -> 1 shown; off=1 reveals all (incl. last glyph)
+    const tw=_gfxSelEase(1-rv,s.ease||'smooth'); // transform weight: full when hidden, fly into place
+    r.dx=(s.x||0)*tw*sz; r.dy=(s.y||0)*tw*sz; r.sc=1+(s.scale||0)*tw; r.rot=(s.rot||0)*tw*Math.PI; r.track=(s.track||0)*tw;
+    r.alpha = reveal==='cut'?(rv>=0.5?1:0):rv;
+    r.scramble = (reveal==='scramble' && rv<0.92);
+    r.blur = reveal==='blur'? (1-rv)*sz*0.4 : 0;
+  } else {
+    const d=Math.abs(o-off); let w=Math.max(0,Math.min(1,1-d/range)); w=_gfxSelEase(w,s.ease||'smooth');
+    r.dx=(s.x||0)*w*sz; r.dy=(s.y||0)*w*sz; r.sc=1+(s.scale||0)*w; r.rot=(s.rot||0)*w*Math.PI;
+    r.alpha=1-(s.opacity||0)*w; r.track=(s.track||0)*w;
+    if(s.colMode==='gradient') r.col=_pLerpHex(s.col||'#ff3b6b',s.col2||'#ffd166',o);
+    else if(s.colMode==='wave' && w>0.01) r.col=_pLerpHex(s.fill||'#ffffff',s.col||'#ff3b6b',w);
+  }
+  return r;
+}
 // draw one line glyph-by-glyph (or word-by-word). ctx font/letterSpacing/baseline already set by caller.
 function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
   const unit=o.unit||'char';
@@ -6875,22 +6958,37 @@ function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
   const n=tokens.length, t=o.t, step=Math.floor(t*(o.speed||1)*0.06);
   ctx.textAlign='left';
   const baseAlpha=ctx.globalAlpha;
+  const sel=o.sel; const scrSet=_GFX_SCRAMBLE_SETS[o.scrambleSet]||(o.scrambleSet==='custom'&&o.scrambleCustom?o.scrambleCustom:_GFX_SCRAMBLE);
+  // word indices (for selector order='word')
+  let wordOf=null, wordN=1;
+  if(sel&&sel.order==='word'){ wordOf=new Array(n); let wi=0; for(let j=0;j<n;j++){ if(unit==='word'){wordOf[j]=j;} else { wordOf[j]=wi; if(tokens[j]===' ')wi++; } } wordN=unit==='word'?n:wi+1; }
+  let trackAcc=0;
   for(let i=0;i<n;i++){
     const k=_gfxKinetic(o.mode,i,n,t,o,sz);
+    const s=sel?_gfxSelector(i,n,t,sel,sz,wordOf&&wordOf[i],wordN):null;
+    // compose continuous + selector
+    const dx=k.dx+(s?s.dx:0), dy=k.dy+(s?s.dy:0), scF=k.sc*(s?s.sc:1), rot=k.rot+(s?s.rot:0);
+    const alpha=k.alpha*(s?s.alpha:1);
+    const col=(s&&s.col)||k.col||o.fill;
+    const scramble=k.scramble||(s&&s.scramble);
+    const blur=s?s.blur:0;
     let glyph=tokens[i];
-    if(k.scramble){ glyph = unit==='word'
-      ? Array.from(glyph,(c,ci)=>_gfxScrambleCh(step,i*31+ci)).join('')
-      : _gfxScrambleCh(step,i); }
-    if(k.alpha>0.003 && glyph!==' ' && glyph!==''){
+    if(scramble){ glyph = unit==='word'
+      ? Array.from(glyph,(c,ci)=>_gfxScrambleChSet(scrSet,step,i*31+ci)).join('')
+      : _gfxScrambleChSet(scrSet,step,i); }
+    const drawX=x+trackAcc;
+    if(alpha>0.003 && glyph!==' ' && glyph!==''){
       ctx.save();
-      ctx.globalAlpha=baseAlpha*Math.max(0,Math.min(1,k.alpha));
-      const gx=x+tw[i]/2, gy=topY+sz/2;
-      ctx.translate(gx+k.dx,gy+k.dy); ctx.scale(k.sc,k.sc); ctx.rotate(k.rot); ctx.translate(-gx,-gy);
-      if(o.strokeMode!=='stroke'){ ctx.fillStyle=k.col||o.fill; ctx.fillText(glyph,x,topY); }
+      ctx.globalAlpha=baseAlpha*Math.max(0,Math.min(1,alpha));
+      if(blur>0.3) ctx.filter='blur('+blur.toFixed(1)+'px)';
+      const gx=drawX+tw[i]/2, gy=topY+sz/2;
+      ctx.translate(gx+dx,gy+dy); ctx.scale(scF,scF); ctx.rotate(rot); ctx.translate(-gx,-gy);
+      if(o.strokeMode!=='stroke'){ ctx.fillStyle=col; ctx.fillText(glyph,drawX,topY); }
       if(o.strokeMode==='stroke'||o.strokeMode==='both'){ ctx.shadowBlur=0;ctx.shadowOffsetX=0;ctx.shadowOffsetY=0;
-        ctx.strokeStyle=o.strokeMode==='stroke'?(k.col||o.fill):o.strokeColor; ctx.lineWidth=o.strokeWidth; ctx.lineJoin='round'; ctx.strokeText(glyph,x,topY); }
+        ctx.strokeStyle=o.strokeMode==='stroke'?col:o.strokeColor; ctx.lineWidth=o.strokeWidth; ctx.lineJoin='round'; ctx.strokeText(glyph,drawX,topY); }
       ctx.restore();
     }
+    trackAcc += (s?s.track:0)*sz;
     x+=tw[i]+(unit==='word'?spaceW:0);
   }
   ctx.globalAlpha=baseAlpha;
@@ -7082,13 +7180,23 @@ function renderGfxEl(lctx,el,layer,W,H){
 
       // KINETIC TYPE — per-glyph / per-word animation (replaces whole-line fill)
       const kin=el.kinetic||'none';
-      if(kin!=='none'){
+      if(kin!=='none' || el.kSelOn){
+        const fillNow=lineFill(tx,cy,tw,sz);
+        const sel = el.kSelOn ? {
+          on:true, order:el.kSelOrder||'lr', range:parseFloat(el.kSelRange), offset:parseFloat(el.kSelOffset)||0,
+          anim:el.kSelAnim||'sweep', speed:parseFloat(el.kSelSpeed)||1, ease:el.kSelEase||'smooth',
+          x:parseFloat(el.kSelX)||0, y:parseFloat(el.kSelY)||0, scale:parseFloat(el.kSelScale)||0, rot:parseFloat(el.kSelRot)||0,
+          opacity:parseFloat(el.kSelOpacity)||0, track:parseFloat(el.kSelTrack)||0,
+          colMode:el.kSelColMode||'none', col:el.kSelCol||'#ff3b6b', col2:el.kSelCol2||'#ffd166', fill:fillNow,
+          reveal:el.kSelReveal||'none'
+        } : null;
         _gfxKineticDraw(lctx,line,sz,tx,cy,{
           mode:kin, unit:el.kineticUnit||'char',
           amount:parseFloat(el.kineticAmount), speed:parseFloat(el.kineticSpeed)||1,
           stagger:parseFloat(el.kineticStagger), wave:el.mWave||'sine', t:globalT||0,
-          align, fill:lineFill(tx,cy,tw,sz),
-          strokeMode, strokeColor:el.strokeColor||'#000', strokeWidth:parseFloat(el.strokeWidth)||3
+          align, fill:fillNow,
+          strokeMode, strokeColor:el.strokeColor||'#000', strokeWidth:parseFloat(el.strokeWidth)||3,
+          sel, scrambleSet:el.kSelScrambleSet||'symbols', scrambleCustom:el.kSelScrambleCustom||''
         });
         lctx.restore(); cy+=lh; continue;
       }
@@ -20692,6 +20800,15 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-curve',el.curve);
       setV('gfx-p-kin',el.kinetic||'none');setV('gfx-p-kinunit',el.kineticUnit||'char');
       setV('gfx-p-kinamt',el.kineticAmount==null?0.6:el.kineticAmount);setV('gfx-p-kinspd',el.kineticSpeed||1);setV('gfx-p-kinstag',el.kineticStagger==null?0.5:el.kineticStagger);
+      setV('gfx-p-ksel',!!el.kSelOn);setV('gfx-p-kselorder',el.kSelOrder||'lr');setV('gfx-p-kselanim',el.kSelAnim||'sweep');setV('gfx-p-kselrange',el.kSelRange==null?0.4:el.kSelRange);setV('gfx-p-kseloffset',el.kSelOffset||0);setV('gfx-p-kselspeed',el.kSelSpeed||1);setV('gfx-p-kselease',el.kSelEase||'smooth');
+      setV('gfx-p-kselx',el.kSelX||0);setV('gfx-p-ksely',el.kSelY||0);setV('gfx-p-kselscale',el.kSelScale||0);setV('gfx-p-kselrot',el.kSelRot||0);setV('gfx-p-kselopacity',el.kSelOpacity||0);setV('gfx-p-kseltrack',el.kSelTrack||0);
+      setV('gfx-p-kselcolmode',el.kSelColMode||'none');setV('gfx-p-kselcol',el.kSelCol||'#ff3b6b');setV('gfx-p-kselcol2',el.kSelCol2||'#ffd166');setV('gfx-p-kselreveal',el.kSelReveal||'none');setV('gfx-p-kselscrset',el.kSelScrambleSet||'symbols');setV('gfx-p-kselscrcustom',el.kSelScrambleCustom||'');
+      { const on=!!el.kSelOn; const rows=document.getElementById('gfx-ksel-rows'); if(rows)rows.style.display=on?'block':'none';
+        const sh=(id,v)=>{const e=document.getElementById(id);if(e)e.style.display=v?'flex':'none';};
+        sh('gfx-kseloffset-row',(el.kSelAnim||'sweep')==='static');
+        sh('gfx-kselcol-row',(el.kSelColMode||'none')!=='none');
+        sh('gfx-kselscr-row',(el.kSelReveal||'none')==='scramble');
+        sh('gfx-kselscrcustom-row',(el.kSelReveal||'none')==='scramble'&&el.kSelScrambleSet==='custom'); }
       { const fm=el.fillMode||'solid';
         const c2=document.getElementById('gfx-p-color2-row'),ga=document.getElementById('gfx-p-gradang-row'),fi=document.getElementById('gfx-p-fillimg-row');
         if(c2)c2.style.display=fm==='gradient'?'flex':'none';
@@ -20803,6 +20920,9 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-ext','extrude','num'],['gfx-p-extcol','extrudeColor','str'],['gfx-p-extang','extrudeAngle','num'],
     ['gfx-p-curve','curve','num'],
     ['gfx-p-kin','kinetic','str'],['gfx-p-kinunit','kineticUnit','str'],['gfx-p-kinamt','kineticAmount','num'],['gfx-p-kinspd','kineticSpeed','num'],['gfx-p-kinstag','kineticStagger','num'],
+    ['gfx-p-ksel','kSelOn','bool'],['gfx-p-kselorder','kSelOrder','str'],['gfx-p-kselanim','kSelAnim','str'],['gfx-p-kselrange','kSelRange','num'],['gfx-p-kseloffset','kSelOffset','num'],['gfx-p-kselspeed','kSelSpeed','num'],['gfx-p-kselease','kSelEase','str'],
+    ['gfx-p-kselx','kSelX','num'],['gfx-p-ksely','kSelY','num'],['gfx-p-kselscale','kSelScale','num'],['gfx-p-kselrot','kSelRot','num'],['gfx-p-kselopacity','kSelOpacity','num'],['gfx-p-kseltrack','kSelTrack','num'],
+    ['gfx-p-kselcolmode','kSelColMode','str'],['gfx-p-kselcol','kSelCol','str'],['gfx-p-kselcol2','kSelCol2','str'],['gfx-p-kselreveal','kSelReveal','str'],['gfx-p-kselscrset','kSelScrambleSet','str'],['gfx-p-kselscrcustom','kSelScrambleCustom','str'],
     ['gfx-p-sw','strokeWidth','num'],['gfx-p-box','boxStyle','str'],['gfx-p-bxcol','boxColor','str'],
     ['gfx-p-bxop','boxOpacity','num'],['gfx-p-bxpad','boxPad','num'],
     ['gfx-p-items','items','str'],['gfx-p-lup','uppercase','bool'],['gfx-p-lfmt','format','str'],
@@ -20867,7 +20987,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       el[field]= kind==='bool'?e.checked : kind==='num'?parseFloat(e.value) : e.value;
       const vs=document.getElementById(id+'-v');
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
-      if(['content','items','date','location','time','label','text','words','data','mode','clipBelow'].includes(field)) renderGfxElList();
+      if(['content','items','date','location','time','label','text','words','data','mode','clipBelow','kSelOn','kSelAnim','kSelColMode','kSelReveal','kSelScrambleSet'].includes(field)) renderGfxElList();
       if(field==='mosaicMode'){ const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(e.value==='text')?'flex':'none'; renderGfxElList(); }
     });
   });
