@@ -3120,10 +3120,13 @@ function gfxDefaultEl(type){
     rotateBodies:false,spinRate:0,rotJitter:0,bodyShape:'text',seed:1,bounds:'region',
     bgOn:false,bg:'#0a0a0a'};
   if(type==='textfill') return{...base,x:0.05,y:0.1,w:0.9,h:0.7,
-    text:'SAINT LAURENT',sep:'  ',caseMode:'upper',
-    font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,lineHeight:1.05,
+    text:'MUMBAI\nDELHI\nTOKYO\nLAGOS\nPARIS\nSEOUL',sep:'  ',caseMode:'upper',
+    font:"'Helvetica Neue',Arial,sans-serif",weight:'800',fontSize:0.9,lineHeight:1.05,
     justify:'fill',altMode:'none',colorMode:'solid',color:'#ffffff',color2:'#ff3b30',
-    tracking:0,trackingBreathe:0,breatheSpeed:1,scrollX:0,scrollY:0,bgOn:false,bg:'#000000'};
+    tracking:0,trackingBreathe:0,breatheSpeed:1,scrollX:0,scrollY:0,bgOn:true,bg:'#0c0c0e',
+    // kinetic word grid (new default mode)
+    tfMode:'grid',tfCols:6,tfRows:4,tfAnim:'cycle',tfPattern:'random',tfStyle:'scramble',
+    tfHold:1.4,tfTrans:0.5,tfSpeed:1,tfStagger:1,tfCellMode:'sync',tfScrambleSet:'symbols',tfGap:0.08};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -3439,6 +3442,66 @@ function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
     x+=tw[i]+(unit==='word'?spaceW:0);
   }
   ctx.globalAlpha=baseAlpha;
+}
+// ── KINETIC WORD GRID (textfill grid mode): a tiled word that transitions cell-by-cell ──
+function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSet,t,ci){
+  ctx.fillStyle=col; ctx.globalAlpha=1;
+  const cur=items[idx], next=items[nxt];
+  if(tp<=0){ fitText(cur); ctx.fillText(cur,x,y); return; }
+  if(style==='fade'){ ctx.globalAlpha=1-tp; fitText(cur); ctx.fillText(cur,x,y); ctx.globalAlpha=tp; fitText(next); ctx.fillText(next,x,y); ctx.globalAlpha=1; }
+  else if(style==='scramble'){ const step=Math.floor(t*30+ci*5); const L=Math.max(cur.length,next.length); let out='';
+    for(let k=0;k<L;k++){ out += (tp>(k/L)) ? (next[k]||'') : _gfxScrambleChSet(scrSet,step,ci*13+k); }
+    fitText(next); ctx.fillText(out,x,y); }
+  else if(style==='wipe'){ fitText(cur); ctx.fillText(cur,x,y); ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-ch/2,cw,ch*tp); ctx.clip(); fitText(next); ctx.fillText(next,x,y); ctx.restore(); }
+  else if(style==='flip'){ ctx.save(); ctx.translate(x,y); if(tp<0.5){ ctx.scale(1,Math.max(0.02,1-tp*2)); fitText(cur); ctx.fillText(cur,0,0); } else { ctx.scale(1,Math.max(0.02,(tp-0.5)*2)); fitText(next); ctx.fillText(next,0,0); } ctx.restore(); }
+  else if(style==='slide'){ const dy=ch*0.7; ctx.globalAlpha=1-tp; fitText(cur); ctx.fillText(cur,x,y-dy*tp); ctx.globalAlpha=tp; fitText(next); ctx.fillText(next,x,y+dy*(1-tp)); ctx.globalAlpha=1; }
+  else { const s=tp<0.5?cur:next; fitText(s); ctx.fillText(s,x,y); } // cut
+}
+function _gfxTextGrid(lctx,el,ex,ey,ew,eh,unit){
+  const cols=Math.max(1,Math.round(el.tfCols||6)), rows=Math.max(1,Math.round(el.tfRows||4)), brick=(el.tfMode==='brick');
+  const cm=el.caseMode||'upper';
+  let items=String(el.text||'TEXT').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!items.length) items=['TEXT'];
+  items=items.map(s=> cm==='upper'?s.toUpperCase() : cm==='lower'?s.toLowerCase() : s);
+  const len=items.length;
+  const fam=el.font||"'Helvetica Neue',Arial,sans-serif", wt=el.weight||'700';
+  const anim=el.tfAnim||'cycle', t=(globalT||0)/60*Math.max(0,(el.tfSpeed??1));
+  const hold=Math.max(0,(el.tfHold??1.2)), trans=Math.max(0.05,(el.tfTrans??0.5)), cycle=hold+trans;
+  const stag=(el.tfStagger??1), pat=el.tfPattern||'random', style=el.tfStyle||'scramble', cellMode=el.tfCellMode||'sync';
+  const gap=Math.max(0,Math.min(0.45,(el.tfGap??0.08)));
+  const scrSet=_GFX_SCRAMBLE_SETS[el.tfScrambleSet]||_GFX_SCRAMBLE;
+  const colMode=el.colorMode||'solid', colA=el.color||'#fff', colB=el.color2||'#ff3b30';
+  const cx=(cols-1)/2, cy=(rows-1)/2, maxd=Math.hypot(cx,cy)||1;
+  const orderVal=(c,r)=>{
+    if(pat==='lr') return cols<2?0:c/(cols-1); if(pat==='rl') return cols<2?0:1-c/(cols-1);
+    if(pat==='tb') return rows<2?0:r/(rows-1); if(pat==='bt') return rows<2?0:1-r/(rows-1);
+    if(pat==='diagonal') return (c+r)/Math.max(1,cols+rows-2);
+    if(pat==='checker') return ((c+r)&1)?0.92:0.08;
+    if(pat==='center') return Math.hypot(c-cx,r-cy)/maxd;
+    if(pat==='edges') return 1-Math.hypot(c-cx,r-cy)/maxd;
+    return _gridHash(c,r,0);
+  };
+  const cw=ew/cols, ch=eh/rows;
+  lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
+  if(el.bgOn){ lctx.fillStyle=el.bg||'#000'; lctx.fillRect(ex,ey,ew,eh); }
+  lctx.textAlign='center'; lctx.textBaseline='middle';
+  const fitText=(s)=>{ let fs=Math.min(ch*(1-gap*2), unit*(parseFloat(el.fontSize)||0.9)*1.6); lctx.font=wt+' '+fs+'px '+fam; const w=lctx.measureText(s||' ').width, maxW=cw*(1-gap*2); if(w>maxW&&w>0){ fs*=maxW/w; lctx.font=wt+' '+fs+'px '+fam; } };
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const ci=r*cols+c;
+    let cellX=ex+c*cw+cw/2; if(brick&&(r&1)) cellX+=cw/2; if(cellX>ex+ew) cellX-=ew;
+    const cellY=ey+r*ch+ch/2, o=orderVal(c,r);
+    const phase=o*stag*cycle, lt=anim==='cycle'?Math.max(0,t-phase):0, cyc=Math.floor(lt/cycle), within=lt-cyc*cycle;
+    const base= cellMode==='sequence'?ci : cellMode==='random'?Math.floor(_gridHash(c,r,7)*len) : 0;
+    const idx=((base+cyc)%len+len)%len, nxt=((base+cyc+1)%len+len)%len;
+    let tp=0; if(anim==='cycle'&&within>hold) tp=Math.min(1,(within-hold)/trans);
+    let col=colA;
+    if(colMode==='alt'||colMode==='duoline'||colMode==='duoword') col=((c+r)&1)?colB:colA;
+    else if(colMode==='item'){ const rgb=_hsl2rgb(((idx/Math.max(1,len)))%1,0.72,0.6); col='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'; }
+    else if(colMode==='gradient') col=_pLerpHex(colA,colB,(c/cols+r/rows)/2);
+    else if(colMode==='rainbow'){ const rgb=_hsl2rgb(((c*0.1+r*0.07+t*0.05)%1+1)%1,0.8,0.6); col='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'; }
+    _gfxTextGridCell(lctx,items,idx,nxt,tp,style,cellX,cellY,cw,ch,col,fitText,scrSet,t,ci);
+  }
+  lctx.restore();
 }
 function renderGfxEl(lctx,el,layer,W,H){
   if(!el||el.visible===false) return null;
@@ -3956,6 +4019,13 @@ function renderGfxEl(lctx,el,layer,W,H){
   }
 
   else if(el.type==='textfill'){
+    const ehG=Math.round((el.h||0.5)*H);
+    // NEW: kinetic word grid — a tiled word that transitions cell-by-cell in a pattern.
+    if((el.tfMode||'wall')!=='wall'){
+      _gfxTextGrid(lctx,el,ex,ey,ew,ehG,unit);
+      bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
+      lctx.restore(); return {id:el.id,...bbox};
+    }
     // ── Ref C (SAINT LAURENT): ONE source text laid out to FILL a region in a
     //    repeating, per-line justified pattern. Motion: tracking breathe, vertical
     //    scroll, horizontal marquee. ─────────────────────────────────────────────
@@ -17363,6 +17433,14 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfcol',el.color);setV('gfx-p-tfcol2',el.color2);
       setV('gfx-p-tftrack',el.tracking);setV('gfx-p-tfbreathe',el.trackingBreathe);setV('gfx-p-tfbrspeed',el.breatheSpeed);
       setV('gfx-p-tfscrollx',el.scrollX);setV('gfx-p-tfscrolly',el.scrollY);setV('gfx-p-tfbgon',el.bgOn);setV('gfx-p-tfbg',el.bg);
+      setV('gfx-p-tfmode',el.tfMode||'wall');setV('gfx-p-tfcols',el.tfCols||6);setV('gfx-p-tfrows',el.tfRows||4);setV('gfx-p-tfgap',el.tfGap==null?0.08:el.tfGap);
+      setV('gfx-p-tfanim',el.tfAnim||'cycle');setV('gfx-p-tfpattern',el.tfPattern||'random');setV('gfx-p-tfstyle',el.tfStyle||'scramble');setV('gfx-p-tfscrset',el.tfScrambleSet||'symbols');
+      setV('gfx-p-tfhold',el.tfHold==null?1.4:el.tfHold);setV('gfx-p-tftrans',el.tfTrans==null?0.5:el.tfTrans);setV('gfx-p-tfstagger',el.tfStagger==null?1:el.tfStagger);setV('gfx-p-tfspeed',el.tfSpeed==null?1:el.tfSpeed);setV('gfx-p-tfcellmode',el.tfCellMode||'sync');
+      { const mode=el.tfMode||'wall', grid=mode!=='wall';
+        document.querySelectorAll('#gfx-pp-textfill .gfx-tfwall').forEach(e=>e.style.display=grid?'none':'flex');
+        const gr=document.getElementById('gfx-tfgrid-rows'); if(gr) gr.style.display=grid?'block':'none';
+        const sr=document.getElementById('gfx-tfscr-row'); if(sr) sr.style.display=(grid&&(el.tfStyle||'scramble')==='scramble')?'flex':'none';
+        const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=grid?'block':'none'; }
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
       setV('gfx-p-phmode',el.mode);setV('gfx-p-phgrav',el.gravity);setV('gfx-p-phgravang',el.gravityAngle);setV('gfx-p-phcoh',el.cohesion);setV('gfx-p-phatt',el.attract);
@@ -17452,6 +17530,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tffont','font','str'],['gfx-p-tfweight','weight','str'],['gfx-p-tfsize','fontSize','num'],['gfx-p-tflh','lineHeight','num'],
     ['gfx-p-tfjustify','justify','str'],['gfx-p-tfalt','altMode','str'],['gfx-p-tfcmode','colorMode','str'],
     ['gfx-p-tfcol','color','str'],['gfx-p-tfcol2','color2','str'],
+    ['gfx-p-tfmode','tfMode','str'],['gfx-p-tfcols','tfCols','num'],['gfx-p-tfrows','tfRows','num'],['gfx-p-tfgap','tfGap','num'],['gfx-p-tfanim','tfAnim','str'],['gfx-p-tfpattern','tfPattern','str'],['gfx-p-tfstyle','tfStyle','str'],['gfx-p-tfscrset','tfScrambleSet','str'],['gfx-p-tfhold','tfHold','num'],['gfx-p-tftrans','tfTrans','num'],['gfx-p-tfstagger','tfStagger','num'],['gfx-p-tfspeed','tfSpeed','num'],['gfx-p-tfcellmode','tfCellMode','str'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
@@ -17480,7 +17559,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       el[field]= kind==='bool'?e.checked : kind==='num'?parseFloat(e.value) : e.value;
       const vs=document.getElementById(id+'-v');
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
-      if(['content','items','date','location','time','label','text','words','data','mode','clipBelow','kSelOn','kSelAnim','kSelColMode','kSelReveal','kSelScrambleSet'].includes(field)) renderGfxElList();
+      if(['content','items','date','location','time','label','text','words','data','mode','clipBelow','kSelOn','kSelAnim','kSelColMode','kSelReveal','kSelScrambleSet','tfMode','tfStyle'].includes(field)) renderGfxElList();
       if(field==='mosaicMode'){ const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(e.value==='text')?'flex':'none'; renderGfxElList(); }
     });
   });
