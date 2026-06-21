@@ -5047,6 +5047,7 @@ const LFO_PARAM_RANGES={
 };
 
 function lfoValue(lfo,t,bpm,syncEnabled){
+  if(lfo.source && lfo.source.indexOf('vis:')===0 && typeof _visionSignalValue==='function') return _visionSignalValue(lfo);
   const freq=syncEnabled&&lfo.bpmSync?(bpm/60/lfo.bpmDiv):lfo.rate;
   const phase=t*freq*Math.PI*2+(lfo.phase||0);
   let v=0;
@@ -10476,6 +10477,7 @@ function _visionEcho(lctx,layer,src,W,H){
 function _visionFlow(lctx,layer,src,W,H){
   const aw=Math.max(24,Math.min(180,Math.round(layer.visionAnalysisRes||72))), ah=Math.max(16,Math.round(aw*H/W));
   const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
+  _visionComputeSignals(layer,d,aw,ah,null);
   const N=aw*ah, luma=_visionLuma(d,N);
   const prev=layer._visionPrevLuma; layer._visionPrevLuma=luma;
   if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
@@ -10506,6 +10508,7 @@ function _visionFlow(lctx,layer,src,W,H){
 function _visionRegions(lctx,layer,src,W,H){
   const aw=Math.max(24,Math.min(200,Math.round(layer.visionAnalysisRes||72))), ah=Math.max(16,Math.round(aw*H/W));
   const d=_visionAnalyze(layer,src,aw,ah); if(!d) return;
+  _visionComputeSignals(layer,d,aw,ah,null);
   const lv=Math.max(2,Math.round(layer.visionLevels||3)), step=255/(lv-1), N=aw*ah;
   let qc=layer._visionQcv||(layer._visionQcv=document.createElement('canvas')); if(qc.width!==aw||qc.height!==ah){qc.width=aw;qc.height=ah;}
   const qx=qc.getContext('2d'), idd=qx.createImageData(aw,ah), q=idd.data;
@@ -10556,6 +10559,34 @@ function gfxApplyScenePalette(layer){
   if(window.snapshotState) snapshotState();
   return pal;
 }
+// Compute live signals (motion energy + dominant hue always; count/position/size from tracks)
+// so the Vision layer can drive the rest of the engine via the LFO routing.
+function _visionComputeSignals(layer,d,aw,ah,tracks){
+  const N=aw*ah, cur=new Float32Array(N), prev=layer._visionSigPrev;
+  let motion=0, sh=0, sw=0;
+  for(let p=0;p<N;p++){ const i=p*4,R=d[i],G=d[i+1],B=d[i+2]; const lum=(R*0.299+G*0.587+B*0.114)/255; cur[p]=lum;
+    if(prev) motion+=Math.abs(lum-prev[p]);
+    const mx=Math.max(R,G,B),mn=Math.min(R,G,B),dl=mx-mn;
+    if(dl>20){ let h; if(mx===R)h=(((G-B)/dl)%6+6)%6; else if(mx===G)h=(B-R)/dl+2; else h=(R-G)/dl+4; h*=60; sh+=h*(dl/255); sw+=dl/255; }
+  }
+  layer._visionSigPrev=cur;
+  const sig=layer._visionSignals||(layer._visionSignals={count:0,bx:0.5,by:0.5,size:0,motion:0,hue:0});
+  sig.motion = prev? Math.min(1,(motion/N)*5) : 0;
+  sig.hue = sw>0 ? (sh/sw)/360 : 0;
+  if(tracks){ const big=tracks.reduce((a,b)=>(b.area>(a?a.area:0)?b:a),null);
+    sig.count=tracks.length; sig.bx=big?big.cx:0.5; sig.by=big?big.cy:0.5; sig.size=big?Math.min(1,Math.sqrt(big.area)):0; }
+}
+// read a 0..1 vision signal for an LFO whose source is 'vis:*'
+function _visionSignalValue(lfo){
+  let vl = (lfo.visLayer!=null && layers[lfo.visLayer] && layers[lfo.visLayer].layerType==='vision') ? layers[lfo.visLayer] : layers.find(l=>l.layerType==='vision');
+  const sig = vl && vl._visionSignals; if(!sig) return 0;
+  const key=lfo.source.slice(4);
+  let v = key==='motion'?sig.motion : key==='bx'?sig.bx : key==='by'?sig.by : key==='size'?sig.size : key==='hue'?sig.hue
+        : key==='count'?Math.min(1,(sig.count||0)/Math.max(1,(vl.visionMaxBlobs||24))) : 0;
+  v=Math.max(0,Math.min(1,v||0));
+  const sm=lfo.smooth||0; if(sm>0){ lfo._sv = lfo._sv==null?v : lfo._sv+(v-lfo._sv)*(1-sm); v=lfo._sv; }
+  return v;
+}
 function renderVisionLayer(lctx,layer,W,H){
   lctx.clearRect(0,0,W,H);
   const src=_visionSourceCanvas(layer); if(!src||!src.width) return;
@@ -10584,9 +10615,7 @@ function renderVisionLayer(lctx,layer,W,H){
   const cap=Math.max(1,Math.round(layer.visionMaxBlobs||24));
   if(blobs.length>cap) blobs.length=cap;
   const tracks=_visionTrack(layer,blobs);
-  // export live signals so the vision layer can drive the rest of the engine
-  { const big=tracks.reduce((a,b)=>(b.area>(a?a.area:0)?b:a),null);
-    layer._visionSignals={count:tracks.length, bx:big?big.cx:0.5, by:big?big.cy:0.5, br:big?Math.sqrt(big.area):0}; }
+  _visionComputeSignals(layer,d,aw,ah,tracks);
   if(layer.visionShowSource){ lctx.save(); lctx.globalAlpha=Math.max(0,Math.min(1,layer.visionSourceDim??0.22)); try{ lctx.drawImage(src,0,0,W,H); }catch(e){} lctx.restore(); }
   _visionDraw(lctx,layer,W,H,tracks);
 }
@@ -18218,6 +18247,9 @@ function renderLfoList(){
     const div=document.createElement('div');
     div.className='lfo-row';
     div.style.cssText=`border-left:2px solid ${layerColor};`;
+    const vSrc=lfo.source||'osc', isVis=vSrc.indexOf('vis:')===0;
+    const srcOpts=[['osc','oscillator'],['vis:motion','⊹ vision motion'],['vis:bx','⊹ vision X'],['vis:by','⊹ vision Y'],['vis:size','⊹ vision size'],['vis:count','⊹ vision count'],['vis:hue','⊹ vision hue']].map(([v,l])=>`<option value="${v}"${vSrc===v?' selected':''}>${l}</option>`).join('');
+    const visLayerOpts=layers.map((l,j)=>l.layerType==='vision'?`<option value="${j}"${lfo.visLayer===j?' selected':''}>${l.name}</option>`:'').join('')||'<option>— add a vision layer —</option>';
 
     div.innerHTML=`
       <div class="lfo-header" style="margin-bottom:5px;">
@@ -18230,7 +18262,17 @@ function renderLfoList(){
         <label style="width:46px;font-size:8px;color:var(--text3);">target</label>
         <select class="lfo-target" style="flex:1;font-size:8px;padding:2px 3px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:3px;">${buildLfoTargetSelect(lfo.target)}</select>
       </div>
-      <div class="lfo-shapes" style="margin-bottom:5px;">
+      <div class="row" style="margin-bottom:4px;">
+        <label style="width:46px;font-size:8px;color:var(--text3);">source</label>
+        <select class="lfo-source" style="flex:1;font-size:8px;padding:2px 3px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:3px;">${srcOpts}</select>
+      </div>
+      <div class="row lfo-vissrc" style="margin-bottom:5px;${isVis?'':'display:none;'}">
+        <label style="width:46px;font-size:8px;color:var(--text3);">from</label>
+        <select class="lfo-vislayer" style="flex:1;font-size:8px;padding:2px 3px;background:#111;color:var(--text);border:1px solid var(--border);border-radius:3px;">${visLayerOpts}</select>
+        <label style="font-size:8px;color:var(--text3);margin-left:4px;">smooth</label>
+        <input type="range" class="lfo-smooth" min="0" max="0.95" value="${lfo.smooth||0}" step="0.05" style="width:52px;accent-color:${layerColor};">
+      </div>
+      <div class="lfo-shapes" style="margin-bottom:5px;${isVis?'display:none;':''}">
         ${['sin','tri','saw','sq','rnd'].map(s=>`<button class="lfo-shape${lfo.shape===s?' active':''}" data-shape="${s}" style="font-size:8px;padding:2px 5px;${lfo.shape===s?`background:${layerColor};border-color:${layerColor};color:#000;`:''}">${s}</button>`).join('')}
       </div>
       <div class="row"><label style="width:46px;font-size:8px;color:var(--text3);">rate</label><input type="range" class="lfo-rate" min="0.01" max="10" value="${lfo.rate}" step="0.01" style="flex:1;accent-color:${layerColor};"><span class="lfo-rate-v" style="width:32px;text-align:right;font-size:8px;">${lfo.rate.toFixed(2)}</span></div>
@@ -18258,6 +18300,11 @@ function renderLfoList(){
       renderLfoList(); updateLfoSliders();
     });
     div.querySelectorAll('.lfo-shape').forEach(btn=>btn.addEventListener('click',()=>{lfo.shape=btn.dataset.shape;renderLfoList();}));
+    div.querySelector('.lfo-source')?.addEventListener('change',e=>{ lfo.source=e.target.value;
+      if(lfo.source.indexOf('vis:')===0 && lfo.visLayer==null){ const vi=layers.findIndex(l=>l.layerType==='vision'); if(vi>=0) lfo.visLayer=vi; }
+      renderLfoList(); });
+    div.querySelector('.lfo-vislayer')?.addEventListener('change',e=>{ lfo.visLayer=parseInt(e.target.value); });
+    div.querySelector('.lfo-smooth')?.addEventListener('input',e=>{ lfo.smooth=parseFloat(e.target.value)||0; });
     div.querySelector('[data-del]').addEventListener('click',()=>{lfos.splice(i,1);renderLfoList();});
 
     const rEl=div.querySelector('.lfo-rate');
