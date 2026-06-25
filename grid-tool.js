@@ -3128,7 +3128,9 @@ function gfxDefaultEl(type){
     tfMode:'grid',tfCols:6,tfRows:4,tfAnim:'cycle',tfPattern:'random',tfStyle:'scramble',
     tfHold:1.4,tfTrans:0.5,tfSpeed:1,tfStagger:1,tfCellMode:'sync',tfScrambleSet:'symbols',tfGap:0.08,
     // outline wall + pan + moving highlight (brik.space selection-cursor look)
-    tfOutline:0,tfPanX:0,tfPanY:0,tfHiOn:false,tfHiColor:'#2bff88',tfHiText:'#0c0c0e',tfHiHold:0.6,tfHiSlide:0.5,tfHiMove:'random'};
+    tfOutline:0,tfPanX:0,tfPanY:0,tfHiOn:false,tfHiColor:'#2bff88',tfHiText:'#0c0c0e',tfHiHold:0.6,tfHiSlide:0.5,tfHiMove:'random',
+    // growing word-pack (treemap that builds word by word — brik.space "type tetris")
+    tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -3540,6 +3542,73 @@ function _gfxTextGrid(lctx,el,ex,ey,ew,eh,unit){
     lctx.beginPath(); lctx.rect(hx,hy,cw,ch); lctx.clip();
     lctx.fillStyle=el.tfHiText||el.bg||'#0c0c0e'; fitText(word); lctx.fillText(word,hx+cw/2,hy+ch/2);
     lctx.restore();
+  }
+  lctx.restore();
+}
+// ── GROWING WORD PACK (textfill 'pack' mode): a space-filling treemap that builds ──
+//    one word at a time. New word grows in (bright), carving its rect out of the
+//    largest current cell, which makes the rest repack smaller. Reference: the
+//    brik.space "type tetris" reel. Words are stretched to FILL their rectangle.
+function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
+  const cm=el.caseMode||'upper';
+  let words=String(el.text||'TEXT').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!words.length) words=['TEXT'];
+  words=words.map(s=> cm==='upper'?s.toUpperCase() : cm==='lower'?s.toLowerCase() : s);
+  const N=words.length;
+  const maxW=Math.max(2,Math.min(N,Math.round(el.tfPackMax||N)));
+  // reveal order
+  let order=words.map((_,i)=>i);
+  if((el.tfPackOrder||'sequence')==='shuffle'){ const rng=_gfxSeedRng(((el.tfPackSeed||1)>>>0)||1); for(let i=order.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); const tmp=order[i]; order[i]=order[j]; order[j]=tmp; } }
+  const fam=el.font||"'Helvetica Neue',Arial,sans-serif", wt=el.weight||'800';
+  const t=(globalT||0)/60*Math.max(0.01,(el.tfSpeed??1));
+  const rate=Math.max(0.05,(el.tfPackRate??0.5)), holdS=Math.max(0,(el.tfPackHold??1.5));
+  const buildDur=(maxW-1)*rate, span=buildDur+rate; // span = time for all words to be in
+  const loop=el.tfPackLoop!==false;
+  const phase= loop ? (t % (span+holdS)) : Math.min(t, span);
+  const grown=phase/rate;
+  const active=Math.min(maxW, Math.floor(grown)+1);
+  let g=Math.min(1, Math.max(0, grown-(active-1))); g=_gfxSelEase(g,'smooth');
+  const gap=Math.max(0,Math.min(0.2,(el.tfGap??0.04)))*Math.min(ew,eh);
+  const outlineW=Math.max(0.5,(el.tfOutline||1.5))*(unit*0.06);
+  const growCol=el.tfHiColor||'#2bff88', outCol=el.color||'#ffffff';
+  // build guillotine layout for `active` words; record the last split for animation
+  const rects=[{i:order[0],x:ex,y:ey,w:ew,h:eh}];
+  let parentIdx=-1, childIdx=-1, parentPrev=null, parentNew=null;
+  for(let k=1;k<active;k++){
+    let bi=0,ba=-1; for(let r=0;r<rects.length;r++){ const a=rects[r].w*rects[r].h; if(a>ba){ba=a;bi=r;} }
+    const R=rects[bi]; const prev={x:R.x,y:R.y,w:R.w,h:R.h};
+    let A,B;
+    if(R.w>=R.h){ const hw=R.w/2; A={x:R.x,y:R.y,w:hw,h:R.h}; B={x:R.x+hw,y:R.y,w:R.w-hw,h:R.h}; }
+    else { const hh=R.h/2; A={x:R.x,y:R.y,w:R.w,h:hh}; B={x:R.x,y:R.y+hh,w:R.w,h:R.h-hh}; }
+    R.x=A.x;R.y=A.y;R.w=A.w;R.h=A.h;
+    rects.push({i:order[k],x:B.x,y:B.y,w:B.w,h:B.h});
+    if(k===active-1){ parentIdx=bi; childIdx=rects.length-1; parentPrev=prev; parentNew={x:A.x,y:A.y,w:A.w,h:A.h}; }
+  }
+  // draw a word stretched to FILL a rect (non-uniform scale → condensed/brutalist look)
+  const lerp=(a,b,m)=>a+(b-a)*m;
+  const drawCell=(word,x,y,w,h,solid,scale)=>{
+    const iw=w-gap, ih=h-gap; if(iw<=1||ih<=1) return;
+    const ix=x+gap/2, iy=y+gap/2;
+    lctx.save();
+    lctx.font=wt+' 100px '+fam;
+    const m=lctx.measureText(word||' '); const tw=Math.max(1,m.width);
+    const asc=m.actualBoundingBoxAscent||72, desc=m.actualBoundingBoxDescent||0, th=Math.max(1,asc+desc);
+    const cx=ix+iw/2, cy=iy+ih/2;
+    lctx.translate(cx,cy); if(scale!=null&&scale!==1) lctx.scale(scale,scale);
+    lctx.scale(iw/tw, ih/th);
+    lctx.textAlign='center'; lctx.textBaseline='alphabetic';
+    const by=(asc-desc)/2; // vertical centre for the stretched glyph
+    if(solid){ lctx.fillStyle=growCol; lctx.fillText(word,0,by); }
+    else { lctx.lineWidth=outlineW/Math.max(0.001,Math.min(iw/tw,ih/th)); lctx.lineJoin='round'; lctx.strokeStyle=outCol; lctx.strokeText(word,0,by); }
+    lctx.restore();
+  };
+  lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
+  if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
+  for(let r=0;r<rects.length;r++){
+    const R=rects[r], word=words[R.i];
+    if(r===childIdx){ drawCell(word,R.x,R.y,R.w,R.h,true,g); } // newest: bright, grows in
+    else if(r===parentIdx){ const px=lerp(parentPrev.x,parentNew.x,g),py=lerp(parentPrev.y,parentNew.y,g),pw=lerp(parentPrev.w,parentNew.w,g),ph=lerp(parentPrev.h,parentNew.h,g); drawCell(word,px,py,pw,ph,false,1); }
+    else drawCell(word,R.x,R.y,R.w,R.h,false,1);
   }
   lctx.restore();
 }
@@ -4060,6 +4129,12 @@ function renderGfxEl(lctx,el,layer,W,H){
 
   else if(el.type==='textfill'){
     const ehG=Math.round((el.h||0.5)*H);
+    // NEW: growing word-pack — a space-filling treemap that builds word by word.
+    if((el.tfMode||'wall')==='pack'){
+      _gfxTextPack(lctx,el,ex,ey,ew,ehG,unit);
+      bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
+      lctx.restore(); return {id:el.id,...bbox};
+    }
     // NEW: kinetic word grid — a tiled word that transitions cell-by-cell in a pattern.
     if((el.tfMode||'wall')!=='wall'){
       _gfxTextGrid(lctx,el,ex,ey,ew,ehG,unit);
@@ -17153,6 +17228,17 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const v=document.getElementById(id+'-v');
     if(v&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; v.textContent=parseFloat(e.value).toFixed(dec); }
   }
+  // textfill: show only the controls relevant to the chosen mode (grid/brick | pack | wall)
+  function gfxTextfillModeUI(el){
+    if(!el) return; const mode=el.tfMode||'wall';
+    const isGrid=(mode==='grid'||mode==='brick'), isPack=(mode==='pack'), isWall=(mode==='wall');
+    document.querySelectorAll('#gfx-pp-textfill .gfx-tfwall').forEach(e=>e.style.display=isWall?'flex':'none');
+    const gr=document.getElementById('gfx-tfgrid-rows'); if(gr) gr.style.display=isGrid?'block':'none';
+    const pk=document.getElementById('gfx-tfpack-rows'); if(pk) pk.style.display=isPack?'block':'none';
+    const sr=document.getElementById('gfx-tfscr-row'); if(sr) sr.style.display=(isGrid&&(el.tfStyle||'scramble')==='scramble')?'flex':'none';
+    document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(e=>e.style.display=(isGrid&&el.tfHiOn)?'flex':'none');
+    const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=isGrid?'block':'none';
+  }
 
   const EL_ICON={text:'T',lineup:'≡',info:'i',image:'▣',divider:'—',box:'□',shape:'◆',pattern:'⁘',glyphs:'A',mosaic:'▦',textfill:'¶',physics:'⚛',fluid:'◍',ticker:'⇄',counter:'⏱',barcode:'▥'};
 
@@ -17478,12 +17564,9 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfhold',el.tfHold==null?1.4:el.tfHold);setV('gfx-p-tftrans',el.tfTrans==null?0.5:el.tfTrans);setV('gfx-p-tfstagger',el.tfStagger==null?1:el.tfStagger);setV('gfx-p-tfspeed',el.tfSpeed==null?1:el.tfSpeed);setV('gfx-p-tfcellmode',el.tfCellMode||'sync');
       setV('gfx-p-tfoutline',el.tfOutline==null?0:el.tfOutline);setV('gfx-p-tfpanx',el.tfPanX==null?0:el.tfPanX);setV('gfx-p-tfpany',el.tfPanY==null?0:el.tfPanY);
       setV('gfx-p-tfhion',el.tfHiOn);setV('gfx-p-tfhicolor',el.tfHiColor||'#2bff88');setV('gfx-p-tfhitext',el.tfHiText||'#0c0c0e');setV('gfx-p-tfhihold',el.tfHiHold==null?0.6:el.tfHiHold);setV('gfx-p-tfhislide',el.tfHiSlide==null?0.5:el.tfHiSlide);setV('gfx-p-tfhimove',el.tfHiMove||'random');
-      { const mode=el.tfMode||'wall', grid=mode!=='wall';
-        document.querySelectorAll('#gfx-pp-textfill .gfx-tfwall').forEach(e=>e.style.display=grid?'none':'flex');
-        const gr=document.getElementById('gfx-tfgrid-rows'); if(gr) gr.style.display=grid?'block':'none';
-        const sr=document.getElementById('gfx-tfscr-row'); if(sr) sr.style.display=(grid&&(el.tfStyle||'scramble')==='scramble')?'flex':'none';
-        document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(e=>e.style.display=(grid&&el.tfHiOn)?'flex':'none');
-        const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=grid?'block':'none'; }
+      setV('gfx-p-tfpackrate',el.tfPackRate==null?0.5:el.tfPackRate);setV('gfx-p-tfpackmax',el.tfPackMax==null?16:el.tfPackMax);setV('gfx-p-tfpackorder',el.tfPackOrder||'sequence');setV('gfx-p-tfpackseed',el.tfPackSeed==null?1:el.tfPackSeed);setV('gfx-p-tfpackloop',el.tfPackLoop!==false);setV('gfx-p-tfpackhold',el.tfPackHold==null?1.5:el.tfPackHold);
+      setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);setV('gfx-p-tfpackcol',el.color||'#7cffb2');setV('gfx-p-tfpackgrow',el.tfHiColor||'#2bff88');
+      gfxTextfillModeUI(el);
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
       setV('gfx-p-phmode',el.mode);setV('gfx-p-phgrav',el.gravity);setV('gfx-p-phgravang',el.gravityAngle);setV('gfx-p-phcoh',el.cohesion);setV('gfx-p-phatt',el.attract);
@@ -17576,6 +17659,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfmode','tfMode','str'],['gfx-p-tfcols','tfCols','num'],['gfx-p-tfrows','tfRows','num'],['gfx-p-tfgap','tfGap','num'],['gfx-p-tfanim','tfAnim','str'],['gfx-p-tfpattern','tfPattern','str'],['gfx-p-tfstyle','tfStyle','str'],['gfx-p-tfscrset','tfScrambleSet','str'],['gfx-p-tfhold','tfHold','num'],['gfx-p-tftrans','tfTrans','num'],['gfx-p-tfstagger','tfStagger','num'],['gfx-p-tfspeed','tfSpeed','num'],['gfx-p-tfcellmode','tfCellMode','str'],
     ['gfx-p-tfoutline','tfOutline','num'],['gfx-p-tfpanx','tfPanX','num'],['gfx-p-tfpany','tfPanY','num'],
     ['gfx-p-tfhion','tfHiOn','bool'],['gfx-p-tfhicolor','tfHiColor','str'],['gfx-p-tfhitext','tfHiText','str'],['gfx-p-tfhihold','tfHiHold','num'],['gfx-p-tfhislide','tfHiSlide','num'],['gfx-p-tfhimove','tfHiMove','str'],
+    ['gfx-p-tfpackrate','tfPackRate','num'],['gfx-p-tfpackmax','tfPackMax','num'],['gfx-p-tfpackorder','tfPackOrder','str'],['gfx-p-tfpackseed','tfPackSeed','num'],['gfx-p-tfpackloop','tfPackLoop','bool'],['gfx-p-tfpackhold','tfPackHold','num'],
+    ['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],['gfx-p-tfpackcol','color','str'],['gfx-p-tfpackgrow','tfHiColor','str'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
@@ -17606,6 +17691,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
       if(['content','items','date','location','time','label','text','words','data','mode','clipBelow','kSelOn','kSelAnim','kSelColMode','kSelReveal','kSelScrambleSet','tfMode','tfStyle'].includes(field)) renderGfxElList();
       if(field==='tfHiOn'){ const grid=(el.tfMode||'wall')!=='wall'; document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(x=>x.style.display=(grid&&e.checked)?'flex':'none'); }
+      if(field==='tfMode') gfxTextfillModeUI(el);
       if(field==='mosaicMode'){ const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(e.value==='text')?'flex':'none'; renderGfxElList(); }
     });
   });
