@@ -2614,6 +2614,15 @@ TOKYO</textarea></div>
               <div class="row"><label>stagger</label><input type="range" id="gfx-p-tfstagger" min="0" max="3" value="1" step="0.05"><span class="val" id="gfx-p-tfstagger-v">1.00</span></div>
               <div class="row"><label>speed</label><input type="range" id="gfx-p-tfspeed" min="0.1" max="4" value="1" step="0.05"><span class="val" id="gfx-p-tfspeed-v">1.00</span></div>
               <div class="row"><label>cells</label><select id="gfx-p-tfcellmode"><option value="sync">sync (same word)</option><option value="sequence">sequence (offset)</option><option value="random">random word</option></select></div>
+              <div class="row"><label>outline</label><input type="range" id="gfx-p-tfoutline" min="0" max="6" value="0" step="0.25"><span class="val" id="gfx-p-tfoutline-v">0.00</span></div>
+              <div class="row"><label>pan X</label><input type="range" id="gfx-p-tfpanx" min="-3" max="3" value="0" step="0.05"><span class="val" id="gfx-p-tfpanx-v">0.00</span></div>
+              <div class="row"><label>pan Y</label><input type="range" id="gfx-p-tfpany" min="-3" max="3" value="0" step="0.05"><span class="val" id="gfx-p-tfpany-v">0.00</span></div>
+              <div class="row"><label>highlight cell</label><input type="checkbox" id="gfx-p-tfhion"></div>
+              <div class="row gfx-tfhi" style="display:none;"><label>↳ move</label><select id="gfx-p-tfhimove"><option value="random">random</option><option value="sweep">sweep</option><option value="pattern">follow pattern</option></select></div>
+              <div class="row gfx-tfhi" style="display:none;"><label>↳ fill</label><input type="color" id="gfx-p-tfhicolor" value="#2bff88"></div>
+              <div class="row gfx-tfhi" style="display:none;"><label>↳ text</label><input type="color" id="gfx-p-tfhitext" value="#0c0c0e"></div>
+              <div class="row gfx-tfhi" style="display:none;"><label>↳ hold (s)</label><input type="range" id="gfx-p-tfhihold" min="0.08" max="3" value="0.6" step="0.02"><span class="val" id="gfx-p-tfhihold-v">0.60</span></div>
+              <div class="row gfx-tfhi" style="display:none;"><label>↳ slide</label><input type="range" id="gfx-p-tfhislide" min="0" max="1" value="0.5" step="0.05"><span class="val" id="gfx-p-tfhislide-v">0.50</span></div>
             </div>
             <div class="row"><label>color mode</label><select id="gfx-p-tfcmode"><option value="solid">solid</option><option value="alt">alternate</option><option value="item">by word</option><option value="gradient">gradient</option><option value="rainbow">rainbow</option></select></div>
             <div class="row"><label>color</label><input type="color" id="gfx-p-tfcol" value="#ffffff"></div>

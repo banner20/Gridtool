@@ -3126,7 +3126,9 @@ function gfxDefaultEl(type){
     tracking:0,trackingBreathe:0,breatheSpeed:1,scrollX:0,scrollY:0,bgOn:true,bg:'#0c0c0e',
     // kinetic word grid (new default mode)
     tfMode:'grid',tfCols:6,tfRows:4,tfAnim:'cycle',tfPattern:'random',tfStyle:'scramble',
-    tfHold:1.4,tfTrans:0.5,tfSpeed:1,tfStagger:1,tfCellMode:'sync',tfScrambleSet:'symbols',tfGap:0.08};
+    tfHold:1.4,tfTrans:0.5,tfSpeed:1,tfStagger:1,tfCellMode:'sync',tfScrambleSet:'symbols',tfGap:0.08,
+    // outline wall + pan + moving highlight (brik.space selection-cursor look)
+    tfOutline:0,tfPanX:0,tfPanY:0,tfHiOn:false,tfHiColor:'#2bff88',tfHiText:'#0c0c0e',tfHiHold:0.6,tfHiSlide:0.5,tfHiMove:'random'};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -3444,18 +3446,22 @@ function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
   ctx.globalAlpha=baseAlpha;
 }
 // ── KINETIC WORD GRID (textfill grid mode): a tiled word that transitions cell-by-cell ──
-function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSet,t,ci){
-  ctx.fillStyle=col; ctx.globalAlpha=1;
+function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSet,t,ci,outlineW){
+  ctx.globalAlpha=1;
   const cur=items[idx], next=items[nxt];
-  if(tp<=0){ fitText(cur); ctx.fillText(cur,x,y); return; }
-  if(style==='fade'){ ctx.globalAlpha=1-tp; fitText(cur); ctx.fillText(cur,x,y); ctx.globalAlpha=tp; fitText(next); ctx.fillText(next,x,y); ctx.globalAlpha=1; }
+  // draw a string filled OR stroked (outline wall look)
+  const draw=(s,px,py)=>{ fitText(s);
+    if(outlineW>0){ ctx.lineWidth=outlineW; ctx.lineJoin='round'; ctx.strokeStyle=col; ctx.strokeText(s,px,py); }
+    else { ctx.fillStyle=col; ctx.fillText(s,px,py); } };
+  if(tp<=0){ draw(cur,x,y); ctx.globalAlpha=1; return; }
+  if(style==='fade'){ ctx.globalAlpha=1-tp; draw(cur,x,y); ctx.globalAlpha=tp; draw(next,x,y); ctx.globalAlpha=1; }
   else if(style==='scramble'){ const step=Math.floor(t*30+ci*5); const L=Math.max(cur.length,next.length); let out='';
     for(let k=0;k<L;k++){ out += (tp>(k/L)) ? (next[k]||'') : _gfxScrambleChSet(scrSet,step,ci*13+k); }
-    fitText(next); ctx.fillText(out,x,y); }
-  else if(style==='wipe'){ fitText(cur); ctx.fillText(cur,x,y); ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-ch/2,cw,ch*tp); ctx.clip(); fitText(next); ctx.fillText(next,x,y); ctx.restore(); }
-  else if(style==='flip'){ ctx.save(); ctx.translate(x,y); if(tp<0.5){ ctx.scale(1,Math.max(0.02,1-tp*2)); fitText(cur); ctx.fillText(cur,0,0); } else { ctx.scale(1,Math.max(0.02,(tp-0.5)*2)); fitText(next); ctx.fillText(next,0,0); } ctx.restore(); }
-  else if(style==='slide'){ const dy=ch*0.7; ctx.globalAlpha=1-tp; fitText(cur); ctx.fillText(cur,x,y-dy*tp); ctx.globalAlpha=tp; fitText(next); ctx.fillText(next,x,y+dy*(1-tp)); ctx.globalAlpha=1; }
-  else { const s=tp<0.5?cur:next; fitText(s); ctx.fillText(s,x,y); } // cut
+    draw(out,x,y); }
+  else if(style==='wipe'){ draw(cur,x,y); ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-ch/2,cw,ch*tp); ctx.clip(); draw(next,x,y); ctx.restore(); }
+  else if(style==='flip'){ ctx.save(); ctx.translate(x,y); if(tp<0.5){ ctx.scale(1,Math.max(0.02,1-tp*2)); draw(cur,0,0); } else { ctx.scale(1,Math.max(0.02,(tp-0.5)*2)); draw(next,0,0); } ctx.restore(); }
+  else if(style==='slide'){ const dy=ch*0.7; ctx.globalAlpha=1-tp; draw(cur,x,y-dy*tp); ctx.globalAlpha=tp; draw(next,x,y+dy*(1-tp)); ctx.globalAlpha=1; }
+  else { draw(tp<0.5?cur:next,x,y); } // cut
 }
 function _gfxTextGrid(lctx,el,ex,ey,ew,eh,unit){
   const cols=Math.max(1,Math.round(el.tfCols||6)), rows=Math.max(1,Math.round(el.tfRows||4)), brick=(el.tfMode==='brick');
@@ -3482,24 +3488,58 @@ function _gfxTextGrid(lctx,el,ex,ey,ew,eh,unit){
     return _gridHash(c,r,0);
   };
   const cw=ew/cols, ch=eh/rows;
+  const outlineW=Math.max(0,(el.tfOutline||0))*(unit*0.06); // 0=fill, else stroke width
+  // pan: scroll the whole wall (cells/sec). world coords keep word assignment continuous.
+  const panX=(el.tfPanX||0)*t, panY=(el.tfPanY||0)*t;
+  const shiftC=Math.floor(panX), fracC=panX-shiftC, shiftR=Math.floor(panY), fracR=panY-shiftR;
+  const panning=(el.tfPanX||0)!==0||(el.tfPanY||0)!==0;
+  const wordIdx=(wc,wr)=> cellMode==='sequence'?(((wr*cols+wc)%len)+len)%len : cellMode==='random'?Math.floor(_gridHash(wc,wr,7)*len) : 0;
   lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
   if(el.bgOn){ lctx.fillStyle=el.bg||'#000'; lctx.fillRect(ex,ey,ew,eh); }
   lctx.textAlign='center'; lctx.textBaseline='middle';
   const fitText=(s)=>{ let fs=Math.min(ch*(1-gap*2), unit*(parseFloat(el.fontSize)||0.9)*1.6); lctx.font=wt+' '+fs+'px '+fam; const w=lctx.measureText(s||' ').width, maxW=cw*(1-gap*2); if(w>maxW&&w>0){ fs*=maxW/w; lctx.font=wt+' '+fs+'px '+fam; } };
-  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-    const ci=r*cols+c;
-    let cellX=ex+c*cw+cw/2; if(brick&&(r&1)) cellX+=cw/2; if(cellX>ex+ew) cellX-=ew;
-    const cellY=ey+r*ch+ch/2, o=orderVal(c,r);
+  const c0=panning?-1:0, c1=panning?cols:cols-1, r0=panning?-1:0, r1=panning?rows:rows-1;
+  for(let r=r0;r<=r1;r++) for(let c=c0;c<=c1;c++){
+    const worldC=c+shiftC, worldR=r+shiftR;
+    let cellX=ex+(c-fracC)*cw+cw/2; if(brick&&(worldR&1)) cellX+=cw/2;
+    const cellY=ey+(r-fracR)*ch+ch/2;
+    const oc=((c%cols)+cols)%cols, orr=((r%rows)+rows)%rows, o=orderVal(oc,orr), ci=worldR*73+worldC; // stagger by visible cell; stable per-cell seed
     const phase=o*stag*cycle, lt=anim==='cycle'?Math.max(0,t-phase):0, cyc=Math.floor(lt/cycle), within=lt-cyc*cycle;
-    const base= cellMode==='sequence'?ci : cellMode==='random'?Math.floor(_gridHash(c,r,7)*len) : 0;
+    const base=wordIdx(worldC,worldR);
     const idx=((base+cyc)%len+len)%len, nxt=((base+cyc+1)%len+len)%len;
     let tp=0; if(anim==='cycle'&&within>hold) tp=Math.min(1,(within-hold)/trans);
     let col=colA;
-    if(colMode==='alt'||colMode==='duoline'||colMode==='duoword') col=((c+r)&1)?colB:colA;
+    if(colMode==='alt'||colMode==='duoline'||colMode==='duoword') col=((worldC+worldR)&1)?colB:colA;
     else if(colMode==='item'){ const rgb=_hsl2rgb(((idx/Math.max(1,len)))%1,0.72,0.6); col='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'; }
-    else if(colMode==='gradient') col=_pLerpHex(colA,colB,(c/cols+r/rows)/2);
-    else if(colMode==='rainbow'){ const rgb=_hsl2rgb(((c*0.1+r*0.07+t*0.05)%1+1)%1,0.8,0.6); col='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'; }
-    _gfxTextGridCell(lctx,items,idx,nxt,tp,style,cellX,cellY,cw,ch,col,fitText,scrSet,t,ci);
+    else if(colMode==='gradient') col=_pLerpHex(colA,colB,(oc/cols+orr/rows)/2);
+    else if(colMode==='rainbow'){ const rgb=_hsl2rgb(((worldC*0.1+worldR*0.07+t*0.05)%1+1)%1,0.8,0.6); col='rgb('+rgb[0]+','+rgb[1]+','+rgb[2]+')'; }
+    _gfxTextGridCell(lctx,items,idx,nxt,tp,style,cellX,cellY,cw,ch,col,fitText,scrSet,t,ci,outlineW);
+  }
+  // ── HIGHLIGHT: a solid block that pops/slides between cells, picking one word ──
+  if(el.tfHiOn){
+    const hiHold=Math.max(0.08,(el.tfHiHold??0.6)), hiSlide=Math.max(0,Math.min(1,(el.tfHiSlide??0.5)));
+    const move=el.tfHiMove||'random', tot=cols*rows;
+    const step=Math.floor(t/hiHold), frac=(t-step*hiHold)/hiHold;
+    const pick=(s)=>{ const k=((s%tot)+tot)%tot;
+      if(move==='sweep') return {c:k%cols, r:Math.floor(k/cols)};
+      if(move==='pattern'){ // k-th cell in the transition pattern order
+        const arr=[]; for(let rr=0;rr<rows;rr++)for(let cc=0;cc<cols;cc++) arr.push({c:cc,r:rr,v:orderVal(cc,rr)+(rr*cols+cc)*1e-6});
+        arr.sort((a,b)=>a.v-b.v); return arr[k]||{c:0,r:0};
+      }
+      return {c:Math.floor(_gridHash(s,11,3)*cols), r:Math.floor(_gridHash(s,29,5)*rows)};
+    };
+    const cur=pick(step), prev=pick(step-1);
+    const sp = hiSlide>0 ? _gfxSelEase(Math.min(1,frac/hiSlide),'smooth') : 1;
+    const hc=prev.c+(cur.c-prev.c)*sp, hr=prev.r+(cur.r-prev.r)*sp;
+    let hx=ex+hc*cw; if(brick&&(((cur.r)&1))) hx+=cw/2; const hy=ey+hr*ch;
+    const wC=cur.c+shiftC, wR=cur.r+shiftR, baseH=wordIdx(wC,wR);
+    const cycH=anim==='cycle'?Math.floor(Math.max(0,t)/cycle):0;
+    const word=items[((baseH+cycH)%len+len)%len];
+    lctx.save();
+    lctx.fillStyle=el.tfHiColor||'#2bff88'; lctx.globalAlpha=1; lctx.fillRect(hx,hy,cw,ch);
+    lctx.beginPath(); lctx.rect(hx,hy,cw,ch); lctx.clip();
+    lctx.fillStyle=el.tfHiText||el.bg||'#0c0c0e'; fitText(word); lctx.fillText(word,hx+cw/2,hy+ch/2);
+    lctx.restore();
   }
   lctx.restore();
 }
@@ -17436,10 +17476,13 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfmode',el.tfMode||'wall');setV('gfx-p-tfcols',el.tfCols||6);setV('gfx-p-tfrows',el.tfRows||4);setV('gfx-p-tfgap',el.tfGap==null?0.08:el.tfGap);
       setV('gfx-p-tfanim',el.tfAnim||'cycle');setV('gfx-p-tfpattern',el.tfPattern||'random');setV('gfx-p-tfstyle',el.tfStyle||'scramble');setV('gfx-p-tfscrset',el.tfScrambleSet||'symbols');
       setV('gfx-p-tfhold',el.tfHold==null?1.4:el.tfHold);setV('gfx-p-tftrans',el.tfTrans==null?0.5:el.tfTrans);setV('gfx-p-tfstagger',el.tfStagger==null?1:el.tfStagger);setV('gfx-p-tfspeed',el.tfSpeed==null?1:el.tfSpeed);setV('gfx-p-tfcellmode',el.tfCellMode||'sync');
+      setV('gfx-p-tfoutline',el.tfOutline==null?0:el.tfOutline);setV('gfx-p-tfpanx',el.tfPanX==null?0:el.tfPanX);setV('gfx-p-tfpany',el.tfPanY==null?0:el.tfPanY);
+      setV('gfx-p-tfhion',el.tfHiOn);setV('gfx-p-tfhicolor',el.tfHiColor||'#2bff88');setV('gfx-p-tfhitext',el.tfHiText||'#0c0c0e');setV('gfx-p-tfhihold',el.tfHiHold==null?0.6:el.tfHiHold);setV('gfx-p-tfhislide',el.tfHiSlide==null?0.5:el.tfHiSlide);setV('gfx-p-tfhimove',el.tfHiMove||'random');
       { const mode=el.tfMode||'wall', grid=mode!=='wall';
         document.querySelectorAll('#gfx-pp-textfill .gfx-tfwall').forEach(e=>e.style.display=grid?'none':'flex');
         const gr=document.getElementById('gfx-tfgrid-rows'); if(gr) gr.style.display=grid?'block':'none';
         const sr=document.getElementById('gfx-tfscr-row'); if(sr) sr.style.display=(grid&&(el.tfStyle||'scramble')==='scramble')?'flex':'none';
+        document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(e=>e.style.display=(grid&&el.tfHiOn)?'flex':'none');
         const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=grid?'block':'none'; }
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
@@ -17531,6 +17574,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfjustify','justify','str'],['gfx-p-tfalt','altMode','str'],['gfx-p-tfcmode','colorMode','str'],
     ['gfx-p-tfcol','color','str'],['gfx-p-tfcol2','color2','str'],
     ['gfx-p-tfmode','tfMode','str'],['gfx-p-tfcols','tfCols','num'],['gfx-p-tfrows','tfRows','num'],['gfx-p-tfgap','tfGap','num'],['gfx-p-tfanim','tfAnim','str'],['gfx-p-tfpattern','tfPattern','str'],['gfx-p-tfstyle','tfStyle','str'],['gfx-p-tfscrset','tfScrambleSet','str'],['gfx-p-tfhold','tfHold','num'],['gfx-p-tftrans','tfTrans','num'],['gfx-p-tfstagger','tfStagger','num'],['gfx-p-tfspeed','tfSpeed','num'],['gfx-p-tfcellmode','tfCellMode','str'],
+    ['gfx-p-tfoutline','tfOutline','num'],['gfx-p-tfpanx','tfPanX','num'],['gfx-p-tfpany','tfPanY','num'],
+    ['gfx-p-tfhion','tfHiOn','bool'],['gfx-p-tfhicolor','tfHiColor','str'],['gfx-p-tfhitext','tfHiText','str'],['gfx-p-tfhihold','tfHiHold','num'],['gfx-p-tfhislide','tfHiSlide','num'],['gfx-p-tfhimove','tfHiMove','str'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
@@ -17560,6 +17605,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       const vs=document.getElementById(id+'-v');
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
       if(['content','items','date','location','time','label','text','words','data','mode','clipBelow','kSelOn','kSelAnim','kSelColMode','kSelReveal','kSelScrambleSet','tfMode','tfStyle'].includes(field)) renderGfxElList();
+      if(field==='tfHiOn'){ const grid=(el.tfMode||'wall')!=='wall'; document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(x=>x.style.display=(grid&&e.checked)?'flex':'none'); }
       if(field==='mosaicMode'){ const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(e.value==='text')?'flex':'none'; renderGfxElList(); }
     });
   });
