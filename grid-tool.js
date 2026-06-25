@@ -3130,7 +3130,8 @@ function gfxDefaultEl(type){
     // outline wall + pan + moving highlight (brik.space selection-cursor look)
     tfOutline:0,tfPanX:0,tfPanY:0,tfHiOn:false,tfHiColor:'#2bff88',tfHiText:'#0c0c0e',tfHiHold:0.6,tfHiSlide:0.5,tfHiMove:'random',
     // growing word-pack (treemap that builds word by word — brik.space "type tetris")
-    tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1};
+    tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1,
+    tfPackStyle:'outline',tfPackNewStyle:'solid',tfPackFit:'stretch',tfPackSplit:'longer',tfPackRatio:0.5,tfPackTarget:'largest',tfPackGrow:'scale'};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -3570,45 +3571,79 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
   let g=Math.min(1, Math.max(0, grown-(active-1))); g=_gfxSelEase(g,'smooth');
   const gap=Math.max(0,Math.min(0.2,(el.tfGap??0.04)))*Math.min(ew,eh);
   const outlineW=Math.max(0.5,(el.tfOutline||1.5))*(unit*0.06);
-  const growCol=el.tfHiColor||'#2bff88', outCol=el.color||'#ffffff';
+  // shared colour system (same as kinetic grid): solid / alt / item / gradient / rainbow / depth
+  const colMode=el.colorMode||'solid', colA=el.color||'#ffffff', colB=el.color2||'#ff3b30', newCol=el.tfHiColor||'#2bff88';
+  const setStyle=el.tfPackStyle||'outline';        // settled words: outline | solid | alt
+  const newStyle=el.tfPackNewStyle||'solid';       // newest word:  solid | outline
+  const fit=el.tfPackFit||'stretch';               // stretch | fit | width
+  const splitMode=el.tfPackSplit||'longer';        // longer | alternate | random | golden
+  const ratio=Math.max(0.15,Math.min(0.85,(el.tfPackRatio??0.5)));
+  const target=el.tfPackTarget||'largest';         // largest | random | oldest
+  const growMode=el.tfPackGrow||'scale';           // scale | fade | rise | wipe
   // build guillotine layout for `active` words; record the last split for animation
-  const rects=[{i:order[0],x:ex,y:ey,w:ew,h:eh}];
+  const rects=[{i:order[0],x:ex,y:ey,w:ew,h:eh,depth:0,age:0}];
   let parentIdx=-1, childIdx=-1, parentPrev=null, parentNew=null;
   for(let k=1;k<active;k++){
-    let bi=0,ba=-1; for(let r=0;r<rects.length;r++){ const a=rects[r].w*rects[r].h; if(a>ba){ba=a;bi=r;} }
+    let bi=0;
+    if(target==='oldest'){ let bo=Infinity; for(let r=0;r<rects.length;r++){ if(rects[r].age<bo){bo=rects[r].age;bi=r;} } }
+    else if(target==='random'){ bi=Math.floor(_gridHash(k,7,3)*rects.length)%rects.length; }
+    else { let ba=-1; for(let r=0;r<rects.length;r++){ const a=rects[r].w*rects[r].h; if(a>ba){ba=a;bi=r;} } }
     const R=rects[bi]; const prev={x:R.x,y:R.y,w:R.w,h:R.h};
+    let vert; // split into left|right (vert) vs top|bottom
+    if(splitMode==='alternate') vert=(R.depth%2===0);
+    else if(splitMode==='random') vert=_gridHash(k,13,5)>0.5;
+    else vert=R.w>=R.h; // 'longer' and 'golden'
+    const rr=(splitMode==='golden')?0.618:ratio;
     let A,B;
-    if(R.w>=R.h){ const hw=R.w/2; A={x:R.x,y:R.y,w:hw,h:R.h}; B={x:R.x+hw,y:R.y,w:R.w-hw,h:R.h}; }
-    else { const hh=R.h/2; A={x:R.x,y:R.y,w:R.w,h:hh}; B={x:R.x,y:R.y+hh,w:R.w,h:R.h-hh}; }
-    R.x=A.x;R.y=A.y;R.w=A.w;R.h=A.h;
-    rects.push({i:order[k],x:B.x,y:B.y,w:B.w,h:B.h});
+    if(vert){ const wA=R.w*rr; A={x:R.x,y:R.y,w:wA,h:R.h}; B={x:R.x+wA,y:R.y,w:R.w-wA,h:R.h}; }
+    else { const hA=R.h*rr; A={x:R.x,y:R.y,w:R.w,h:hA}; B={x:R.x,y:R.y+hA,w:R.w,h:R.h-hA}; }
+    R.x=A.x;R.y=A.y;R.w=A.w;R.h=A.h; R.depth++;
+    rects.push({i:order[k],x:B.x,y:B.y,w:B.w,h:B.h,depth:R.depth,age:k});
     if(k===active-1){ parentIdx=bi; childIdx=rects.length-1; parentPrev=prev; parentNew={x:A.x,y:A.y,w:A.w,h:A.h}; }
   }
-  // draw a word stretched to FILL a rect (non-uniform scale → condensed/brutalist look)
   const lerp=(a,b,m)=>a+(b-a)*m;
-  const drawCell=(word,x,y,w,h,solid,scale)=>{
+  const cellColor=(idx,depth,cx,cy)=>{
+    if(colMode==='alt') return (idx&1)?colB:colA;
+    if(colMode==='item'){ const c=_hsl2rgb(((idx/Math.max(1,N))%1+1)%1,0.72,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
+    if(colMode==='gradient') return _pLerpHex(colA,colB, ((cx-ex)/ew+(cy-ey)/eh)/2 );
+    if(colMode==='rainbow'){ const c=_hsl2rgb(((idx*0.13+t*0.05)%1+1)%1,0.8,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
+    if(colMode==='depth'){ const c=_hsl2rgb(((depth*0.12)%1+1)%1,0.7,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
+    return colA;
+  };
+  // draw a word inside a rect: style=solid|outline, fit=stretch|fit|width, gv=growth(0..1), grow anim
+  const drawWord=(word,x,y,w,h,style,color,gv,gm)=>{
     const iw=w-gap, ih=h-gap; if(iw<=1||ih<=1) return;
-    const ix=x+gap/2, iy=y+gap/2;
+    const ix=x+gap/2, iy=y+gap/2, cx=ix+iw/2, cy=iy+ih/2;
     lctx.save();
+    let dScale=1, ty=0;
+    if(gv<1){
+      if(gm==='fade') lctx.globalAlpha*=gv;
+      else if(gm==='rise'){ lctx.globalAlpha*=Math.min(1,gv*1.4); ty=(1-gv)*ih*0.6; }
+      else if(gm==='wipe'){ lctx.beginPath(); lctx.rect(ix,iy,iw,ih*gv); lctx.clip(); }
+      else dScale=gv; // scale
+    }
     lctx.font=wt+' 100px '+fam;
     const m=lctx.measureText(word||' '); const tw=Math.max(1,m.width);
     const asc=m.actualBoundingBoxAscent||72, desc=m.actualBoundingBoxDescent||0, th=Math.max(1,asc+desc);
-    const cx=ix+iw/2, cy=iy+ih/2;
-    lctx.translate(cx,cy); if(scale!=null&&scale!==1) lctx.scale(scale,scale);
-    lctx.scale(iw/tw, ih/th);
+    let sx,sy;
+    if(fit==='width'){ sx=sy=iw/tw; }
+    else if(fit==='fit'){ sx=sy=Math.min(iw/tw, ih/th); }
+    else { sx=iw/tw; sy=ih/th; } // stretch
+    lctx.translate(cx,cy+ty); if(dScale!==1) lctx.scale(dScale,dScale); lctx.scale(sx,sy);
     lctx.textAlign='center'; lctx.textBaseline='alphabetic';
-    const by=(asc-desc)/2; // vertical centre for the stretched glyph
-    if(solid){ lctx.fillStyle=growCol; lctx.fillText(word,0,by); }
-    else { lctx.lineWidth=outlineW/Math.max(0.001,Math.min(iw/tw,ih/th)); lctx.lineJoin='round'; lctx.strokeStyle=outCol; lctx.strokeText(word,0,by); }
+    const by=(asc-desc)/2;
+    if(style==='solid'){ lctx.fillStyle=color; lctx.fillText(word,0,by); }
+    else { lctx.lineWidth=outlineW/Math.max(0.001,Math.min(sx,sy)); lctx.lineJoin='round'; lctx.strokeStyle=color; lctx.strokeText(word,0,by); }
     lctx.restore();
   };
+  const styleFor=(r)=> setStyle==='alt' ? ((r&1)?'solid':'outline') : setStyle;
   lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
   if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
   for(let r=0;r<rects.length;r++){
-    const R=rects[r], word=words[R.i];
-    if(r===childIdx){ drawCell(word,R.x,R.y,R.w,R.h,true,g); } // newest: bright, grows in
-    else if(r===parentIdx){ const px=lerp(parentPrev.x,parentNew.x,g),py=lerp(parentPrev.y,parentNew.y,g),pw=lerp(parentPrev.w,parentNew.w,g),ph=lerp(parentPrev.h,parentNew.h,g); drawCell(word,px,py,pw,ph,false,1); }
-    else drawCell(word,R.x,R.y,R.w,R.h,false,1);
+    const R=rects[r], word=words[R.i], col=cellColor(R.i,R.depth,R.x+R.w/2,R.y+R.h/2);
+    if(r===childIdx){ drawWord(word,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode); } // newest: bright, grows in
+    else if(r===parentIdx){ const px=lerp(parentPrev.x,parentNew.x,g),py=lerp(parentPrev.y,parentNew.y,g),pw=lerp(parentPrev.w,parentNew.w,g),ph=lerp(parentPrev.h,parentNew.h,g); drawWord(word,px,py,pw,ph, styleFor(r), col, 1, null); }
+    else drawWord(word,R.x,R.y,R.w,R.h, styleFor(r), col, 1, null);
   }
   lctx.restore();
 }
@@ -17565,7 +17600,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfoutline',el.tfOutline==null?0:el.tfOutline);setV('gfx-p-tfpanx',el.tfPanX==null?0:el.tfPanX);setV('gfx-p-tfpany',el.tfPanY==null?0:el.tfPanY);
       setV('gfx-p-tfhion',el.tfHiOn);setV('gfx-p-tfhicolor',el.tfHiColor||'#2bff88');setV('gfx-p-tfhitext',el.tfHiText||'#0c0c0e');setV('gfx-p-tfhihold',el.tfHiHold==null?0.6:el.tfHiHold);setV('gfx-p-tfhislide',el.tfHiSlide==null?0.5:el.tfHiSlide);setV('gfx-p-tfhimove',el.tfHiMove||'random');
       setV('gfx-p-tfpackrate',el.tfPackRate==null?0.5:el.tfPackRate);setV('gfx-p-tfpackmax',el.tfPackMax==null?16:el.tfPackMax);setV('gfx-p-tfpackorder',el.tfPackOrder||'sequence');setV('gfx-p-tfpackseed',el.tfPackSeed==null?1:el.tfPackSeed);setV('gfx-p-tfpackloop',el.tfPackLoop!==false);setV('gfx-p-tfpackhold',el.tfPackHold==null?1.5:el.tfPackHold);
-      setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);setV('gfx-p-tfpackcol',el.color||'#7cffb2');setV('gfx-p-tfpackgrow',el.tfHiColor||'#2bff88');
+      setV('gfx-p-tfpackstyle',el.tfPackStyle||'outline');setV('gfx-p-tfpacknewstyle',el.tfPackNewStyle||'solid');setV('gfx-p-tfpackgrow',el.tfHiColor||'#2bff88');setV('gfx-p-tfpackfit',el.tfPackFit||'stretch');setV('gfx-p-tfpackgrowmode',el.tfPackGrow||'scale');
+      setV('gfx-p-tfpacksplit',el.tfPackSplit||'longer');setV('gfx-p-tfpackratio',el.tfPackRatio==null?0.5:el.tfPackRatio);setV('gfx-p-tfpacktarget',el.tfPackTarget||'largest');setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);
       gfxTextfillModeUI(el);
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
@@ -17660,7 +17696,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfoutline','tfOutline','num'],['gfx-p-tfpanx','tfPanX','num'],['gfx-p-tfpany','tfPanY','num'],
     ['gfx-p-tfhion','tfHiOn','bool'],['gfx-p-tfhicolor','tfHiColor','str'],['gfx-p-tfhitext','tfHiText','str'],['gfx-p-tfhihold','tfHiHold','num'],['gfx-p-tfhislide','tfHiSlide','num'],['gfx-p-tfhimove','tfHiMove','str'],
     ['gfx-p-tfpackrate','tfPackRate','num'],['gfx-p-tfpackmax','tfPackMax','num'],['gfx-p-tfpackorder','tfPackOrder','str'],['gfx-p-tfpackseed','tfPackSeed','num'],['gfx-p-tfpackloop','tfPackLoop','bool'],['gfx-p-tfpackhold','tfPackHold','num'],
-    ['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],['gfx-p-tfpackcol','color','str'],['gfx-p-tfpackgrow','tfHiColor','str'],
+    ['gfx-p-tfpackstyle','tfPackStyle','str'],['gfx-p-tfpacknewstyle','tfPackNewStyle','str'],['gfx-p-tfpackgrow','tfHiColor','str'],['gfx-p-tfpackfit','tfPackFit','str'],['gfx-p-tfpackgrowmode','tfPackGrow','str'],
+    ['gfx-p-tfpacksplit','tfPackSplit','str'],['gfx-p-tfpackratio','tfPackRatio','num'],['gfx-p-tfpacktarget','tfPackTarget','str'],['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
