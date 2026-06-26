@@ -3030,9 +3030,13 @@ TOKYO</textarea></div>
               <div class="row"><label>seed</label><input type="range" id="gfx-p-tfpackseed" min="1" max="99" value="1" step="1"><span class="val" id="gfx-p-tfpackseed-v">1</span></div>
               <div class="row"><label>loop</label><input type="checkbox" id="gfx-p-tfpackloop" checked></div>
               <div class="row"><label>hold full (s)</label><input type="range" id="gfx-p-tfpackhold" min="0" max="6" value="1.5" step="0.1"><span class="val" id="gfx-p-tfpackhold-v">1.5</span></div>
-              <div class="row"><label>settled words</label><select id="gfx-p-tfpackstyle"><option value="outline">outline</option><option value="solid">filled</option><option value="alt">alternate</option></select></div>
-              <div class="row"><label>newest word</label><select id="gfx-p-tfpacknewstyle"><option value="solid">filled (bright)</option><option value="outline">outline</option></select></div>
+              <div class="row"><label>settled words</label><select id="gfx-p-tfpackstyle"><option value="outline">outline</option><option value="solid">filled</option><option value="block">block</option><option value="knockout">knockout</option><option value="alt">alternate</option></select></div>
+              <div class="row"><label>newest word</label><select id="gfx-p-tfpacknewstyle"><option value="solid">filled (bright)</option><option value="block">block (bright)</option><option value="knockout">knockout</option><option value="outline">outline</option></select></div>
               <div class="row"><label>newest fill</label><input type="color" id="gfx-p-tfpackgrow" value="#2bff88"></div>
+              <div class="row"><label>rotate tall</label><select id="gfx-p-tfpackrotate"><option value="auto">auto (vertical)</option><option value="off">off</option></select></div>
+              <div class="row"><label>cell sizing</label><select id="gfx-p-tfpackweight"><option value="equal">equal area</option><option value="length">by word length</option></select></div>
+              <div class="row"><label>hero word</label><input type="text" id="gfx-p-tfpackhero" placeholder="(optional) always big" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+              <div class="row"><label>mix weights</label><input type="checkbox" id="gfx-p-tfpackmixweight"></div>
               <div class="row"><label>text fit</label><select id="gfx-p-tfpackfit"><option value="stretch">stretch (fill cell)</option><option value="fit">fit (keep shape)</option><option value="width">fill width</option></select></div>
               <div class="row"><label>grow as</label><select id="gfx-p-tfpackgrowmode"><option value="scale">scale up</option><option value="fade">fade in</option><option value="rise">rise + fade</option><option value="wipe">wipe up</option></select></div>
               <div class="row"><label>split</label><select id="gfx-p-tfpacksplit"><option value="longer">longer side</option><option value="alternate">alternate H/V</option><option value="random">random</option><option value="golden">golden ratio</option></select></div>
@@ -3040,6 +3044,10 @@ TOKYO</textarea></div>
               <div class="row"><label>carve from</label><select id="gfx-p-tfpacktarget"><option value="largest">largest cell</option><option value="random">random cell</option><option value="oldest">oldest cell</option></select></div>
               <div class="row"><label>outline width</label><input type="range" id="gfx-p-tfpackoutline" min="0.25" max="6" value="1.5" step="0.25"><span class="val" id="gfx-p-tfpackoutline-v">1.50</span></div>
               <div class="row"><label>gap</label><input type="range" id="gfx-p-tfpackgap" min="0" max="0.15" value="0.04" step="0.005"><span class="val" id="gfx-p-tfpackgap-v">0.040</span></div>
+              <div class="tip" style="font-size:7px;opacity:.7;">— living wall —</div>
+              <div class="row"><label>churn</label><input type="checkbox" id="gfx-p-tfpackchurn"></div>
+              <div class="row"><label>recency heat</label><input type="range" id="gfx-p-tfpackheat" min="0" max="12" value="0" step="1"><span class="val" id="gfx-p-tfpackheat-v">0</span></div>
+              <div class="row"><label>min cell size</label><input type="range" id="gfx-p-tfpackmin" min="0" max="0.2" value="0.06" step="0.005"><span class="val" id="gfx-p-tfpackmin-v">0.060</span></div>
             </div>
             <div class="row"><label>color mode</label><select id="gfx-p-tfcmode"><option value="solid">solid</option><option value="alt">alternate</option><option value="item">by word</option><option value="gradient">gradient</option><option value="rainbow">rainbow</option><option value="depth">by depth (pack)</option></select></div>
             <div class="row"><label>color</label><input type="color" id="gfx-p-tfcol" value="#ffffff"></div>
@@ -6733,7 +6741,8 @@ function gfxDefaultEl(type){
     tfOutline:0,tfPanX:0,tfPanY:0,tfHiOn:false,tfHiColor:'#2bff88',tfHiText:'#0c0c0e',tfHiHold:0.6,tfHiSlide:0.5,tfHiMove:'random',
     // growing word-pack (treemap that builds word by word — brik.space "type tetris")
     tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1,
-    tfPackStyle:'outline',tfPackNewStyle:'solid',tfPackFit:'stretch',tfPackSplit:'longer',tfPackRatio:0.5,tfPackTarget:'largest',tfPackGrow:'scale'};
+    tfPackStyle:'outline',tfPackNewStyle:'solid',tfPackFit:'stretch',tfPackSplit:'longer',tfPackRatio:0.5,tfPackTarget:'largest',tfPackGrow:'scale',
+    tfPackRotate:'auto',tfPackWeight:'equal',tfPackHero:'',tfPackMixWeight:false,tfPackChurn:false,tfPackHeat:0,tfPackMin:0.06};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -7159,93 +7168,147 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
   words=words.map(s=> cm==='upper'?s.toUpperCase() : cm==='lower'?s.toLowerCase() : s);
   const N=words.length;
   const maxW=Math.max(2,Math.min(N,Math.round(el.tfPackMax||N)));
-  // reveal order
   let order=words.map((_,i)=>i);
   if((el.tfPackOrder||'sequence')==='shuffle'){ const rng=_gfxSeedRng(((el.tfPackSeed||1)>>>0)||1); for(let i=order.length-1;i>0;i--){ const j=Math.floor(rng()*(i+1)); const tmp=order[i]; order[i]=order[j]; order[j]=tmp; } }
-  const fam=el.font||"'Helvetica Neue',Arial,sans-serif", wt=el.weight||'800';
+  const fam=el.font||"'Helvetica Neue',Arial,sans-serif", baseWt=el.weight||'800';
   const t=(globalT||0)/60*Math.max(0.01,(el.tfSpeed??1));
   const rate=Math.max(0.05,(el.tfPackRate??0.5)), holdS=Math.max(0,(el.tfPackHold??1.5));
-  const buildDur=(maxW-1)*rate, span=buildDur+rate; // span = time for all words to be in
-  const loop=el.tfPackLoop!==false;
-  const phase= loop ? (t % (span+holdS)) : Math.min(t, span);
-  const grown=phase/rate;
-  const active=Math.min(maxW, Math.floor(grown)+1);
-  let g=Math.min(1, Math.max(0, grown-(active-1))); g=_gfxSelEase(g,'smooth');
   const gap=Math.max(0,Math.min(0.2,(el.tfGap??0.04)))*Math.min(ew,eh);
   const outlineW=Math.max(0.5,(el.tfOutline||1.5))*(unit*0.06);
-  // shared colour system (same as kinetic grid): solid / alt / item / gradient / rainbow / depth
   const colMode=el.colorMode||'solid', colA=el.color||'#ffffff', colB=el.color2||'#ff3b30', newCol=el.tfHiColor||'#2bff88';
-  const setStyle=el.tfPackStyle||'outline';        // settled words: outline | solid | alt
-  const newStyle=el.tfPackNewStyle||'solid';       // newest word:  solid | outline
-  const fit=el.tfPackFit||'stretch';               // stretch | fit | width
-  const splitMode=el.tfPackSplit||'longer';        // longer | alternate | random | golden
-  const ratio=Math.max(0.15,Math.min(0.85,(el.tfPackRatio??0.5)));
-  const target=el.tfPackTarget||'largest';         // largest | random | oldest
-  const growMode=el.tfPackGrow||'scale';           // scale | fade | rise | wipe
-  // build guillotine layout for `active` words; record the last split for animation
-  const rects=[{i:order[0],x:ex,y:ey,w:ew,h:eh,depth:0,age:0}];
-  let parentIdx=-1, childIdx=-1, parentPrev=null, parentNew=null;
-  for(let k=1;k<active;k++){
-    let bi=0;
-    if(target==='oldest'){ let bo=Infinity; for(let r=0;r<rects.length;r++){ if(rects[r].age<bo){bo=rects[r].age;bi=r;} } }
-    else if(target==='random'){ bi=Math.floor(_gridHash(k,7,3)*rects.length)%rects.length; }
-    else { let ba=-1; for(let r=0;r<rects.length;r++){ const a=rects[r].w*rects[r].h; if(a>ba){ba=a;bi=r;} } }
-    const R=rects[bi]; const prev={x:R.x,y:R.y,w:R.w,h:R.h};
-    let vert; // split into left|right (vert) vs top|bottom
-    if(splitMode==='alternate') vert=(R.depth%2===0);
-    else if(splitMode==='random') vert=_gridHash(k,13,5)>0.5;
-    else vert=R.w>=R.h; // 'longer' and 'golden'
-    const rr=(splitMode==='golden')?0.618:ratio;
-    let A,B;
-    if(vert){ const wA=R.w*rr; A={x:R.x,y:R.y,w:wA,h:R.h}; B={x:R.x+wA,y:R.y,w:R.w-wA,h:R.h}; }
-    else { const hA=R.h*rr; A={x:R.x,y:R.y,w:R.w,h:hA}; B={x:R.x,y:R.y+hA,w:R.w,h:R.h-hA}; }
-    R.x=A.x;R.y=A.y;R.w=A.w;R.h=A.h; R.depth++;
-    rects.push({i:order[k],x:B.x,y:B.y,w:B.w,h:B.h,depth:R.depth,age:k});
-    if(k===active-1){ parentIdx=bi; childIdx=rects.length-1; parentPrev=prev; parentNew={x:A.x,y:A.y,w:A.w,h:A.h}; }
-  }
+  const koCol=el.tfHiText||el.bg||'#0c0c0e';        // block/knockout text colour
+  const setStyle=el.tfPackStyle||'outline';          // outline | solid | block | knockout | alt
+  const newStyle=el.tfPackNewStyle||'solid';         // solid | outline | block | knockout
+  const fit=el.tfPackFit||'stretch';                 // stretch | fit | width
+  const splitMode=el.tfPackSplit||'longer';          // longer | alternate | random | golden
+  const ratioP=Math.max(0.15,Math.min(0.85,(el.tfPackRatio??0.5)));
+  const target=el.tfPackTarget||'largest';           // largest | random | oldest
+  const growMode=el.tfPackGrow||'scale';             // scale | fade | rise | wipe
+  // ── Category A ──
+  const rotateMode=el.tfPackRotate||'auto';          // off | auto  (rotate words in tall cells)
+  const weightMode=el.tfPackWeight||'equal';         // equal | length  (area ∝ word length)
+  const hero=String(el.tfPackHero||'').trim().toUpperCase();
+  const mixWeight=!!el.tfPackMixWeight;              // vary font weight per cell
+  // ── Category B ──
+  const churn=!!el.tfPackChurn;                      // living wall: words keep flowing through cells
+  const heatWin=Math.max(1,(el.tfPackHeat||0));      // recency window: how many recent cells stay warm
+  const minPx=Math.max(0,(el.tfPackMin??0.06))*Math.min(ew,eh); // min legible cell side
+  const wt=(i)=>mixWeight? (['300','500','700','900'][Math.floor(_gridHash(i,17,9)*4)]) : baseWt;
+  const weightOf=(wi)=>{ let w=(weightMode==='length')? Math.max(1,(words[wi]||'').length) : 1; if(hero&&(words[wi]||'').toUpperCase()===hero) w*=3; return w; };
+  const _h2hex=(h,s,l)=>{ const c=_hsl2rgb(((h%1)+1)%1,s,l); return '#'+[c[0],c[1],c[2]].map(v=>('0'+(v&255).toString(16)).slice(-2)).join(''); };
   const lerp=(a,b,m)=>a+(b-a)*m;
+  // build the guillotine layout for n cells (capped by min legible size). returns
+  // cells[] with {i, x,y,w,h, depth, birth} and the last split's animation data.
+  const build=(n)=>{
+    const rects=[{i:order[0],x:ex,y:ey,w:ew,h:eh,depth:0,birth:0,age:0}];
+    let parentIdx=-1, childIdx=-1, parentPrev=null, parentNew=null;
+    for(let k=1;k<n;k++){
+      let bi=0;
+      if(target==='oldest'){ let bo=Infinity; for(let r=0;r<rects.length;r++){ if(rects[r].age<bo){bo=rects[r].age;bi=r;} } }
+      else if(target==='random'){ bi=Math.floor(_gridHash(k,7,3)*rects.length)%rects.length; }
+      else { let ba=-1; for(let r=0;r<rects.length;r++){ const a=rects[r].w*rects[r].h; if(a>ba){ba=a;bi=r;} } }
+      const R=rects[bi]; const prev={x:R.x,y:R.y,w:R.w,h:R.h};
+      let vert;
+      if(splitMode==='alternate') vert=(R.depth%2===0);
+      else if(splitMode==='random') vert=_gridHash(k,13,5)>0.5;
+      else vert=R.w>=R.h;
+      // split ratio: weighted (area ∝ word length / hero) or the manual/golden ratio
+      let rr;
+      if(weightMode==='length'||hero){ const wA=weightOf(R.i), wB=weightOf(order[k]); rr=wA/(wA+wB); }
+      else rr=(splitMode==='golden')?0.618:ratioP;
+      const halfA = vert? {w:R.w*rr,h:R.h} : {w:R.w,h:R.h*rr};
+      const halfB = vert? {w:R.w-R.w*rr,h:R.h} : {w:R.w,h:R.h-R.h*rr};
+      // min legible: don't split if either half gets too small — caps density to frame size
+      if(minPx>0 && (Math.min(halfA.w,halfA.h)<minPx || Math.min(halfB.w,halfB.h)<minPx)) break;
+      let A,B;
+      if(vert){ A={x:R.x,y:R.y,w:halfA.w,h:R.h}; B={x:R.x+halfA.w,y:R.y,w:halfB.w,h:R.h}; }
+      else { A={x:R.x,y:R.y,w:R.w,h:halfA.h}; B={x:R.x,y:R.y+halfA.h,w:R.w,h:halfB.h}; }
+      R.x=A.x;R.y=A.y;R.w=A.w;R.h=A.h; R.depth++;
+      rects.push({i:order[k],x:B.x,y:B.y,w:B.w,h:B.h,depth:R.depth,birth:k,age:k});
+      if(k===n-1){ parentIdx=bi; childIdx=rects.length-1; parentPrev=prev; parentNew={x:A.x,y:A.y,w:A.w,h:A.h}; }
+    }
+    return {rects, parentIdx, childIdx, parentPrev, parentNew};
+  };
+  // fullCells = how many actually fit (min-size may cap below maxW)
+  const fullCells = build(maxW).rects.length;
+  // timeline
+  const loop=el.tfPackLoop!==false;
+  let s, g; // s = current spawn index (0-based), g = growth of the current spawn
+  if(churn){ const raw=t/rate; s=Math.floor(raw); g=_gfxSelEase(Math.min(1,raw-s),'smooth'); }
+  else { const span=fullCells*rate, phase= loop?(t%(span+holdS)):Math.min(t,span); const raw=phase/rate; s=Math.min(fullCells-1,Math.floor(raw)); g=_gfxSelEase(Math.min(1,Math.max(0,raw-Math.floor(raw))),'smooth'); if(Math.floor(raw)>=fullCells) g=1; }
   const cellColor=(idx,depth,cx,cy)=>{
     if(colMode==='alt') return (idx&1)?colB:colA;
-    if(colMode==='item'){ const c=_hsl2rgb(((idx/Math.max(1,N))%1+1)%1,0.72,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
+    if(colMode==='item') return _h2hex(idx/Math.max(1,N),0.72,0.6);
     if(colMode==='gradient') return _pLerpHex(colA,colB, ((cx-ex)/ew+(cy-ey)/eh)/2 );
-    if(colMode==='rainbow'){ const c=_hsl2rgb(((idx*0.13+t*0.05)%1+1)%1,0.8,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
-    if(colMode==='depth'){ const c=_hsl2rgb(((depth*0.12)%1+1)%1,0.7,0.6); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; }
+    if(colMode==='rainbow') return _h2hex(idx*0.13+t*0.05,0.8,0.6);
+    if(colMode==='depth') return _h2hex(depth*0.12,0.7,0.6);
     return colA;
   };
-  // draw a word inside a rect: style=solid|outline, fit=stretch|fit|width, gv=growth(0..1), grow anim
-  const drawWord=(word,x,y,w,h,style,color,gv,gm)=>{
-    const iw=w-gap, ih=h-gap; if(iw<=1||ih<=1) return;
-    const ix=x+gap/2, iy=y+gap/2, cx=ix+iw/2, cy=iy+ih/2;
-    lctx.save();
-    let dScale=1, ty=0;
+  // draw a word inside a rect. style=outline|solid|block|knockout. gv=growth(0..1).
+  const drawWord=(word,wi,x,y,w,h,style,color,gv,gm)=>{
+    let iw=w-gap, ih=h-gap; if(iw<=1||ih<=1) return;
+    let ix=x+gap/2, iy=y+gap/2; let alpha=1;
+    // resolve the grow animation into an animated rect + alpha
     if(gv<1){
-      if(gm==='fade') lctx.globalAlpha*=gv;
-      else if(gm==='rise'){ lctx.globalAlpha*=Math.min(1,gv*1.4); ty=(1-gv)*ih*0.6; }
-      else if(gm==='wipe'){ lctx.beginPath(); lctx.rect(ix,iy,iw,ih*gv); lctx.clip(); }
-      else dScale=gv; // scale
+      if(gm==='fade') alpha=gv;
+      else if(gm==='rise'){ alpha=Math.min(1,gv*1.4); iy+=(1-gv)*ih*0.55; }
+      else if(gm==='wipe'){ const nh=ih*gv; iy=iy+ih-nh; ih=nh; }
+      else { const s2=gv; const cx=ix+iw/2, cy=iy+ih/2; iw*=s2; ih*=s2; ix=cx-iw/2; iy=cy-ih/2; } // scale
     }
-    lctx.font=wt+' 100px '+fam;
+    if(iw<=1||ih<=1) return;
+    lctx.save(); lctx.globalAlpha*=alpha;
+    // block / knockout: paint the cell then knock the word out
+    if(style==='block'||style==='knockout'){ lctx.fillStyle=color; lctx.fillRect(ix,iy,iw,ih); }
+    const drawStyle = (style==='block'||style==='knockout')?'ko':(style==='solid')?'fill':'stroke';
+    const drawCol = (style==='block'||style==='knockout')?koCol:color;
+    // rotate words in tall cells (auto)
+    const rot = (rotateMode==='auto' && ih>iw*1.25);
+    const fw = rot? ih : iw, fh = rot? iw : ih; // fitting dims (swap if rotated)
+    lctx.font=wt(wi)+' 100px '+fam;
     const m=lctx.measureText(word||' '); const tw=Math.max(1,m.width);
     const asc=m.actualBoundingBoxAscent||72, desc=m.actualBoundingBoxDescent||0, th=Math.max(1,asc+desc);
     let sx,sy;
-    if(fit==='width'){ sx=sy=iw/tw; }
-    else if(fit==='fit'){ sx=sy=Math.min(iw/tw, ih/th); }
-    else { sx=iw/tw; sy=ih/th; } // stretch
-    lctx.translate(cx,cy+ty); if(dScale!==1) lctx.scale(dScale,dScale); lctx.scale(sx,sy);
+    if(fit==='width'){ sx=sy=fw/tw; } else if(fit==='fit'){ sx=sy=Math.min(fw/tw,fh/th); } else { sx=fw/tw; sy=fh/th; }
+    lctx.translate(ix+iw/2, iy+ih/2); if(rot) lctx.rotate(-Math.PI/2); lctx.scale(sx,sy);
     lctx.textAlign='center'; lctx.textBaseline='alphabetic';
     const by=(asc-desc)/2;
-    if(style==='solid'){ lctx.fillStyle=color; lctx.fillText(word,0,by); }
-    else { lctx.lineWidth=outlineW/Math.max(0.001,Math.min(sx,sy)); lctx.lineJoin='round'; lctx.strokeStyle=color; lctx.strokeText(word,0,by); }
+    if(drawStyle==='stroke'){ lctx.lineWidth=outlineW/Math.max(0.001,Math.min(sx,sy)); lctx.lineJoin='round'; lctx.strokeStyle=drawCol; lctx.strokeText(word,0,by); }
+    else { lctx.fillStyle=drawCol; lctx.fillText(word,0,by); }
     lctx.restore();
   };
   const styleFor=(r)=> setStyle==='alt' ? ((r&1)?'solid':'outline') : setStyle;
+  const heatLerp=(base,heat)=> heat<=0?base : _pLerpHex(base,newCol,Math.min(1,heat));
   lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
   if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
-  for(let r=0;r<rects.length;r++){
-    const R=rects[r], word=words[R.i], col=cellColor(R.i,R.depth,R.x+R.w/2,R.y+R.h/2);
-    if(r===childIdx){ drawWord(word,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode); } // newest: bright, grows in
-    else if(r===parentIdx){ const px=lerp(parentPrev.x,parentNew.x,g),py=lerp(parentPrev.y,parentNew.y,g),pw=lerp(parentPrev.w,parentNew.w,g),ph=lerp(parentPrev.h,parentNew.h,g); drawWord(word,px,py,pw,ph, styleFor(r), col, 1, null); }
-    else drawWord(word,R.x,R.y,R.w,R.h, styleFor(r), col, 1, null);
+  if(!churn && s<=fullCells-1){
+    // BUILD phase: structure grows one cell at a time (with the carve animation)
+    const L=build(s+1), R=L.rects;
+    for(let r=0;r<R.length;r++){
+      const C=R[r], word=words[C.i], heat=Math.max(0,1-(s-C.birth)/heatWin);
+      const base=cellColor(C.i,C.depth,C.x+C.w/2,C.y+C.h/2), col=heatLerp(base,heat);
+      if(r===L.childIdx){ drawWord(word,C.i,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode); }
+      else if(r===L.parentIdx){ const px=lerp(L.parentPrev.x,L.parentNew.x,g),py=lerp(L.parentPrev.y,L.parentNew.y,g),pw=lerp(L.parentPrev.w,L.parentNew.w,g),ph=lerp(L.parentPrev.h,L.parentNew.h,g); drawWord(word,C.i,px,py,pw,ph, styleFor(r), col, 1, null); }
+      else drawWord(word,C.i,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
+    }
+  } else {
+    // CHURN / FULL phase: fixed layout, words keep flowing through cells (FIFO by birth)
+    const L=build(fullCells), R=L.rects, C0=fullCells;
+    for(let r=0;r<R.length;r++){
+      const C=R[r], b=C.birth;
+      // most recent spawn that landed in this cell (FIFO rotation every C0 spawns)
+      const lastIdx = churn ? b + C0*Math.floor((s-b)/C0) : b;
+      const wi = order[((lastIdx%N)+N)%N];
+      const heat = Math.max(0,1-(s-lastIdx)/heatWin);
+      const base=cellColor(wi,C.depth,C.x+C.w/2,C.y+C.h/2), col=heatLerp(base,heat);
+      const animating = churn && lastIdx===s && lastIdx>=C0; // this cell is receiving a new word now
+      if(animating){
+        const prevWi=order[(((lastIdx-C0)%N)+N)%N];
+        drawWord(words[prevWi],prevWi,C.x,C.y,C.w,C.h, styleFor(r), heatLerp(cellColor(prevWi,C.depth,C.x+C.w/2,C.y+C.h/2),0), 1-g, 'fade'); // old word fades out
+        drawWord(words[wi],wi,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode);                                                          // new grows in
+      } else {
+        drawWord(words[wi],wi,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
+      }
+    }
   }
   lctx.restore();
 }
@@ -21204,6 +21267,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfpackrate',el.tfPackRate==null?0.5:el.tfPackRate);setV('gfx-p-tfpackmax',el.tfPackMax==null?16:el.tfPackMax);setV('gfx-p-tfpackorder',el.tfPackOrder||'sequence');setV('gfx-p-tfpackseed',el.tfPackSeed==null?1:el.tfPackSeed);setV('gfx-p-tfpackloop',el.tfPackLoop!==false);setV('gfx-p-tfpackhold',el.tfPackHold==null?1.5:el.tfPackHold);
       setV('gfx-p-tfpackstyle',el.tfPackStyle||'outline');setV('gfx-p-tfpacknewstyle',el.tfPackNewStyle||'solid');setV('gfx-p-tfpackgrow',el.tfHiColor||'#2bff88');setV('gfx-p-tfpackfit',el.tfPackFit||'stretch');setV('gfx-p-tfpackgrowmode',el.tfPackGrow||'scale');
       setV('gfx-p-tfpacksplit',el.tfPackSplit||'longer');setV('gfx-p-tfpackratio',el.tfPackRatio==null?0.5:el.tfPackRatio);setV('gfx-p-tfpacktarget',el.tfPackTarget||'largest');setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);
+      setV('gfx-p-tfpackrotate',el.tfPackRotate||'auto');setV('gfx-p-tfpackweight',el.tfPackWeight||'equal');setV('gfx-p-tfpackhero',el.tfPackHero||'');setV('gfx-p-tfpackmixweight',!!el.tfPackMixWeight);
+      setV('gfx-p-tfpackchurn',!!el.tfPackChurn);setV('gfx-p-tfpackheat',el.tfPackHeat==null?0:el.tfPackHeat);setV('gfx-p-tfpackmin',el.tfPackMin==null?0.06:el.tfPackMin);
       gfxTextfillModeUI(el);
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
@@ -21300,6 +21365,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfpackrate','tfPackRate','num'],['gfx-p-tfpackmax','tfPackMax','num'],['gfx-p-tfpackorder','tfPackOrder','str'],['gfx-p-tfpackseed','tfPackSeed','num'],['gfx-p-tfpackloop','tfPackLoop','bool'],['gfx-p-tfpackhold','tfPackHold','num'],
     ['gfx-p-tfpackstyle','tfPackStyle','str'],['gfx-p-tfpacknewstyle','tfPackNewStyle','str'],['gfx-p-tfpackgrow','tfHiColor','str'],['gfx-p-tfpackfit','tfPackFit','str'],['gfx-p-tfpackgrowmode','tfPackGrow','str'],
     ['gfx-p-tfpacksplit','tfPackSplit','str'],['gfx-p-tfpackratio','tfPackRatio','num'],['gfx-p-tfpacktarget','tfPackTarget','str'],['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],
+    ['gfx-p-tfpackrotate','tfPackRotate','str'],['gfx-p-tfpackweight','tfPackWeight','str'],['gfx-p-tfpackhero','tfPackHero','str'],['gfx-p-tfpackmixweight','tfPackMixWeight','bool'],
+    ['gfx-p-tfpackchurn','tfPackChurn','bool'],['gfx-p-tfpackheat','tfPackHeat','num'],['gfx-p-tfpackmin','tfPackMin','num'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
