@@ -3049,6 +3049,12 @@ TOKYO</textarea></div>
               <div class="row"><label>churn</label><input type="checkbox" id="gfx-p-tfpackchurn"></div>
               <div class="row"><label>recency heat</label><input type="range" id="gfx-p-tfpackheat" min="0" max="12" value="0" step="1"><span class="val" id="gfx-p-tfpackheat-v">0</span></div>
               <div class="row"><label>min cell size</label><input type="range" id="gfx-p-tfpackmin" min="0" max="0.2" value="0.06" step="0.005"><span class="val" id="gfx-p-tfpackmin-v">0.060</span></div>
+              <div class="tip" style="font-size:7px;opacity:.7;">— mixed media —</div>
+              <div class="row"><label>divider rules</label><input type="range" id="gfx-p-tfpacklinew" min="0" max="4" value="0" step="0.25"><span class="val" id="gfx-p-tfpacklinew-v">0.00</span></div>
+              <div class="row"><label>rule color</label><input type="color" id="gfx-p-tfpacklinecol" value="#3a3a3a"></div>
+              <div class="row"><label>image cells</label><input type="range" id="gfx-p-tfpackimgmix" min="0" max="1" value="0" step="0.05"><span class="val" id="gfx-p-tfpackimgmix-v">0.00</span></div>
+              <div class="row"><label>cell image</label><button id="gfx-p-tfpackimgload" class="mini-btn">load</button><button class="mini-btn gt-paste-img" data-target="gfx-p-tfpackimginput">paste</button><span id="gfx-p-tfpackimgname" style="font-size:8px;opacity:.7;margin-left:4px;">none</span><input type="file" id="gfx-p-tfpackimginput" accept="image/*" style="display:none;"></div>
+              <div class="row"><label>counter cells</label><input type="range" id="gfx-p-tfpacknummix" min="0" max="1" value="0" step="0.05"><span class="val" id="gfx-p-tfpacknummix-v">0.00</span></div>
             </div>
             <div class="row"><label>color mode</label><select id="gfx-p-tfcmode"><option value="solid">solid</option><option value="alt">alternate</option><option value="item">by word</option><option value="gradient">gradient</option><option value="rainbow">rainbow</option><option value="depth">by depth (pack)</option></select></div>
             <div class="row"><label>color</label><input type="color" id="gfx-p-tfcol" value="#ffffff"></div>
@@ -6743,7 +6749,8 @@ function gfxDefaultEl(type){
     // growing word-pack (treemap that builds word by word — brik.space "type tetris")
     tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1,
     tfPackStyle:'outline',tfPackNewStyle:'solid',tfPackFit:'stretch',tfPackSplit:'longer',tfPackRatio:0.5,tfPackTarget:'largest',tfPackGrow:'scale',
-    tfPackRotate:'auto',tfPackWeight:'equal',tfPackHero:'',tfPackMixWeight:false,tfPackChurn:false,tfPackHeat:0,tfPackMin:0.06,tfPackLayout:'guillotine'};
+    tfPackRotate:'auto',tfPackWeight:'equal',tfPackHero:'',tfPackMixWeight:false,tfPackChurn:false,tfPackHeat:0,tfPackMin:0.06,tfPackLayout:'guillotine',
+    tfPackLineW:0,tfPackLineCol:'#3a3a3a',tfPackImgMix:0,tfPackNumMix:0};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -7214,6 +7221,12 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
   const heatWin=Math.max(1,(el.tfPackHeat||0));      // recency window: how many recent cells stay warm
   const minPx=Math.max(0,(el.tfPackMin??0.06))*Math.min(ew,eh); // min legible cell side
   const layoutMode=el.tfPackLayout||'guillotine'; // guillotine (carve) | squarified (balanced + reflow)
+  // ── mixed media ──
+  const lineW=Math.max(0,(el.tfPackLineW||0))*(unit*0.05);   // divider rules between cells
+  const lineCol=el.tfPackLineCol||'#3a3a3a';
+  const imgEl=(el._fillImgEl&&el._fillImgEl.complete&&el._fillImgEl.naturalWidth)?el._fillImgEl:null;
+  const imgMix=Math.max(0,Math.min(1,(el.tfPackImgMix||0)));  // fraction of cells showing the image
+  const numMix=Math.max(0,Math.min(1,(el.tfPackNumMix||0)));  // fraction of cells showing a live counter
   const wt=(i)=>mixWeight? (['300','500','700','900'][Math.floor(_gridHash(i,17,9)*4)]) : baseWt;
   const weightOf=(wi)=>{ let w=(weightMode==='length')? Math.max(1,(words[wi]||'').length) : 1; if(hero&&(words[wi]||'').toUpperCase()===hero) w*=3; return w; };
   const _h2hex=(h,s,l)=>{ const c=_hsl2rgb(((h%1)+1)%1,s,l); return '#'+[c[0],c[1],c[2]].map(v=>('0'+(v&255).toString(16)).slice(-2)).join(''); };
@@ -7267,37 +7280,55 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
     if(colMode==='depth') return _h2hex(depth*0.12,0.7,0.6);
     return colA;
   };
-  // draw a word inside a rect. style=outline|solid|block|knockout. gv=growth(0..1).
-  const drawWord=(word,wi,x,y,w,h,style,color,gv,gm)=>{
-    let iw=w-gap, ih=h-gap; if(iw<=1||ih<=1) return;
-    let ix=x+gap/2, iy=y+gap/2; let alpha=1;
-    // resolve the grow animation into an animated rect + alpha
+  // resolve a grow animation into an inset/animated rect + alpha (shared by all cell kinds)
+  const _growRect=(x,y,w,h,gv,gm)=>{
+    let iw=w-gap, ih=h-gap, ix=x+gap/2, iy=y+gap/2, alpha=1;
     if(gv<1){
       if(gm==='fade') alpha=gv;
       else if(gm==='rise'){ alpha=Math.min(1,gv*1.4); iy+=(1-gv)*ih*0.55; }
       else if(gm==='wipe'){ const nh=ih*gv; iy=iy+ih-nh; ih=nh; }
-      else { const s2=gv; const cx=ix+iw/2, cy=iy+ih/2; iw*=s2; ih*=s2; ix=cx-iw/2; iy=cy-ih/2; } // scale
+      else { const s2=gv,cx=ix+iw/2,cy=iy+ih/2; iw*=s2; ih*=s2; ix=cx-iw/2; iy=cy-ih/2; }
     }
-    if(iw<=1||ih<=1) return;
+    return {ix,iy,iw,ih,alpha};
+  };
+  const _divider=(ix,iy,iw,ih)=>{ if(lineW>0){ lctx.lineWidth=lineW; lctx.strokeStyle=lineCol; lctx.strokeRect(ix,iy,iw,ih); } };
+  // draw a word/number inside a rect. style=outline|solid|block|knockout. gv=growth(0..1).
+  const drawWord=(word,wi,x,y,w,h,style,color,gv,gm)=>{
+    const G=_growRect(x,y,w,h,gv,gm); let {ix,iy,iw,ih,alpha}=G; if(iw<=1||ih<=1) return;
     lctx.save(); lctx.globalAlpha*=alpha;
-    // block / knockout: paint the cell then knock the word out
     if(style==='block'||style==='knockout'){ lctx.fillStyle=color; lctx.fillRect(ix,iy,iw,ih); }
     const drawStyle = (style==='block'||style==='knockout')?'ko':(style==='solid')?'fill':'stroke';
     const drawCol = (style==='block'||style==='knockout')?koCol:color;
-    // rotate words in tall cells (auto)
     const rot = (rotateMode==='auto' && ih>iw*1.25);
-    const fw = rot? ih : iw, fh = rot? iw : ih; // fitting dims (swap if rotated)
+    const fw = rot? ih : iw, fh = rot? iw : ih;
     lctx.font=wt(wi)+' 100px '+fam;
     const m=lctx.measureText(word||' '); const tw=Math.max(1,m.width);
     const asc=m.actualBoundingBoxAscent||72, desc=m.actualBoundingBoxDescent||0, th=Math.max(1,asc+desc);
     let sx,sy;
     if(fit==='width'){ sx=sy=fw/tw; } else if(fit==='fit'){ sx=sy=Math.min(fw/tw,fh/th); } else { sx=fw/tw; sy=fh/th; }
-    lctx.translate(ix+iw/2, iy+ih/2); if(rot) lctx.rotate(-Math.PI/2); lctx.scale(sx,sy);
+    lctx.save(); lctx.translate(ix+iw/2, iy+ih/2); if(rot) lctx.rotate(-Math.PI/2); lctx.scale(sx,sy);
     lctx.textAlign='center'; lctx.textBaseline='alphabetic';
     const by=(asc-desc)/2;
     if(drawStyle==='stroke'){ lctx.lineWidth=outlineW/Math.max(0.001,Math.min(sx,sy)); lctx.lineJoin='round'; lctx.strokeStyle=drawCol; lctx.strokeText(word,0,by); }
     else { lctx.fillStyle=drawCol; lctx.fillText(word,0,by); }
     lctx.restore();
+    if(gv>=1) _divider(ix,iy,iw,ih);
+    lctx.restore();
+  };
+  const drawImageCell=(x,y,w,h,gv,gm)=>{
+    const G=_growRect(x,y,w,h,gv,gm); let {ix,iy,iw,ih,alpha}=G; if(iw<=1||ih<=1) return;
+    lctx.save(); lctx.globalAlpha*=alpha; lctx.beginPath(); lctx.rect(ix,iy,iw,ih); lctx.clip();
+    const nw=imgEl.naturalWidth, nh=imgEl.naturalHeight, r=Math.max(iw/nw,ih/nh);
+    lctx.drawImage(imgEl, ix+iw/2-nw*r/2, iy+ih/2-nh*r/2, nw*r, nh*r); lctx.restore();
+    lctx.save(); if(gv>=1) _divider(ix,iy,iw,ih); lctx.restore();
+  };
+  const numStr=(slot)=> String(Math.floor(_gridHash(slot,3,2)*8000+1000 + t*2.2)); // a live counter
+  // dispatch a cell to the right medium: image / live number / word — chosen by slot so a
+  // given grid position keeps its medium even as words flow through it.
+  const paintCell=(slot,wi,x,y,w,h,style,color,gv,gm)=>{
+    if(imgEl && imgMix>0 && _gridHash(slot,31,7)<imgMix){ drawImageCell(x,y,w,h,gv,gm); return; }
+    if(numMix>0 && _gridHash(slot,53,11)<numMix){ drawWord(numStr(slot),slot,x,y,w,h,style,color,gv,gm); return; }
+    drawWord(words[wi],wi,x,y,w,h,style,color,gv,gm);
   };
   const styleFor=(r)=> setStyle==='alt' ? ((r&1)?'solid':'outline') : setStyle;
   const heatLerp=(base,heat)=> heat<=0?base : _pLerpHex(base,newCol,Math.min(1,heat));
@@ -7315,8 +7346,8 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
         const wi=order[i], heat=Math.max(0,1-(s-i)/heatWin);
         let R=cur[i]; if(i<k-1 && prev) R={x:lerp(prev[i].x,cur[i].x,g),y:lerp(prev[i].y,cur[i].y,g),w:lerp(prev[i].w,cur[i].w,g),h:lerp(prev[i].h,cur[i].h,g)};
         const base=cellColor(wi,i,R.x+R.w/2,R.y+R.h/2), col=heatLerp(base,heat);
-        if(i===k-1) drawWord(words[wi],wi,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode);
-        else drawWord(words[wi],wi,R.x,R.y,R.w,R.h, styleFor(i), col, 1, null);
+        if(i===k-1) paintCell(i,wi,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode);
+        else paintCell(i,wi,R.x,R.y,R.w,R.h, styleFor(i), col, 1, null);
       }
     } else {
       const C0=fullCells, fw=[]; for(let i=0;i<C0;i++) fw.push(wgt(order[i]));
@@ -7326,8 +7357,8 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
         const wi=order[((lastIdx%N)+N)%N], heat=Math.max(0,1-(s-lastIdx)/heatWin);
         const base=cellColor(wi,i,R.x+R.w/2,R.y+R.h/2), col=heatLerp(base,heat);
         const animating= churn && lastIdx===s && lastIdx>=C0;
-        if(animating){ const pwi=order[(((lastIdx-C0)%N)+N)%N]; drawWord(words[pwi],pwi,R.x,R.y,R.w,R.h, styleFor(i), heatLerp(cellColor(pwi,i,R.x+R.w/2,R.y+R.h/2),0), 1-g, 'fade'); drawWord(words[wi],wi,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode); }
-        else drawWord(words[wi],wi,R.x,R.y,R.w,R.h, styleFor(i), col, 1, null);
+        if(animating){ const pwi=order[(((lastIdx-C0)%N)+N)%N]; paintCell(i,pwi,R.x,R.y,R.w,R.h, styleFor(i), heatLerp(cellColor(pwi,i,R.x+R.w/2,R.y+R.h/2),0), 1-g, 'fade'); paintCell(i,wi,R.x,R.y,R.w,R.h, newStyle, newCol, g, growMode); }
+        else paintCell(i,wi,R.x,R.y,R.w,R.h, styleFor(i), col, 1, null);
       }
     }
     lctx.restore(); return;
@@ -7338,9 +7369,9 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
     for(let r=0;r<R.length;r++){
       const C=R[r], word=words[C.i], heat=Math.max(0,1-(s-C.birth)/heatWin);
       const base=cellColor(C.i,C.depth,C.x+C.w/2,C.y+C.h/2), col=heatLerp(base,heat);
-      if(r===L.childIdx){ drawWord(word,C.i,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode); }
-      else if(r===L.parentIdx){ const px=lerp(L.parentPrev.x,L.parentNew.x,g),py=lerp(L.parentPrev.y,L.parentNew.y,g),pw=lerp(L.parentPrev.w,L.parentNew.w,g),ph=lerp(L.parentPrev.h,L.parentNew.h,g); drawWord(word,C.i,px,py,pw,ph, styleFor(r), col, 1, null); }
-      else drawWord(word,C.i,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
+      if(r===L.childIdx){ paintCell(C.birth,C.i,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode); }
+      else if(r===L.parentIdx){ const px=lerp(L.parentPrev.x,L.parentNew.x,g),py=lerp(L.parentPrev.y,L.parentNew.y,g),pw=lerp(L.parentPrev.w,L.parentNew.w,g),ph=lerp(L.parentPrev.h,L.parentNew.h,g); paintCell(C.birth,C.i,px,py,pw,ph, styleFor(r), col, 1, null); }
+      else paintCell(C.birth,C.i,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
     }
   } else {
     // CHURN / FULL phase: fixed layout, words keep flowing through cells (FIFO by birth)
@@ -7355,10 +7386,10 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
       const animating = churn && lastIdx===s && lastIdx>=C0; // this cell is receiving a new word now
       if(animating){
         const prevWi=order[(((lastIdx-C0)%N)+N)%N];
-        drawWord(words[prevWi],prevWi,C.x,C.y,C.w,C.h, styleFor(r), heatLerp(cellColor(prevWi,C.depth,C.x+C.w/2,C.y+C.h/2),0), 1-g, 'fade'); // old word fades out
-        drawWord(words[wi],wi,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode);                                                          // new grows in
+        paintCell(b,prevWi,C.x,C.y,C.w,C.h, styleFor(r), heatLerp(cellColor(prevWi,C.depth,C.x+C.w/2,C.y+C.h/2),0), 1-g, 'fade'); // old word fades out
+        paintCell(b,wi,C.x,C.y,C.w,C.h, newStyle, newCol, g, growMode);                                                          // new grows in
       } else {
-        drawWord(words[wi],wi,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
+        paintCell(b,wi,C.x,C.y,C.w,C.h, styleFor(r), col, 1, null);
       }
     }
   }
@@ -21321,6 +21352,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfpacksplit',el.tfPackSplit||'longer');setV('gfx-p-tfpackratio',el.tfPackRatio==null?0.5:el.tfPackRatio);setV('gfx-p-tfpacktarget',el.tfPackTarget||'largest');setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);
       setV('gfx-p-tfpacklayout',el.tfPackLayout||'guillotine');setV('gfx-p-tfpackrotate',el.tfPackRotate||'auto');setV('gfx-p-tfpackweight',el.tfPackWeight||'equal');setV('gfx-p-tfpackhero',el.tfPackHero||'');setV('gfx-p-tfpackmixweight',!!el.tfPackMixWeight);
       setV('gfx-p-tfpackchurn',!!el.tfPackChurn);setV('gfx-p-tfpackheat',el.tfPackHeat==null?0:el.tfPackHeat);setV('gfx-p-tfpackmin',el.tfPackMin==null?0.06:el.tfPackMin);
+      setV('gfx-p-tfpacklinew',el.tfPackLineW==null?0:el.tfPackLineW);setV('gfx-p-tfpacklinecol',el.tfPackLineCol||'#3a3a3a');setV('gfx-p-tfpackimgmix',el.tfPackImgMix==null?0:el.tfPackImgMix);setV('gfx-p-tfpacknummix',el.tfPackNumMix==null?0:el.tfPackNumMix);
+      { const nm=document.getElementById('gfx-p-tfpackimgname'); if(nm) nm.textContent=el._fillImgName||'none'; }
       gfxTextfillModeUI(el);
     } else if(el.type==='physics'){
       setV('gfx-p-phwords',el.words);setV('gfx-p-phsplit',el.splitMode);setV('gfx-p-phfont',el.font);setV('gfx-p-phweight',el.weight);setV('gfx-p-phsize',el.fontSize);
@@ -21419,6 +21452,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfpacksplit','tfPackSplit','str'],['gfx-p-tfpackratio','tfPackRatio','num'],['gfx-p-tfpacktarget','tfPackTarget','str'],['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],
     ['gfx-p-tfpacklayout','tfPackLayout','str'],['gfx-p-tfpackrotate','tfPackRotate','str'],['gfx-p-tfpackweight','tfPackWeight','str'],['gfx-p-tfpackhero','tfPackHero','str'],['gfx-p-tfpackmixweight','tfPackMixWeight','bool'],
     ['gfx-p-tfpackchurn','tfPackChurn','bool'],['gfx-p-tfpackheat','tfPackHeat','num'],['gfx-p-tfpackmin','tfPackMin','num'],
+    ['gfx-p-tfpacklinew','tfPackLineW','num'],['gfx-p-tfpacklinecol','tfPackLineCol','str'],['gfx-p-tfpackimgmix','tfPackImgMix','num'],['gfx-p-tfpacknummix','tfPackNumMix','num'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],
     ['gfx-p-phwords','words','str'],['gfx-p-phsplit','splitMode','str'],['gfx-p-phfont','font','str'],['gfx-p-phweight','weight','str'],['gfx-p-phsize','fontSize','num'],
@@ -21618,6 +21652,14 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const f=e.target.files[0],el=gfxSel(); if(!f||!el) return;
     const rd=new FileReader();
     rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ el._fillImgEl=img; el._fillImgName=f.name; const nm=document.getElementById('gfx-p-fillimgname'); if(nm) nm.textContent=f.name; }; img.src=ev.target.result; };
+    rd.readAsDataURL(f); e.target.value='';
+  });
+  // Word-pack image-cell loader (reuses _fillImgEl on the textfill element)
+  document.getElementById('gfx-p-tfpackimgload')?.addEventListener('click',()=>document.getElementById('gfx-p-tfpackimginput')?.click());
+  document.getElementById('gfx-p-tfpackimginput')?.addEventListener('change',e=>{
+    const f=e.target.files[0],el=gfxSel(); if(!f||!el) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{ const img=new Image(); img.onload=()=>{ el._fillImgEl=img; el._fillImgName=f.name; const nm=document.getElementById('gfx-p-tfpackimgname'); if(nm) nm.textContent=f.name; }; img.src=ev.target.result; };
     rd.readAsDataURL(f); e.target.value='';
   });
 
