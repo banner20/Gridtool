@@ -12476,70 +12476,70 @@ document.addEventListener('keydown', e => {
 
 let paused=false,fpsF=0,fpsT=performance.now(),_uiTick=0;
 
-function loop(){
-  const nowTs=performance.now();
-  const dtSec=Math.max(0, Math.min(0.1, (nowTs-timelineLastTs)/1000));
-  timelineLastTs=nowTs;
-  if(timelinePlaying){
-    timelinePlayhead+=dtSec;
-    if(timelinePlayhead>timelineDuration) timelinePlayhead=0;
-    // Playhead input updates every frame (smooth scrub)
+// Advance the timeline/sequence playhead by dtSec. `ui` toggles the (throttled) panel
+// redraws — the offline export driver calls this with a fixed dt and ui=false.
+function _advanceTimeline(dtSec, ui){
+  if(!timelinePlaying) return;
+  timelinePlayhead+=dtSec;
+  if(timelinePlayhead>timelineDuration) timelinePlayhead=0;
+  if(ui){
     const ph=document.getElementById('timeline-playhead');
     const phv=document.getElementById('timeline-playhead-v');
     if(ph) ph.value=timelinePlayhead;
     if(phv) phv.textContent=timelinePlayhead.toFixed(2);
-    const state=interpolatedTimelineState();
-    if(state) applyProjectState(state);
-    applyTimelineParamTracks();
-    // Timeline UI redraws throttled to ~12fps (every 5 frames)
-    if(_uiTick%5===0){
-      if(tlMode==='seq'){
-        if(document.getElementById('seq-arrange').style.display!=='none'){
-          // just move the playhead lines (cheap) without full rebuild
-          const dur=Math.max(0.5,timelineDuration);
-          document.querySelectorAll('#seq-tracklist .seq-playhead-line').forEach(l=>l.style.left=(timelinePlayhead/dur*100)+'%');
-        }
-      } else {
-        renderParamTimelineTracks();
-        refreshKeyButtons();
-        updateTimelineInspector();
-        drawTimelineGraph();
+  }
+  const state=interpolatedTimelineState();
+  if(state) applyProjectState(state);
+  applyTimelineParamTracks();
+  if(ui && _uiTick%5===0){
+    if(tlMode==='seq'){
+      if(document.getElementById('seq-arrange').style.display!=='none'){
+        const dur=Math.max(0.5,timelineDuration);
+        document.querySelectorAll('#seq-tracklist .seq-playhead-line').forEach(l=>l.style.left=(timelinePlayhead/dur*100)+'%');
       }
+    } else {
+      renderParamTimelineTracks();
+      refreshKeyButtons();
+      updateTimelineInspector();
+      drawTimelineGraph();
     }
   }
-  if(!paused || timelinePlaying){
-    globalT++;
-    const bpm=parseFloat(document.getElementById('bpm').value);
-    const bpmSync=document.getElementById('bpmSync').checked;
-
-    updateAudio();
-    if(globalSrcVideo) capVideo(); // webcam OR uploaded video file → grab current frame each tick
-
-    for(let i=0;i<layers.length;i++){
-      const layer=layers[i];
-      layer._t+=layer.speed;
-      layer._tz+=layer.zSpeed;
-      // Clear audio modulation
-      for(const k in layer){if(k.startsWith('_audio_'))layer[k]=0;}
-      // Clear graphic element per-frame routing overrides
-      if(layer.layerType==='graphic'&&layer.gfxElements){ for(const el of layer.gfxElements){ el._ov=null; el._ovEfx=null; } }
-      applyAudioRouting(layer);
-      // Apply LFOs
-      for(const lfo of lfos){
-        if(lfo.layerIdx!==i) continue;
-        const v=lfoValue(lfo,layer._t,bpm,bpmSync); // 0..1 (unipolar) or -1..1 (bipolar)
-        const target=lfo.target;
-        const rMin=lfo.rangeMin??0;
-        const rMax=lfo.rangeMax??1;
-        const mapped=rMin+(rMax-rMin)*v;
-        // Graphic element target: "gfx:<elId>:<prop>"
-        if(typeof target==='string'&&target.startsWith('gfx:')){ gfxApplyOverride(layer,target,mapped); continue; }
-        if(typeof layer[target]!=='number') continue;
-        // Store as absolute value — getParam will use it directly
-        layer['_lfo_'+target]=mapped;
-      }
+}
+// Advance all layer state one frame (globalT, audio, per-layer time, LFOs). Shared by
+// the live loop and the deterministic offline export driver.
+function _advanceLayers(){
+  globalT++;
+  const bpm=parseFloat(document.getElementById('bpm').value);
+  const bpmSync=document.getElementById('bpmSync').checked;
+  updateAudio();
+  if(globalSrcVideo) capVideo(); // webcam OR uploaded video file → grab current frame each tick
+  for(let i=0;i<layers.length;i++){
+    const layer=layers[i];
+    layer._t+=layer.speed;
+    layer._tz+=layer.zSpeed;
+    for(const k in layer){if(k.startsWith('_audio_'))layer[k]=0;}
+    if(layer.layerType==='graphic'&&layer.gfxElements){ for(const el of layer.gfxElements){ el._ov=null; el._ovEfx=null; } }
+    applyAudioRouting(layer);
+    for(const lfo of lfos){
+      if(lfo.layerIdx!==i) continue;
+      const v=lfoValue(lfo,layer._t,bpm,bpmSync); // 0..1 (unipolar) or -1..1 (bipolar)
+      const target=lfo.target;
+      const rMin=lfo.rangeMin??0;
+      const rMax=lfo.rangeMax??1;
+      const mapped=rMin+(rMax-rMin)*v;
+      if(typeof target==='string'&&target.startsWith('gfx:')){ gfxApplyOverride(layer,target,mapped); continue; }
+      if(typeof layer[target]!=='number') continue;
+      layer['_lfo_'+target]=mapped;
     }
   }
+}
+function loop(){
+  const nowTs=performance.now();
+  const dtSec=Math.max(0, Math.min(0.1, (nowTs-timelineLastTs)/1000));
+  timelineLastTs=nowTs;
+  if(window._gtOfflineRender){ requestAnimationFrame(loop); return; } // export driver owns the frames
+  _advanceTimeline(dtSec, true);
+  if(!paused || timelinePlaying){ _advanceLayers(); }
   compositeAll();
 
   // ── Throttled UI draws (not every frame — these are panel-only visuals) ──
@@ -16553,6 +16553,172 @@ document.getElementById('btn-rec').addEventListener('click',function(){
     alert('Recording failed: '+(e&&e.message||e));
   }
 });
+
+// ══════════════════════════════════════════════════════════════
+// OFFLINE RENDER / EXPORT ENGINE — deterministic, frame-accurate.
+// Steps globalT one frame at a time, renders at any target resolution,
+// and encodes via WebCodecs (+ inlined mp4/webm muxers). No dropped frames,
+// no wall-clock coupling — heavy scenes still export at true fps.
+// ══════════════════════════════════════════════════════════════
+let _gtExportCancel=false, _gtExportBusy=false;
+function _gtDownload(blob, ext, w, h, fps){
+  const a=document.createElement('a');
+  a.download='grid-'+w+'x'+h+'@'+fps+'-'+Date.now()+'.'+ext;
+  a.href=URL.createObjectURL(blob); a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 15000);
+}
+// Build a WebCodecs encoder + muxer for mp4 (H.264) or webm (VP9, optional alpha).
+// Returns {addFrame, finish, alphaUsed} — alphaUsed reports whether alpha survived
+// (WebCodecs VP9-alpha isn't available in every browser; falls back to solid).
+async function _gtMakeVideoEncoder({w,h,fps,format,alpha,bitrate}){
+  if(!window.VideoEncoder) throw new Error('WebCodecs (VideoEncoder) not available in this browser.');
+  const isMp4 = format==='mp4';
+  const codec = isMp4?'avc1.640028':'vp09.00.10.08';
+  const baseCfg = { codec, width:w, height:h, bitrate:Math.max(1e6,bitrate|0), framerate:fps };
+  if(isMp4) baseCfg.avc={format:'avc'};
+  // probe alpha support (H.264 never carries alpha)
+  let useAlpha=false;
+  if(alpha && !isMp4){ try{ const r=await VideoEncoder.isConfigSupported({...baseCfg, alpha:'keep'}); useAlpha=!!(r&&r.supported); }catch(_){ useAlpha=false; } }
+  const MX = isMp4 ? (window.Mp4Muxer) : (window.WebMMuxer);
+  if(!MX) throw new Error('Muxer library not loaded ('+(isMp4?'mp4':'webm')+').');
+  const target = new MX.ArrayBufferTarget();
+  const muxer = isMp4
+    ? new MX.Muxer({ target, fastStart:'in-memory', firstTimestampBehavior:'offset',
+        video:{ codec:'avc', width:w, height:h } })
+    : new MX.Muxer({ target, type:'webm', firstTimestampBehavior:'offset',
+        video:{ codec:'V_VP9', width:w, height:h, alpha:useAlpha } });
+  const encoder = new VideoEncoder({
+    output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),
+    error:e=>{ _gtEncErr=e; console.error('VideoEncoder error',e); }
+  });
+  const cfg = {...baseCfg}; if(useAlpha) cfg.alpha='keep';
+  encoder.configure(cfg);
+  const gop=Math.max(1,Math.round(fps*2));
+  return {
+    async addFrame(canvas,f){
+      while(encoder.encodeQueueSize>6) await new Promise(r=>setTimeout(r,0)); // backpressure
+      const frame=new VideoFrame(canvas,{ timestamp:Math.round(f*1e6/fps), duration:Math.round(1e6/fps) });
+      encoder.encode(frame,{ keyFrame: (f%gop)===0 });
+      frame.close();
+    },
+    async finish(){ await encoder.flush(); muxer.finalize(); encoder.close(); return new Blob([target.buffer],{ type: isMp4?'video/mp4':'video/webm' }); },
+    alphaUsed:useAlpha
+  };
+}
+let _gtEncErr=null;
+// GIF encoder (gifenc) — supports 1-bit transparency, so it's the alpha path.
+function _gtMakeGifEncoder({w,h,fps,alpha}){
+  if(!window.gifenc) throw new Error('GIF encoder (gifenc) not loaded.');
+  const { GIFEncoder, quantize, applyPalette } = window.gifenc;
+  const gif = GIFEncoder();
+  const delay = Math.max(2, Math.round(100/fps)); // GIF delay is in centiseconds
+  const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h; const tc=tmp.getContext('2d');
+  const fmt = alpha? 'rgba4444':'rgb565';
+  return {
+    async addFrame(canvas){
+      tc.clearRect(0,0,w,h); tc.drawImage(canvas,0,0);
+      const data=tc.getImageData(0,0,w,h).data;
+      const palette=quantize(data,256,{format:fmt});
+      const index=applyPalette(data,palette,fmt);
+      gif.writeFrame(index,w,h,{ palette, delay, transparent:!!alpha });
+      await new Promise(r=>setTimeout(r,0)); // GIF quantize is heavy — always yield
+    },
+    async finish(){ gif.finish(); return new Blob([gif.bytesView()],{type:'image/gif'}); },
+    alphaUsed:!!alpha
+  };
+}
+// The main driver. opts: {w,h,fps,frames,format,alpha,bitrate,onProgress}
+async function gtRenderExport(opts){
+  if(_gtExportBusy) return null;
+  const w=Math.max(16,opts.w|0), h=Math.max(16,opts.h|0), fps=Math.max(1,opts.fps|0);
+  const frames=Math.max(1,opts.frames|0), format=opts.format||'webm';
+  _gtExportBusy=true; _gtExportCancel=false; _gtEncErr=null;
+  // save live state
+  const sv={ mw:mainCanvas.width, mh:mainCanvas.height, scale:liveScale, playing:timelinePlaying, head:timelinePlayhead, gt:globalT,
+    dims: layerCanvases.map((c,i)=>({ w:c?c.width:0,h:c?c.height:0, fw:layerFbBufs[i]?layerFbBufs[i].width:0, fh:layerFbBufs[i]?layerFbBufs[i].height:0 })) };
+  window._gtExporting=true; window._gtOfflineRender=true;
+  // resize main + every layer buffer to the export resolution
+  mainCanvas.width=w; mainCanvas.height=h;
+  for(let i=0;i<layerCanvases.length;i++){ if(layerCanvases[i]){layerCanvases[i].width=w;layerCanvases[i].height=h;} if(layerFbBufs[i]){layerFbBufs[i].width=w;layerFbBufs[i].height=h;} }
+  if(timelinePlaying) timelinePlayhead=0; // render a clean pass from the top
+  const dt=1/fps;
+  try{
+    const enc = format==='gif' ? _gtMakeGifEncoder({w,h,fps,alpha:opts.alpha})
+                               : await _gtMakeVideoEncoder({w,h,fps,format,alpha:opts.alpha,bitrate:opts.bitrate});
+    for(let f=0; f<frames; f++){
+      if(_gtExportCancel) break;
+      _advanceTimeline(dt,false);
+      _advanceLayers();
+      compositeAll();
+      await enc.addFrame(mainCanvas,f);
+      if(_gtEncErr) throw _gtEncErr;
+      if(opts.onProgress) opts.onProgress(f+1,frames);
+      if((f&3)===0) await new Promise(r=>setTimeout(r,0)); // keep the tab responsive
+    }
+    const blob=_gtExportCancel?null:await enc.finish();
+    if(blob) _gtDownload(blob, format==='mp4'?'mp4':format==='gif'?'gif':'webm', w,h,fps);
+    return {blob, alphaUsed:enc.alphaUsed};
+  } finally {
+    window._gtExporting=false; window._gtOfflineRender=false;
+    mainCanvas.width=sv.mw; mainCanvas.height=sv.mh;
+    for(let i=0;i<layerCanvases.length;i++){ const d=sv.dims[i]; if(!d)continue; if(layerCanvases[i]){layerCanvases[i].width=d.w;layerCanvases[i].height=d.h;} if(layerFbBufs[i]){layerFbBufs[i].width=d.fw;layerFbBufs[i].height=d.fh;} }
+    liveScale=sv.scale; timelinePlaying=sv.playing; timelinePlayhead=sv.head; globalT=sv.gt;
+    timelineLastTs=performance.now(); _gtExportBusy=false;
+    compositeAll();
+  }
+}
+window.gtRenderExport=gtRenderExport;
+
+// ── Export modal wiring ──────────────────────────────────────
+(function(){
+  const $=id=>document.getElementById(id);
+  const modal=$('export-modal'); if(!modal) return;
+  const baseSize=()=>{ // the project's true pixel size (independent of preview scale)
+    if(typeof canvasMode!=='undefined' && canvasMode==='fixed') return [fixedW,fixedH];
+    return [mainCanvas.width, mainCanvas.height];
+  };
+  const even=n=>{ n=Math.round(n); return n%2? n+1:n; };
+  function targetWH(){
+    const r=$('exp-res').value;
+    if(r==='custom') return [even(+$('exp-w').value||1080), even(+$('exp-h').value||1920)];
+    const [bw,bh]=baseSize(); const m=parseFloat(r)||1; return [even(bw*m), even(bh*m)];
+  }
+  function refresh(){
+    const fmt=$('exp-format').value, [w,h]=targetWH(), fps=+$('exp-fps').value, dur=+$('exp-dur').value||1;
+    const frames=Math.max(1,Math.round(dur*fps));
+    $('exp-custom-row').style.display = $('exp-res').value==='custom'?'flex':'none';
+    $('exp-quality-row').style.display = fmt==='gif'?'none':'flex';
+    // alpha availability note
+    const alphaBox=$('exp-alpha'); let note='';
+    if(fmt==='mp4'){ alphaBox.checked=false; alphaBox.disabled=true; note='H.264 has no alpha — background is kept.'; }
+    else { alphaBox.disabled=false; note = fmt==='gif' ? 'GIF: 1-bit transparency (hard edges).' : 'WebM: alpha only if the browser encodes VP9-alpha; else falls back to solid.'; }
+    $('exp-alpha-note').textContent=note;
+    $('exp-summary').innerHTML = `${w}×${h} · ${fps}fps · ${dur}s = <b style="color:#8fd694">${frames} frames</b> · ${fmt.toUpperCase()}`;
+  }
+  ['exp-format','exp-res','exp-fps','exp-dur','exp-w','exp-h','exp-alpha'].forEach(id=>{ const e=$(id); if(e){ e.addEventListener('input',refresh); e.addEventListener('change',refresh); } });
+  function open(){ modal.style.display='flex'; refresh(); }
+  function close(){ if(_gtExportBusy) return; modal.style.display='none'; }
+  $('btn-render')?.addEventListener('click',open);
+  $('exp-close')?.addEventListener('click',close);
+  modal.addEventListener('click',e=>{ if(e.target===modal) close(); });
+  $('exp-cancel')?.addEventListener('click',()=>{ _gtExportCancel=true; });
+  $('exp-go')?.addEventListener('click',async()=>{
+    if(_gtExportBusy) return;
+    const fmt=$('exp-format').value, [w,h]=targetWH(), fps=+$('exp-fps').value;
+    const frames=Math.max(1,Math.round((+$('exp-dur').value||1)*fps));
+    const bitrate=(+($('exp-quality').value)||28)*1e6, alpha=$('exp-alpha').checked;
+    $('exp-go').style.display='none'; $('exp-cancel').style.display='block';
+    $('exp-progress-wrap').style.display='block';
+    const bar=$('exp-progress-bar'), txt=$('exp-progress-txt');
+    try{
+      const res=await gtRenderExport({ w,h,fps,frames,format:fmt,alpha,bitrate,
+        onProgress:(f,n)=>{ const p=Math.round(f/n*100); bar.style.width=p+'%'; txt.textContent=`frame ${f} / ${n} (${p}%)`; } });
+      if(res&&res.blob){ txt.textContent = _gtExportCancel?'cancelled.' : ('done — downloaded.'+((alpha&&!res.alphaUsed&&fmt!=='gif')?' (alpha unavailable → solid)':'')); }
+      else txt.textContent='cancelled.';
+    }catch(e){ txt.textContent='error: '+(e&&e.message||e); }
+    finally{ $('exp-go').style.display='block'; $('exp-cancel').style.display='none'; setTimeout(()=>{ if(!_gtExportBusy) bar.style.width='0%'; },400); }
+  });
+})();
 
 // ── Populate audio route selects with full param list ────────
 (function(){

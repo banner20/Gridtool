@@ -3095,6 +3095,7 @@ FARBE</textarea></div>
     <button class="cbtn" id="btn-export-png">↓ PNG</button>
     <button class="cbtn" id="btn-copy-png">⧉ PNG</button>
     <button class="cbtn" id="btn-copy-svg">⧉ SVG</button>
+    <button class="cbtn" id="btn-render" title="Offline render — deterministic, frame-accurate, any resolution" style="border-color:rgba(120,200,120,0.5);color:#8fd694;">⏭ render</button>
     <button class="cbtn" id="btn-rec">⏺ record</button>
     <select id="rec-fps" title="Record frame rate" style="font-size:8px;font-family:monospace;padding:2px 3px;background:rgba(255,255,255,0.06);color:#aaa;border:1px solid rgba(255,255,255,0.15);border-radius:3px;">
       <option value="60" selected>60 fps</option>
@@ -3218,6 +3219,39 @@ FARBE</textarea></div>
 
 </div>
 
+<div id="export-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.72);align-items:center;justify-content:center;font-family:monospace;">
+  <style>
+    #export-modal .exp-row{display:flex;align-items:center;justify-content:space-between;margin:7px 0;gap:8px;}
+    #export-modal .exp-row>label{color:#888;font-size:10px;}
+    #export-modal select,#export-modal input[type=number]{background:#0a0a0a;color:#ddd;border:1px solid #333;border-radius:3px;padding:3px 5px;font-family:monospace;font-size:10px;}
+  </style>
+  <div style="background:#141416;border:1px solid #333;border-radius:8px;padding:16px 18px;width:300px;color:#ccc;font-size:11px;box-shadow:0 12px 44px rgba(0,0,0,0.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <b style="color:#8fd694;font-size:12px;">⏭ Offline Render</b>
+      <span id="exp-close" style="cursor:pointer;color:#888;font-size:14px;">✕</span>
+    </div>
+    <div class="exp-row"><label>format</label><select id="exp-format"><option value="mp4">MP4 · H.264</option><option value="webm">WebM · VP9</option><option value="gif">GIF</option></select></div>
+    <div class="exp-row"><label>resolution</label><select id="exp-res"><option value="1">project (1×)</option><option value="2">2× hi-res</option><option value="0.5">0.5× fast</option><option value="custom">custom…</option></select></div>
+    <div class="exp-row" id="exp-custom-row" style="display:none;"><label>custom</label><span><input id="exp-w" type="number" value="1080" style="width:52px;"> × <input id="exp-h" type="number" value="1920" style="width:52px;"></span></div>
+    <div class="exp-row"><label>fps</label><select id="exp-fps"><option>60</option><option selected>30</option><option>24</option></select></div>
+    <div class="exp-row"><label>duration (s)</label><input id="exp-dur" type="number" value="5" min="0.1" step="0.5" style="width:56px;"></div>
+    <div class="exp-row" id="exp-quality-row"><label>quality</label><select id="exp-quality"><option value="8">draft</option><option value="16">good</option><option value="28" selected>high</option><option value="60">max</option></select></div>
+    <div class="exp-row"><label>alpha / transparent</label><input id="exp-alpha" type="checkbox"></div>
+    <div id="exp-alpha-note" style="font-size:8px;color:#777;margin:-3px 0 4px;"></div>
+    <div id="exp-summary" style="font-size:8px;color:#888;margin:6px 0;background:#0a0a0a;border-radius:3px;padding:5px 7px;"></div>
+    <div id="exp-progress-wrap" style="display:none;margin:8px 0;">
+      <div style="background:#222;border-radius:4px;height:8px;overflow:hidden;"><div id="exp-progress-bar" style="background:#8fd694;height:100%;width:0%;"></div></div>
+      <div id="exp-progress-txt" style="font-size:8px;color:#999;margin-top:3px;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="exp-go" style="flex:1;background:#2b7a35;color:#fff;border:none;border-radius:4px;padding:7px;cursor:pointer;font-weight:bold;">Render</button>
+      <button id="exp-cancel" style="display:none;flex:1;background:#7a2b2b;color:#fff;border:none;border-radius:4px;padding:7px;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</div>
+<script src="vendor/mp4-muxer.js"></script>
+<script src="vendor/webm-muxer.js"></script>
+<script src="vendor/gifenc.js"></script>
 <script src="grid-tool.js"></script>
 </body>
 </html>
