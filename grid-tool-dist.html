@@ -2847,7 +2847,13 @@ UNIT</textarea></div>
             <div class="row"><label>headliners</label><input type="range" id="gfx-p-lhead" min="0" max="6" value="1" step="1"><span class="val" id="gfx-p-lhead-v">1</span></div>
             <div class="row"><label>separator</label><select id="gfx-p-lsep"><option value=" · "> · </option><option value=" → "> → </option><option value=" / "> / </option><option value="  ">  (space)  </option><option value=" | "> | </option></select></div>
             <div class="row"><label>chips</label><input type="checkbox" id="gfx-p-lchips"></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">highlight bars</div>
+            <div class="row"><label>bars</label><select id="gfx-p-lbars"><option value="none">none</option><option value="solid">solid bars</option></select></div>
+            <div class="row"><label>bar color</label><input type="color" id="gfx-p-lbarcol" value="#ff5a1f"></div>
+            <div class="row"><label>bar pad</label><input type="range" id="gfx-p-lbarpad" min="0" max="1.2" value="0.35" step="0.05"><span class="val" id="gfx-p-lbarpad-v">0.35</span></div>
+            <div class="row"><label>line align</label><select id="gfx-p-lalignmode"><option value="left">left</option><option value="center">center</option><option value="right">right</option><option value="alternate">alternate L/R</option><option value="stagger">stagger</option></select></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">typography</div>
+            <div class="row"><label>weight</label><select id="gfx-p-lweight"><option value="">default</option><option value="400">regular</option><option value="700">bold</option><option value="800">extra bold</option><option value="900">black</option></select></div>
             <div class="row"><label>body font</label><select id="gfx-p-lfont" class="gfx-font-sel"></select></div>
             <div class="row"><label>HL font</label><select id="gfx-p-lhlfont" class="gfx-font-sel"></select></div>
             <div class="row"><label>size</label><input type="range" id="gfx-p-lsz" min="0.3" max="3" value="1.2" step="0.05"><span class="val" id="gfx-p-lsz-v">1.20</span></div>
@@ -7583,7 +7589,8 @@ function gfxDefaultEl(type){
     kSelX:0,kSelY:0,kSelScale:0,kSelRot:0,kSelOpacity:0,kSelTrack:0,
     kSelColMode:'none',kSelCol:'#ff3b6b',kSelCol2:'#ffd166',kSelReveal:'none',kSelScrambleSet:'symbols',kSelScrambleCustom:'',
     boxStyle:'none',boxColor:'#ffffff',boxOpacity:0.15,boxPad:10};
-  if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true};
+  if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true,
+    bars:'none',barColor:'#ff5a1f',barPad:0.35,alignMode:'left',weight:''};
   if(type==='info') return{...base,y:0.35,date:'',time:'',location:'',extra:'',font:"'Helvetica Neue',Arial,sans-serif",size:0.9,align:'left',color:'#cccccc',accentColor:'#ff4466',pills:false,boxStyle:'none',boxColor:'#000000',boxOpacity:0.85,boxPad:14};
   if(type==='image') return{...base,x:0.25,y:0.2,w:0.5,h:0.35,_imgEl:null,_imgName:null,fit:'contain',rotation:0};
   if(type==='divider') return{...base,y:0.5,color:'#ff4466',weight:1,style:'solid'};
@@ -8505,22 +8512,41 @@ function renderGfxEl(lctx,el,layer,W,H){
     const bsz=Math.round(unit*(parseFloat(el.size)||1.2));
     const hbsz=Math.round(bsz*1.7);
     const lhM=parseFloat(el.lineHeight)||1.1;
-    const hN=parseInt(el.headlinerCount)||1;
+    const hN=el.headlinerCount==null?1:(parseInt(el.headlinerCount)||0); // 0 = no headliners (all equal)
     const fmt=el.format||'stack';
+    // highlight bars (blockparty-poster look): solid bar behind each line, per-line alignment
+    const bars=el.bars||'none';                       // none | solid
+    const barCol=el.barColor||'#ff5a1f';
+    const barPadX=(el.barPad==null?0.35:el.barPad)*bsz, barPadY=0.18*bsz;
+    const alignMode=el.alignMode||'left';             // left | center | right | alternate | stagger
     let cy=ey;
     lctx.textBaseline='top';
-    const drawItem=(text,x,y,isH)=>{
+    const lineX=(i,tw)=>{
+      const m=alignMode==='alternate' ? (i%2?'right':'left')
+            : alignMode==='stagger' ? ['left','right','center','left','right'][i%5]
+            : alignMode;
+      if(m==='right') return ex+ew-tw;
+      if(m==='center') return ex+(ew-tw)/2;
+      return ex;
+    };
+    const drawItem=(text,x,y,isH,i)=>{
       const sz=isH?hbsz:bsz; const fam=isH?hFont2:bFont;
       const txt=uc?text.toUpperCase():text;
-      const fontStr=`${sz}px ${fam}`;
-      if(el.chips){
-        lctx.font=fontStr;
-        const tw=lctx.measureText(txt).width;
+      const fontStr=`${(el.weight||'')?el.weight+' ':''}${sz}px ${fam}`;
+      lctx.font=fontStr;
+      const tw=lctx.measureText(txt).width;
+      if(x==null) x=lineX(i,tw);
+      if(bars==='solid'){
+        lctx.save(); lctx.fillStyle=barCol;
+        lctx.fillRect(x-barPadX, y-barPadY, tw+barPadX*2, sz+barPadY*2);
+        lctx.restore();
+      } else if(el.chips){
         drawBoxBehind(x-6,y-3,tw+12,sz+6,'pill',el.bodyColor||'#ccc',0.12,sz*0.4);
       }
       lctx.save(); lctx.font=fontStr; lctx.fillStyle=isH?(el.headColor||'#ff4466'):(el.bodyColor||'#ccc');
       lctx.letterSpacing='1px'; lctx.textBaseline='top'; lctx.textAlign='left';
       lctx.fillText(txt,x,y); lctx.restore();
+      return x;
     };
     if(fmt==='inline'){
       const txt=(uc?items.map(i=>i.toUpperCase()):items).join(el.sep||' · ');
@@ -8534,15 +8560,15 @@ function renderGfxEl(lctx,el,layer,W,H){
       for(let r=0;r<rows;r++){
         for(let c=0;c<nc;c++){
           const i=r*nc+c; if(i>=items.length) break;
-          drawItem(items[i],ex+c*(colW+unit*0.3),cy,i<hN);
+          drawItem(items[i],ex+c*(colW+unit*0.3),cy,i<hN,i);
         }
         cy+=bsz*lhM*1.1;
       }
     } else {
       for(let i=0;i<items.length;i++){
         const isH=fmt==='mixed'?i<hN:i<hN;
-        drawItem(items[i],ex,cy,isH);
-        cy+=(isH?hbsz:bsz)*lhM*1.05;
+        drawItem(items[i],null,cy,isH,i);
+        cy+=(isH?hbsz:bsz)*lhM*(bars==='solid'?1.22:1.05); // bars need breathing room
       }
     }
     bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:cy/H};
@@ -9625,6 +9651,21 @@ const GFX_EFFECT_DEFS={
       tx.drawImage(buf,0,0); tx.globalCompositeOperation='destination-in'; tx.drawImage(mask,0,0);
       bx.clearRect(0,0,W,H); bx.drawImage(tint,0,0);
     }},
+  duotone:{ label:'Duotone', cat:'texture', params:{ shadow:['#0c0c0c'], highlight:['#ff5a1f'], contrast:[0,2,1], levels:[0,8,0], opacity:[0,1,1] },
+    apply(buf,W,H,p){ const bx=buf.getContext('2d');
+      const img=bx.getImageData(0,0,W,H), d=img.data;
+      const s=hexToRgb(p.shadow||'#0c0c0c'), h=hexToRgb(p.highlight||'#ff5a1f');
+      const ct=p.contrast==null?1:p.contrast, lv=Math.round(p.levels||0), op=p.opacity==null?1:p.opacity;
+      for(let i=0;i<d.length;i+=4){
+        if(d[i+3]===0) continue;
+        let l=(d[i]*0.2126+d[i+1]*0.7152+d[i+2]*0.0722)/255;
+        l=Math.min(1,Math.max(0,(l-0.5)*ct+0.5));          // contrast around mid
+        if(lv>=2) l=Math.round(l*(lv-1))/(lv-1);            // posterize for the print feel
+        const r=s[0]+(h[0]-s[0])*l, g=s[1]+(h[1]-s[1])*l, b=s[2]+(h[2]-s[2])*l;
+        d[i]=d[i]+(r-d[i])*op; d[i+1]=d[i+1]+(g-d[i+1])*op; d[i+2]=d[i+2]+(b-d[i+2])*op;
+      }
+      bx.putImageData(img,0,0);
+    }},
   chromasplit:{ label:'Chromatic Split', cat:'distort', params:{ offset:[0,30,8], angle:[0,360,0] },
     apply(buf,W,H,p){ const a=(p.angle||0)*Math.PI/180, ox=Math.cos(a)*p.offset, oy=Math.sin(a)*p.offset;
       const src=document.createElement('canvas'); src.width=W;src.height=H; src.getContext('2d').drawImage(buf,0,0);
@@ -9646,7 +9687,7 @@ const GFX_EFFECT_CATS=[
   {key:'stroke',label:'stroke & fill',types:['stroke','dashstroke','colorfill','gradientmap','spectrumfill','extrude3d','bevel']},
   {key:'shadow',label:'shadow / glow / blur',types:['shadow','glow','innershadow','innerglow','blur']},
   {key:'distort',label:'distort & warp',types:['roughen','wavewarp','chromasplit']},
-  {key:'texture',label:'texture & pattern',types:['halftone','dotgrid','hatchfill','noisefill','scanlines']},
+  {key:'texture',label:'texture & pattern',types:['duotone','halftone','dotgrid','hatchfill','noisefill','scanlines']},
   {key:'shader',label:'gpu shader',types:['shader']},
 ];
 function _hexA(hex,a){ const r=hexToRgb(hex||'#000'); return 'rgba('+r[0]+','+r[1]+','+r[2]+','+(a!==undefined?a:1)+')'; }
@@ -20063,6 +20104,39 @@ const DEFAULT_PRESETS=[
     gfxElements:[{...gfxDefaultEl('fluid'),id:'fl1',x:0,y:0,w:1,h:1,
       density:24,sizeVar:0.6,minR:0.2,gap:0.03,color1:'#ff6a00',color2:'#0a3cff',bg:'#3a0a0a',bgOn:true,
       swirlArms:3,spinSpeed:1.2,twist:0.35,highlight:0.35}]}]},
+
+  // Ref E — Kingsday blockparty poster: duotone photo, edge-to-edge condensed caps,
+  //         solid highlight-bar lineup (alternating), strip + footer. Load your own
+  //         photo into the "photo" image element — the duotone FX recolors it.
+  {cat:'scenes & reference',name:'ref E · blockparty poster',tip:'duotone photo + highlight-bar lineup + edge-to-edge caps — load a photo into the image element',
+    layers:[{...defaultLayerParams(),name:'poster',layerType:'graphic',bg:'#00000000',gfxBg:'solid',gfxBgColor:'#ee5222',
+    fxChain:[{id:'bp_grain',type:'filmgrain',enabled:true,params:{amount:0.22,size:1.6,roughness:0.7,colorAmount:0.08,lumaDependent:0.55}}],
+    gfxElements:[
+      {...gfxDefaultEl('image'),id:'bp_img',x:0,y:0.295,w:1,h:0.635,fit:'fill',
+        effects:[{id:'bp_duo',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#160b04',highlight:'#ee5222',contrast:1.35,levels:0,opacity:1}}]},
+      {...gfxDefaultEl('text'),id:'bp_h1',content:'KINGSDAY',x:0.012,y:0.006,w:0.976,sizeMode:'fit',align:'center',
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.93,color:'#141414'},
+      {...gfxDefaultEl('text'),id:'bp_h2',content:'BL★CKPARTY',x:0.012,y:0.148,w:0.976,sizeMode:'fit',align:'center',
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.93,color:'#141414'},
+      {...gfxDefaultEl('text'),id:'bp_strip',content:'ORIGINAL SOUNDSYSTEM HOSTED BY',x:0.14,y:0.315,w:0.72,sizeMode:'fit',align:'center',
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414',
+        boxStyle:'filled',boxColor:'#ee5222',boxOpacity:1,boxPad:8},
+      {...gfxDefaultEl('lineup'),id:'bp_lineup',x:0.03,y:0.365,w:0.94,
+        items:"FRESCO\nKLARIDUB\nBEEVCOLLECTIVE\nBACKYARD\n'T WEESHUIS",format:'stack',headlinerCount:0,uppercase:true,
+        bodyFont:"'Bebas Neue',Impact,sans-serif",weight:'900',size:2.8,lineHeight:1.42,bodyColor:'#141414',
+        bars:'solid',barColor:'#ee5222',barPad:0.4,alignMode:'alternate'},
+      {...gfxDefaultEl('text'),id:'bp_s1',content:'MUSIC · FOOD BY ART. PEAS',x:0.16,y:0.845,w:0.68,sizeMode:'fit',align:'center',
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414'},
+      {...gfxDefaultEl('text'),id:'bp_s2',content:'MINI MARKET · TOOTH GEMS · DRINKS',x:0.13,y:0.878,w:0.74,sizeMode:'fit',align:'center',
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414'},
+      {...gfxDefaultEl('box'),id:'bp_foot',x:0,y:0.922,w:1,h:0.078,fillColor:'#0d0d0d',fillOpacity:1,strokeWeight:0,radius:0,label:''},
+      {...gfxDefaultEl('text'),id:'bp_f1',content:'27/04',x:0.02,y:0.938,w:0.17,sizeMode:'fit',align:'left',
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#ee5222'},
+      {...gfxDefaultEl('text'),id:'bp_f2',content:'SONSBEEKSINGEL 160, ARNHEM',x:0.28,y:0.948,w:0.44,sizeMode:'fit',align:'center',
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'700',color:'#ee5222'},
+      {...gfxDefaultEl('text'),id:'bp_f3',content:'13H–21H',x:0.81,y:0.938,w:0.17,sizeMode:'fit',align:'right',
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#ee5222'},
+    ]}]},
 ];
 
 // ── preset categories (existing presets mapped by name; new presets carry cat inline) ──
@@ -22337,6 +22411,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-lhead',el.headlinerCount);setV('gfx-p-lsep',el.sep);setV('gfx-p-lchips',el.chips);
       setV('gfx-p-lfont',el.bodyFont);setV('gfx-p-lhlfont',el.headFont);setV('gfx-p-lsz',el.size);
       setV('gfx-p-llh',el.lineHeight);setV('gfx-p-lhcol',el.headColor);setV('gfx-p-lbcol',el.bodyColor);
+      setV('gfx-p-lbars',el.bars||'none');setV('gfx-p-lbarcol',el.barColor||'#ff5a1f');setV('gfx-p-lbarpad',el.barPad==null?0.35:el.barPad);setV('gfx-p-lalignmode',el.alignMode||'left');setV('gfx-p-lweight',el.weight||'');
     } else if(el.type==='info'){
       setV('gfx-p-idate',el.date);setV('gfx-p-itime',el.time);setV('gfx-p-iloc',el.location);
       setV('gfx-p-iextra',el.extra);setV('gfx-p-ifont',el.font);setV('gfx-p-isz',el.size);
@@ -22453,6 +22528,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-sw','strokeWidth','num'],['gfx-p-box','boxStyle','str'],['gfx-p-bxcol','boxColor','str'],
     ['gfx-p-bxop','boxOpacity','num'],['gfx-p-bxpad','boxPad','num'],
     ['gfx-p-items','items','str'],['gfx-p-lup','uppercase','bool'],['gfx-p-lfmt','format','str'],
+    ['gfx-p-lbars','bars','str'],['gfx-p-lbarcol','barColor','str'],['gfx-p-lbarpad','barPad','num'],['gfx-p-lalignmode','alignMode','str'],['gfx-p-lweight','weight','str'],
     ['gfx-p-lhead','headlinerCount','num'],['gfx-p-lsep','sep','str'],['gfx-p-lchips','chips','bool'],
     ['gfx-p-lfont','bodyFont','str'],['gfx-p-lhlfont','headFont','str'],['gfx-p-lsz','size','num'],
     ['gfx-p-llh','lineHeight','num'],['gfx-p-lhcol','headColor','str'],['gfx-p-lbcol','bodyColor','str'],
