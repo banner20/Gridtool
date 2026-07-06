@@ -3093,9 +3093,10 @@ function gfxDefaultEl(type){
   if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true,
     bars:'none',barColor:'#ff5a1f',barPad:0.35,alignMode:'left',weight:''};
   if(type==='info') return{...base,y:0.35,date:'',time:'',location:'',extra:'',font:"'Helvetica Neue',Arial,sans-serif",size:0.9,align:'left',color:'#cccccc',accentColor:'#ff4466',pills:false,boxStyle:'none',boxColor:'#000000',boxOpacity:0.85,boxPad:14};
-  if(type==='image') return{...base,x:0.25,y:0.2,w:0.5,h:0.35,_imgEl:null,_imgName:null,fit:'contain',rotation:0};
+  if(type==='image') return{...base,x:0.25,y:0.2,w:0.5,h:0.35,_imgEl:null,_imgName:null,fit:'contain',rotation:0,radius:0};
   if(type==='divider') return{...base,y:0.5,color:'#ff4466',weight:1,style:'solid'};
-  if(type==='box') return{...base,y:0.08,w:0.48,h:0.14,fillColor:'#000000',fillOpacity:0.88,strokeColor:'#ffffff',strokeWeight:1,radius:10,label:'',labelColor:'#ffffff',labelFont:"'Helvetica Neue',Arial,sans-serif"};
+  if(type==='box') return{...base,y:0.08,w:0.48,h:0.14,fillColor:'#000000',fillOpacity:0.88,strokeColor:'#ffffff',strokeWeight:1,radius:10,label:'',labelColor:'#ffffff',labelFont:"'Helvetica Neue',Arial,sans-serif",
+    frameMode:'none',frameChar:'★',frameSize:0.7,frameGap:1.4,frameColor:'#ffd23f',frameSpin:0};
   if(type==='shape') return{...base,x:0.3,y:0.3,w:0.4,h:0.4,shape:'circle',sides:5,points:5,innerRatio:0.5,
     fillMode:'solid',fillColor:'#ff4466',fillColor2:'#ffcc00',gradAngle:0,_fillImgEl:null,_fillImgName:null,
     strokeColor:'#ffffff',strokeWeight:0,cornerR:0,
@@ -3877,15 +3878,17 @@ function renderGfxEl(lctx,el,layer,W,H){
       return el.color||'#fff';
     }
 
+    const isJustify=align==='justify';
     const tAlign=align==='center'?'center':align==='right'?'right':'left';
     const tx=align==='center'?ex+ew/2:align==='right'?ex+ew:ex;
 
-    // Boxes behind each line
+    // Boxes behind each line (justify: box spans the full element width)
     for(let i=0,cy=ey;i<L.length;i++){
       const o=L[i];
       if(el.boxStyle&&el.boxStyle!=='none'){
-        const bx=align==='center'?ex+ew/2-o.tw/2-(el.boxPad||10):align==='right'?ex+ew-o.tw-(el.boxPad||10):ex-(el.boxPad||10)/2;
-        drawBoxBehind(bx,cy-(el.boxPad||10)*0.3,o.tw+(el.boxPad||10)*2,o.sz+(el.boxPad||10)*0.6,el.boxStyle,el.boxColor||'#fff',el.boxOpacity||0.15,o.sz*0.06);
+        const btw=isJustify?ew:o.tw;
+        const bx=isJustify?ex-(el.boxPad||10):align==='center'?ex+ew/2-o.tw/2-(el.boxPad||10):align==='right'?ex+ew-o.tw-(el.boxPad||10):ex-(el.boxPad||10)/2;
+        drawBoxBehind(bx,cy-(el.boxPad||10)*0.3,btw+(el.boxPad||10)*2,o.sz+(el.boxPad||10)*0.6,el.boxStyle,el.boxColor||'#fff',el.boxOpacity||0.15,o.sz*0.06);
       }
       cy+=o.lh;
     }
@@ -3987,6 +3990,27 @@ function renderGfxEl(lctx,el,layer,W,H){
         lctx.restore(); cy+=lh; continue;
       }
 
+      // FORCE-JUSTIFY — spread the line's words to fill the element width
+      if(isJustify){
+        const words=line.split(/\s+/).filter(Boolean);
+        lctx.textAlign='left';
+        const fillNow=lineFill(ex,cy,ew,sz);
+        if(words.length<2){ // single word: keep it left (matches print behaviour)
+          if(strokeMode!=='stroke'){ lctx.fillStyle=fillNow; lctx.fillText(line,ex,cy); }
+          if(strokeMode==='stroke'||strokeMode==='both'){ lctx.shadowBlur=0;lctx.shadowOffsetX=0;lctx.shadowOffsetY=0; lctx.strokeStyle=(strokeMode==='stroke'?(el.color||'#fff'):(el.strokeColor||'#000')); lctx.lineWidth=parseFloat(el.strokeWidth)||3; lctx.lineJoin='round'; lctx.strokeText(line,ex,cy); }
+        } else {
+          const ws=words.map(w=>lctx.measureText(w).width);
+          const gapW=Math.max(0,(ew-ws.reduce((a,b)=>a+b,0))/(words.length-1));
+          let wx=ex;
+          for(let wi=0;wi<words.length;wi++){
+            if(strokeMode!=='stroke'){ lctx.fillStyle=fillNow; lctx.fillText(words[wi],wx,cy); }
+            if(strokeMode==='stroke'||strokeMode==='both'){ lctx.shadowBlur=0;lctx.shadowOffsetX=0;lctx.shadowOffsetY=0; lctx.strokeStyle=(strokeMode==='stroke'?(el.color||'#fff'):(el.strokeColor||'#000')); lctx.lineWidth=parseFloat(el.strokeWidth)||3; lctx.lineJoin='round'; lctx.strokeText(words[wi],wx,cy); }
+            wx+=ws[wi]+gapW;
+          }
+        }
+        lctx.restore(); cy+=lh; continue;
+      }
+
       // FILL
       if(strokeMode!=='stroke'){
         lctx.fillStyle=lineFill(tx,cy,tw,sz);
@@ -4049,7 +4073,23 @@ function renderGfxEl(lctx,el,layer,W,H){
       lctx.fillText(txt,x,y); lctx.restore();
       return x;
     };
-    if(fmt==='inline'){
+    if(fmt==='tabrow'){
+      // schedule rows: "LEFT | RIGHT" per item — left part left-aligned, right part right-aligned
+      for(let i=0;i<items.length;i++){
+        const isH=i<hN; const sz=isH?hbsz:bsz; const fam=isH?hFont2:bFont;
+        const parts=items[i].split('|');
+        const lTxt=(uc?(parts[0]||'').toUpperCase():(parts[0]||'')).trim();
+        const rTxt=(uc?(parts[1]||'').toUpperCase():(parts[1]||'')).trim();
+        const fontStr=`${(el.weight||'')?el.weight+' ':''}${sz}px ${fam}`;
+        lctx.save(); lctx.font=fontStr; lctx.textBaseline='top'; lctx.letterSpacing='1px';
+        if(bars==='solid'){ lctx.fillStyle=barCol; lctx.fillRect(ex-barPadX,cy-barPadY,ew+barPadX*2,sz+barPadY*2); }
+        lctx.fillStyle=isH?(el.headColor||'#ff4466'):(el.bodyColor||'#ccc');
+        lctx.textAlign='left'; lctx.fillText(lTxt,ex,cy);
+        if(rTxt){ lctx.textAlign='right'; lctx.fillText(rTxt,ex+ew,cy); }
+        lctx.restore();
+        cy+=sz*lhM*(bars==='solid'?1.22:1.05);
+      }
+    } else if(fmt==='inline'){
       const txt=(uc?items.map(i=>i.toUpperCase()):items).join(el.sep||' · ');
       lctx.save(); lctx.font=`${bsz}px ${bFont}`; lctx.fillStyle=el.bodyColor||'#ccc';
       lctx.letterSpacing='1px'; lctx.textBaseline='top'; lctx.textAlign='left';
@@ -4130,9 +4170,13 @@ function renderGfxEl(lctx,el,layer,W,H){
       else if(el.fit==='actual'){dw=iw;dh=ih;}
       else{const r=Math.min(ew/iw,eh/ih);dw=iw*r;dh=ih*r;}
       dx=ex+(ew-dw)/2; dy=ey+(eh-dh)/2;
+      const irad=(parseFloat(el.radius)||0)*Math.min(ew,eh)*0.5; // 0..1 → 0..half-min-side
+      lctx.save();
+      if(irad>0&&lctx.roundRect){ lctx.beginPath(); lctx.roundRect(ex,ey,ew,eh,irad); lctx.clip(); }
       if(el.rotation){
-        lctx.save();lctx.translate(dx+dw/2,dy+dh/2);lctx.rotate(el.rotation*Math.PI/180);lctx.drawImage(img,-dw/2,-dh/2,dw,dh);lctx.restore();
+        lctx.translate(dx+dw/2,dy+dh/2);lctx.rotate(el.rotation*Math.PI/180);lctx.drawImage(img,-dw/2,-dh/2,dw,dh);
       } else lctx.drawImage(img,dx,dy,dw,dh);
+      lctx.restore();
       bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+eh)/H};
     }
   }
@@ -4168,6 +4212,21 @@ function renderGfxEl(lctx,el,layer,W,H){
       else lctx.strokeRect(ex,ey,ew,eh);
     }
     lctx.restore();
+    // GLYPH FRAME — border made of repeated characters (★ ✳ + · etc) along the perimeter
+    if(el.frameMode==='glyphs'&&(el.frameChar||'★')){
+      const ch=(el.frameChar||'★');
+      const fsz=Math.round(unit*(parseFloat(el.frameSize)||0.7));
+      const gapM=Math.max(1,(parseFloat(el.frameGap)||1.4));
+      const step=fsz*gapM;
+      const spin=(parseFloat(el.frameSpin)||0)*(globalT||0)*0.02; // glyphs rotate in place (motion)
+      lctx.save(); lctx.font=`${fsz}px ${el.labelFont||"'Helvetica Neue',Arial,sans-serif"}`;
+      lctx.fillStyle=el.frameColor||'#ffd23f'; lctx.textAlign='center'; lctx.textBaseline='middle';
+      const put=(gx,gy)=>{ lctx.save(); lctx.translate(gx,gy); if(spin)lctx.rotate(spin); lctx.fillText(ch,0,0); lctx.restore(); };
+      const nx=Math.max(2,Math.round(ew/step)), ny=Math.max(2,Math.round(eh/step));
+      for(let i=0;i<=nx;i++){ const gx=ex+i/nx*ew; put(gx,ey); put(gx,ey+eh); }
+      for(let j=1;j<ny;j++){ const gy=ey+j/ny*eh; put(ex,gy); put(ex+ew,gy); }
+      lctx.restore();
+    }
     // Label
     if(el.label){
       const lsz=Math.round(Math.min(W,H)/20*(parseFloat(el.labelSize)||0.9));
@@ -5152,6 +5211,13 @@ const GFX_EFFECT_DEFS={
       tx.drawImage(buf,0,0); tx.globalCompositeOperation='destination-in'; tx.drawImage(mask,0,0);
       bx.clearRect(0,0,W,H); bx.drawImage(tint,0,0);
     }},
+  pixelate:{ label:'Pixelate', cat:'texture', params:{ size:[2,64,8] },
+    apply(buf,W,H,p){ const s=Math.max(2,Math.round(p.size||8));
+      const sw=Math.max(1,Math.round(W/s)), sh=Math.max(1,Math.round(H/s));
+      const t=document.createElement('canvas'); t.width=sw; t.height=sh; const tc=t.getContext('2d');
+      tc.imageSmoothingEnabled=false; tc.drawImage(buf,0,0,sw,sh);
+      const bx=buf.getContext('2d'); bx.save(); bx.imageSmoothingEnabled=false;
+      bx.clearRect(0,0,W,H); bx.drawImage(t,0,0,W,H); bx.restore(); }},
   duotone:{ label:'Duotone', cat:'texture', params:{ shadow:['#0c0c0c'], highlight:['#ff5a1f'], contrast:[0,2,1], levels:[0,8,0], opacity:[0,1,1] },
     apply(buf,W,H,p){ const bx=buf.getContext('2d');
       const img=bx.getImageData(0,0,W,H), d=img.data;
@@ -5188,7 +5254,7 @@ const GFX_EFFECT_CATS=[
   {key:'stroke',label:'stroke & fill',types:['stroke','dashstroke','colorfill','gradientmap','spectrumfill','extrude3d','bevel']},
   {key:'shadow',label:'shadow / glow / blur',types:['shadow','glow','innershadow','innerglow','blur']},
   {key:'distort',label:'distort & warp',types:['roughen','wavewarp','chromasplit']},
-  {key:'texture',label:'texture & pattern',types:['duotone','halftone','dotgrid','hatchfill','noisefill','scanlines']},
+  {key:'texture',label:'texture & pattern',types:['duotone','pixelate','halftone','dotgrid','hatchfill','noisefill','scanlines']},
   {key:'shader',label:'gpu shader',types:['shader']},
 ];
 function _hexA(hex,a){ const r=hexToRgb(hex||'#000'); return 'rgba('+r[0]+','+r[1]+','+r[2]+','+(a!==undefined?a:1)+')'; }
@@ -17920,7 +17986,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-iacol',el.accentColor);setV('gfx-p-ibox',el.boxStyle);setV('gfx-p-ibxcol',el.boxColor);
       setV('gfx-p-ibxop',el.boxOpacity);
     } else if(el.type==='image'){
-      setV('gfx-p-imgfit',el.fit);setV('gfx-p-imgh',el.h);setV('gfx-p-imgrot',el.rotation);
+      setV('gfx-p-imgfit',el.fit);setV('gfx-p-imgh',el.h);setV('gfx-p-imgrot',el.rotation);setV('gfx-p-imgrad',el.radius==null?0:el.radius);
       const nm=document.getElementById('gfx-p-imgname'); if(nm) nm.textContent=el._imgName||'no image';
     } else if(el.type==='divider'){
       setV('gfx-p-dvcol',el.color);setV('gfx-p-dvwt',el.weight);setV('gfx-p-dvst',el.style);
@@ -17928,6 +17994,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-bxh',el.h);setV('gfx-p-bxfcol',el.fillColor);setV('gfx-p-bxfop',el.fillOpacity);
       setV('gfx-p-bxbcol',el.strokeColor);setV('gfx-p-bxbwt',el.strokeWeight);setV('gfx-p-bxrad',el.radius);
       setV('gfx-p-bxlabel',el.label);setV('gfx-p-bxlcol',el.labelColor);setV('gfx-p-bxlfont',el.labelFont);
+      setV('gfx-p-bxframe',el.frameMode||'none');setV('gfx-p-bxfchar',el.frameChar||'★');setV('gfx-p-bxfsize',el.frameSize==null?0.7:el.frameSize);setV('gfx-p-bxfgap',el.frameGap==null?1.4:el.frameGap);setV('gfx-p-bxfcol2',el.frameColor||'#ffd23f');setV('gfx-p-bxfspin',el.frameSpin==null?0:el.frameSpin);
     } else if(el.type==='shape'){
       setV('gfx-p-shshape',el.shape);setV('gfx-p-shh',el.h);setV('gfx-p-shsides',el.sides);setV('gfx-p-shinner',el.innerRatio);setV('gfx-p-shcorner',el.cornerR);
       setV('gfx-p-shfillmode',el.fillMode||'solid');setV('gfx-p-shcol',el.fillColor);setV('gfx-p-shcol2',el.fillColor2);setV('gfx-p-shgradang',el.gradAngle);
@@ -18038,11 +18105,12 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-ialign','align','str'],['gfx-p-ipills','pills','bool'],['gfx-p-icol','color','str'],
     ['gfx-p-iacol','accentColor','str'],['gfx-p-ibox','boxStyle','str'],['gfx-p-ibxcol','boxColor','str'],
     ['gfx-p-ibxop','boxOpacity','num'],
-    ['gfx-p-imgfit','fit','str'],['gfx-p-imgh','h','num'],['gfx-p-imgrot','rotation','num'],
+    ['gfx-p-imgfit','fit','str'],['gfx-p-imgh','h','num'],['gfx-p-imgrot','rotation','num'],['gfx-p-imgrad','radius','num'],
     ['gfx-p-dvcol','color','str'],['gfx-p-dvwt','weight','num'],['gfx-p-dvst','style','str'],
     ['gfx-p-bxh','h','num'],['gfx-p-bxfcol','fillColor','str'],['gfx-p-bxfop','fillOpacity','num'],
     ['gfx-p-bxbcol','strokeColor','str'],['gfx-p-bxbwt','strokeWeight','num'],['gfx-p-bxrad','radius','num'],
     ['gfx-p-bxlabel','label','str'],['gfx-p-bxlcol','labelColor','str'],['gfx-p-bxlfont','labelFont','str'],
+    ['gfx-p-bxframe','frameMode','str'],['gfx-p-bxfchar','frameChar','str'],['gfx-p-bxfsize','frameSize','num'],['gfx-p-bxfgap','frameGap','num'],['gfx-p-bxfcol2','frameColor','str'],['gfx-p-bxfspin','frameSpin','num'],
     ['gfx-p-rot','rotate','num'],['gfx-p-blend','blend','str'],
     ['gfx-p-shshape','shape','str'],['gfx-p-shh','h','num'],['gfx-p-shsides','sides','num'],['gfx-p-shinner','innerRatio','num'],['gfx-p-shcorner','cornerR','num'],
     ['gfx-p-shfillmode','fillMode','str'],['gfx-p-shcol','fillColor','str'],['gfx-p-shcol2','fillColor2','str'],['gfx-p-shgradang','gradAngle','num'],

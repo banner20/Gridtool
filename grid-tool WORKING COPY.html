@@ -2362,7 +2362,7 @@ UNIT</textarea></div>
           <div id="gfx-pp-text" style="display:none;">
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">content</div>
             <textarea id="gfx-p-content" rows="3" style="width:100%;font-size:10px;font-family:monospace;background:#080808;color:#eee;border:1px solid #222;border-radius:3px;padding:4px;resize:vertical;box-sizing:border-box;margin-bottom:4px;line-height:1.4;" placeholder="TEXT (Enter = new line)"></textarea>
-            <div class="row"><label>align</label><select id="gfx-p-align"><option value="left">left</option><option value="center">center</option><option value="right">right</option></select></div>
+            <div class="row"><label>align</label><select id="gfx-p-align"><option value="left">left</option><option value="center">center</option><option value="right">right</option><option value="justify">justify (spread)</option></select></div>
             <div class="row"><label>uppercase</label><input type="checkbox" id="gfx-p-upper" checked></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">typography</div>
             <div class="row"><label>font</label><button class="font-cycle-btn" title="automatic font cycling">⟳</button><select id="gfx-p-font" class="gfx-font-sel"></select></div>
@@ -2446,7 +2446,7 @@ UNIT</textarea></div>
             <textarea id="gfx-p-items" rows="6" style="width:100%;font-size:9px;font-family:monospace;background:#080808;color:#bbb;border:1px solid #222;border-radius:3px;padding:4px;resize:vertical;box-sizing:border-box;margin-bottom:4px;" placeholder="Headliner&#10;Artist 2&#10;Artist 3&#10;Artist 4 B2B Artist 5"></textarea>
             <div class="row"><label>uppercase</label><input type="checkbox" id="gfx-p-lup" checked></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">layout</div>
-            <div class="row"><label>format</label><select id="gfx-p-lfmt"><option value="stack">stacked</option><option value="2col">2 columns</option><option value="3col">3 columns</option><option value="inline">inline</option><option value="mixed">mixed size</option></select></div>
+            <div class="row"><label>format</label><select id="gfx-p-lfmt"><option value="stack">stacked</option><option value="2col">2 columns</option><option value="3col">3 columns</option><option value="inline">inline</option><option value="mixed">mixed size</option><option value="tabrow">tab rows (LEFT | RIGHT)</option></select></div>
             <div class="row"><label>headliners</label><input type="range" id="gfx-p-lhead" min="0" max="6" value="1" step="1"><span class="val" id="gfx-p-lhead-v">1</span></div>
             <div class="row"><label>separator</label><select id="gfx-p-lsep"><option value=" · "> · </option><option value=" → "> → </option><option value=" / "> / </option><option value="  ">  (space)  </option><option value=" | "> | </option></select></div>
             <div class="row"><label>chips</label><input type="checkbox" id="gfx-p-lchips"></div>
@@ -2493,6 +2493,7 @@ UNIT</textarea></div>
             <div class="row"><label>fit</label><select id="gfx-p-imgfit"><option value="contain">contain</option><option value="fill">fill (cover)</option><option value="stretch">stretch</option><option value="actual">actual size</option></select></div>
             <div class="row"><label>height</label><input type="range" id="gfx-p-imgh" min="0.02" max="1" value="0.3" step="0.005"><span class="val" id="gfx-p-imgh-v">0.30</span></div>
             <div class="row"><label>rotation</label><input type="range" id="gfx-p-imgrot" min="-45" max="45" value="0" step="0.5"><span class="val" id="gfx-p-imgrot-v">0</span></div>
+            <div class="row"><label>corner R</label><input type="range" id="gfx-p-imgrad" min="0" max="1" value="0" step="0.02"><span class="val" id="gfx-p-imgrad-v">0.00</span></div>
           </div>
 
           <!-- DIVIDER props -->
@@ -2513,6 +2514,13 @@ UNIT</textarea></div>
             <div class="row"><label>label</label><input type="text" id="gfx-p-bxlabel" placeholder="optional text" style="flex:1;font-size:8px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
             <div class="row"><label>label color</label><input type="color" id="gfx-p-bxlcol" value="#ffffff"></div>
             <div class="row"><label>label font</label><select id="gfx-p-bxlfont" class="gfx-font-sel"></select></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">glyph frame</div>
+            <div class="row"><label>frame</label><select id="gfx-p-bxframe"><option value="none">none</option><option value="glyphs">glyph border</option></select></div>
+            <div class="row"><label>character</label><input type="text" id="gfx-p-bxfchar" value="★" maxlength="3" style="width:36px;font-size:11px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;text-align:center;"></div>
+            <div class="row"><label>glyph size</label><input type="range" id="gfx-p-bxfsize" min="0.2" max="2.5" value="0.7" step="0.05"><span class="val" id="gfx-p-bxfsize-v">0.70</span></div>
+            <div class="row"><label>spacing</label><input type="range" id="gfx-p-bxfgap" min="1" max="4" value="1.4" step="0.1"><span class="val" id="gfx-p-bxfgap-v">1.4</span></div>
+            <div class="row"><label>glyph color</label><input type="color" id="gfx-p-bxfcol2" value="#ffd23f"></div>
+            <div class="row"><label>spin</label><input type="range" id="gfx-p-bxfspin" min="0" max="3" value="0" step="0.05"><span class="val" id="gfx-p-bxfspin-v">0.00</span></div>
           </div>
 
           <!-- SHAPE props -->
