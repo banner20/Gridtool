@@ -6,7 +6,7 @@
 <title>GRID — Generative Visual Tool</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Oswald:wght@400;700&family=Barlow+Condensed:wght@400;700;900&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:ital,wght@0,400;0,700;1,700&family=Teko:wght@700&family=Black+Han+Sans&family=Chakra+Petch:ital,wght@0,700;1,700&family=Russo+One&family=Rajdhani:wght@700&family=Squada+One&family=Fjalla+One&family=Righteous&family=Bungee&family=Bungee+Inline&family=Monoton&family=Special+Elite&family=Alfa+Slab+One&family=DM+Serif+Display:ital@0;1&family=Playfair+Display:ital,wght@1,900&family=Space+Mono:ital,wght@0,700;1,700&family=Orbitron:wght@700;900&family=Exo+2:ital,wght@0,900;1,900" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Anton&family=Oswald:wght@400;700&family=Barlow+Condensed:wght@400;700;900&family=Space+Grotesk:wght@700&family=IBM+Plex+Mono:ital,wght@0,400;0,700;1,700&family=Teko:wght@700&family=Black+Han+Sans&family=Chakra+Petch:ital,wght@0,700;1,700&family=Russo+One&family=Rajdhani:wght@700&family=Squada+One&family=Fjalla+One&family=Righteous&family=Bungee&family=Bungee+Inline&family=Monoton&family=Special+Elite&family=Alfa+Slab+One&family=DM+Serif+Display:ital@0;1&family=Playfair+Display:ital,wght@1,900&family=Space+Mono:ital,wght@0,700;1,700&family=Orbitron:wght@700;900&family=Exo+2:ital,wght@0,900;1,900&family=Press+Start+2P&family=VT323&family=Silkscreen:wght@400;700&family=Shrikhand&family=Rubik+Mono+One" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 .filter-scope-btn{background:#1a1a1a;color:#888;border:1px solid #2a2a2a;border-radius:3px;cursor:pointer;font-family:monospace;}
@@ -2622,6 +2622,7 @@ UNIT</textarea></div>
         <div class="row"><label>ratio</label><input type="range" id="gfxTypeRatio" min="1.05" max="1.8" value="1.25" step="0.01"><span class="val" id="gfxTypeRatio-v">1.25</span></div>
         <div class="row"><label>head font</label><select id="gfxTypeHeadFont" class="gfx-font-sel"></select></div>
         <div class="row"><label>body font</label><select id="gfxTypeBodyFont" class="gfx-font-sel"></select></div>
+        <div class="row"><label>custom font</label><button id="gfxFontUpload" style="font-size:8px;padding:2px 8px;" title="Load a .ttf/.otf/.woff font file — it appears in every font dropdown">⤒ load font file</button></div>
         <div class="tip" style="font-size:7px;">Per element: set <b>color / size / font role</b> in its Transform tab to pull from this system.</div>
 
         <!-- GENERATOR (seed + re-roll + recipes) -->
@@ -5060,6 +5061,22 @@ function refreshUploadedFontOptions(){
     sel.appendChild(group);
     if(current && (current.startsWith?.('uploaded:') || preserve.includes(current))) sel.value=current;
   });
+  // graphic-layer font selects use raw CSS family strings — add uploaded fonts there too
+  document.querySelectorAll('.gfx-font-sel').forEach(sel=>{
+    const current=sel.value;
+    [...sel.querySelectorAll('optgroup[data-uploaded-fonts="1"]')].forEach(n=>n.remove());
+    if(_uploadedFontFamilies.length===0) return;
+    const group=document.createElement('optgroup');
+    group.label='uploaded fonts'; group.dataset.uploadedFonts='1';
+    _uploadedFontFamilies.forEach(family=>{
+      const opt=document.createElement('option');
+      opt.value=`'${family}',sans-serif`;
+      opt.textContent=family+' (uploaded)';
+      group.appendChild(opt);
+    });
+    sel.appendChild(group);
+    if(current) sel.value=current;
+  });
 }
 
 function layoutCellPosition(layer, c, r, cols, rows, W, H, cw, ch){
@@ -7490,6 +7507,11 @@ const GFX_FONTS=[
   ["'Alfa Slab One',serif","Alfa Slab One"],
   ["'Playfair Display',serif","Playfair Display"],
   ["'DM Serif Display',serif","DM Serif Display"],
+  ["'Shrikhand',serif","Shrikhand (70s display)"],
+  ["'Rubik Mono One',sans-serif","Rubik Mono One"],
+  ["'Press Start 2P',monospace","Press Start 2P (pixel)"],
+  ["'Silkscreen',monospace","Silkscreen (pixel)"],
+  ["'VT323',monospace","VT323 (terminal)"],
   ["'Special Elite',monospace","Special Elite"],
   ["'IBM Plex Mono',monospace","IBM Plex Mono"],
   ["'Space Mono',monospace","Space Mono"],
@@ -8506,8 +8528,17 @@ function renderGfxEl(lctx,el,layer,W,H){
           if(strokeMode!=='stroke'){ lctx.fillStyle=fillNow; lctx.fillText(line,ex,cy); }
           if(strokeMode==='stroke'||strokeMode==='both'){ lctx.shadowBlur=0;lctx.shadowOffsetX=0;lctx.shadowOffsetY=0; lctx.strokeStyle=(strokeMode==='stroke'?(el.color||'#fff'):(el.strokeColor||'#000')); lctx.lineWidth=parseFloat(el.strokeWidth)||3; lctx.lineJoin='round'; lctx.strokeText(line,ex,cy); }
         } else {
-          const ws=words.map(w=>lctx.measureText(w).width);
-          const gapW=Math.max(0,(ew-ws.reduce((a,b)=>a+b,0))/(words.length-1));
+          let ws=words.map(w=>lctx.measureText(w).width);
+          const spaceW=lctx.measureText(' ').width;
+          let sum=ws.reduce((a,b)=>a+b,0);
+          // never collapse below a real space; if the line can't fit, shrink its font
+          if(sum+spaceW*(words.length-1)>ew){
+            const k=ew/(sum+spaceW*(words.length-1));
+            const shrunk=Math.max(6,Math.floor(sz*k));
+            lctx.font=fTmpl.replace('{SZ}',shrunk);
+            ws=words.map(w=>lctx.measureText(w).width); sum=ws.reduce((a,b)=>a+b,0);
+          }
+          const gapW=Math.max(spaceW*0.85,(ew-sum)/(words.length-1));
           let wx=ex;
           for(let wi=0;wi<words.length;wi++){
             if(strokeMode!=='stroke'){ lctx.fillStyle=fillNow; lctx.fillText(words[wi],wx,cy); }
@@ -18392,6 +18423,10 @@ function wireParamInputs(){
     fontUploadTarget='text';
     fontUploadInput?.click();
   });
+  document.getElementById('gfxFontUpload')?.addEventListener('click',()=>{
+    fontUploadTarget='gfx';
+    fontUploadInput?.click();
+  });
   fontUploadInput?.addEventListener('change',async e=>{
     const file=e.target.files?.[0];
     const layer=layers[selectedLayer];
@@ -18407,10 +18442,10 @@ function wireParamInputs(){
       if(fontUploadTarget==='arrange'){
         layer.arrangeTextFont=`uploaded:${family}`;
         layer.arrangeTextFontCustom=family;
-      } else {
+      } else if(fontUploadTarget==='text'){
         layer.textFont=`uploaded:${family}`;
         layer.textFontCustom=family;
-      }
+      } // 'gfx' target: just load + register — pick it from any font dropdown
       syncLayerUI();
       renderLayerList();
     }catch(err){
@@ -20237,8 +20272,7 @@ const DEFAULT_PRESETS=[
     gfxElements:[
       {...gfxDefaultEl('shape'),id:'df_sun',x:0.55,y:0.05,w:0.42,h:0.26,shape:'burst',points:28,innerRatio:0.55,fillMode:'solid',fillColor:'#ffd23f',strokeMode:'stroke',strokeColor:'#141414',strokeWidth:2},
       {...gfxDefaultEl('text'),id:'df_tag',content:'FÊTE DE LA MUSIQUE',x:0.05,y:0.018,w:0.72,sizeMode:'fit',align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9,
-        effects:[{id:'df_px1',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
+        font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9},
       {...gfxDefaultEl('text'),id:'df_h1',content:'DAMSIDE',x:0.02,y:0.075,w:0.82,sizeMode:'fit',align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#141414',
         strokeMode:'both',strokeColor:'#ffd23f',strokeWidth:4,shadowOn:true,shadowX:9,shadowY:9,shadowBlur:0,shadowColor:'#0d3a1c'},
@@ -20246,22 +20280,18 @@ const DEFAULT_PRESETS=[
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#141414',
         strokeMode:'both',strokeColor:'#ffd23f',strokeWidth:4,shadowOn:true,shadowX:9,shadowY:9,shadowBlur:0,shadowColor:'#0d3a1c'},
       {...gfxDefaultEl('text'),id:'df_pow',content:'POWERED BY Y&Y&',x:0.24,y:0.365,w:0.62,sizeMode:'fit',align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9,
-        effects:[{id:'df_px2',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
+        font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9},
       {...gfxDefaultEl('box'),id:'df_paris',x:0.1,y:0.455,w:0.8,h:0.13,fillColor:'#ffd23f',fillOpacity:1,strokeColor:'#141414',strokeWeight:2,radius:4,
         label:'PARIS. FRANCE',labelColor:'#141414',labelFont:"'Bebas Neue',Impact,sans-serif",labelSize:3.4,
         frameMode:'glyphs',frameChar:'★',frameSize:0.55,frameGap:1.3,frameColor:'#ffd23f',frameSpin:0.4},
       {...gfxDefaultEl('text'),id:'df_addr',content:'42 RUE NOTRE DAME DE NAZARETH\n75003 PARIS, FRANCE',x:0.06,y:0.63,w:0.88,sizeMode:'fit',align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'800',lineHeight:1.25,color:'#ffd23f',strokeMode:'both',strokeColor:'#141414',strokeWidth:2,
-        effects:[{id:'df_px3',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:3}}]},
+        font:"'Silkscreen',monospace",weight:'700',lineHeight:1.3,color:'#ffd23f',strokeMode:'both',strokeColor:'#141414',strokeWidth:1.5},
       {...gfxDefaultEl('text'),id:'df_d1',content:'JUNE 21',x:0.03,y:0.885,w:0.34,sizeMode:'fit',align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:8,
-        effects:[{id:'df_px4',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
+        font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:8},
       {...gfxDefaultEl('text'),id:'df_stars',content:'★ ★ ★',x:0.38,y:0.885,w:0.24,sizeMode:'fit',align:'center',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f'},
       {...gfxDefaultEl('text'),id:'df_d2',content:'14H – 00H',x:0.63,y:0.885,w:0.34,sizeMode:'fit',align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:8,
-        effects:[{id:'df_px5',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
+        font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:8},
     ]}]},
 
   // Ref G — FREQUENSHE: duotone photo, stacked syllables w/ per-line boxes, arc text,
@@ -20276,11 +20306,11 @@ const DEFAULT_PRESETS=[
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:7},
       {...gfxDefaultEl('text'),id:'fq_pres',content:'PRESENTS',x:0.55,y:0.035,w:0.42,sizeMode:'fixed',size:0.3,align:'center',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#f6e7cf',curve:38},
-      {...gfxDefaultEl('text'),id:'fq_title',content:'FRE\nQUEN\nSHE',x:0.6,y:0.075,w:0.37,sizeMode:'fixed',size:1.35,align:'right',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.06,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:8},
-      {...gfxDefaultEl('text'),id:'fq_date',content:'MAY\n29',x:0.06,y:0.43,w:0.22,sizeMode:'fixed',size:1.1,align:'left',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.06,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:7},
-      {...gfxDefaultEl('text'),id:'fq_time',content:'10PM\nTIL\n4AM',x:0.13,y:0.565,w:0.14,sizeMode:'fixed',size:0.42,align:'left',
+      {...gfxDefaultEl('text'),id:'fq_title',content:'FRE\nQUEN\nSHE',x:0.6,y:0.075,w:0.37,sizeMode:'fixed',size:1.0,align:'right',
+        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:8},
+      {...gfxDefaultEl('text'),id:'fq_date',content:'MAY\n29',x:0.06,y:0.43,w:0.22,sizeMode:'fixed',size:0.85,align:'left',
+        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:7},
+      {...gfxDefaultEl('text'),id:'fq_time',content:'10PM\nTIL\n4AM',x:0.13,y:0.65,w:0.14,sizeMode:'fixed',size:0.42,align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',lineHeight:1.1,color:'#141414'},
       {...gfxDefaultEl('text'),id:'fq_gyal',content:'MUSIC 4 DI GYAL DEM\nBY DI GYAL DEM',x:0.57,y:0.445,w:0.4,sizeMode:'fixed',size:0.37,align:'justify',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.4,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:6},
@@ -20309,12 +20339,12 @@ const DEFAULT_PRESETS=[
       {...gfxDefaultEl('text'),id:'vs_date',content:'MAY 10\n22 : 00',x:0.5,y:0.555,w:0.46,sizeMode:'fixed',size:0.95,align:'center',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.0,color:'#efefe9',
         effects:[{id:'vs_r2',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:4,detail:5}}]},
-      {...gfxDefaultEl('text'),id:'vs_dj',content:'DJ ROOS',x:0.025,y:0.845,w:0.46,sizeMode:'fit',align:'left',
+      {...gfxDefaultEl('text'),id:'vs_dj',content:'DJ ROOS',x:0.025,y:0.835,w:0.42,sizeMode:'fit',align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
         effects:[{id:'vs_r3',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:5,detail:5}}]},
       {...gfxDefaultEl('text'),id:'vs_jam',content:'*CLASSIC JAM\nSCKETCH BATTLE',x:0.55,y:0.855,w:0.42,sizeMode:'fixed',size:0.55,align:'right',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.05,color:'#efefe9'},
-      {...gfxDefaultEl('text'),id:'vs_gen',content:'HIP-HOP/BOMBAP/FUNK',x:0.02,y:0.925,w:0.96,sizeMode:'fit',align:'justify',
+      {...gfxDefaultEl('text'),id:'vs_gen',content:'HIP-HOP/BOMBAP/FUNK',x:0.02,y:0.94,w:0.96,sizeMode:'fit',align:'justify',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
         effects:[{id:'vs_r4',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:5,detail:5}}]},
     ]}]},
