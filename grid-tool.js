@@ -4161,7 +4161,22 @@ function renderGfxEl(lctx,el,layer,W,H){
 
   else if(el.type==='image'){
     const img=el._imgEl;
-    if(img&&img.complete&&img.naturalWidth>0){
+    if(!(img&&img.complete&&img.naturalWidth>0)){
+      // placeholder: dashed frame + hint, so unloaded panels still read in a layout
+      const eh=Math.round((el.h||0.3)*H);
+      const irad=(parseFloat(el.radius)||0)*Math.min(ew,eh)*0.5;
+      lctx.save();
+      lctx.setLineDash([7,6]); lctx.lineWidth=2; lctx.strokeStyle='#b8b8b8';
+      lctx.fillStyle='rgba(160,160,160,0.28)';
+      lctx.beginPath(); if(irad>0&&lctx.roundRect) lctx.roundRect(ex,ey,ew,eh,irad); else lctx.rect(ex,ey,ew,eh);
+      lctx.fill(); lctx.stroke(); lctx.setLineDash([]);
+      const psz=Math.max(10,Math.min(ew,eh)*0.1);
+      lctx.font=psz+"px 'Helvetica Neue',Arial,sans-serif"; lctx.fillStyle='#d8d8d8';
+      lctx.textAlign='center'; lctx.textBaseline='middle';
+      lctx.fillText('▣ load image',ex+ew/2,ey+eh/2);
+      lctx.restore();
+      bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+eh)/H};
+    } else {
       const eh=Math.round((el.h||0.3)*H);
       const iw=img.naturalWidth,ih=img.naturalHeight;
       let dw,dh,dx,dy;
@@ -4227,10 +4242,12 @@ function renderGfxEl(lctx,el,layer,W,H){
       for(let j=1;j<ny;j++){ const gy=ey+j/ny*eh; put(ex,gy); put(ex+ew,gy); }
       lctx.restore();
     }
-    // Label
+    // Label (auto-shrinks so it never overflows the box)
     if(el.label){
-      const lsz=Math.round(Math.min(W,H)/20*(parseFloat(el.labelSize)||0.9));
+      let lsz=Math.round(Math.min(W,H)/20*(parseFloat(el.labelSize)||0.9));
       lctx.save(); lctx.font=`${lsz}px ${el.labelFont||"'Helvetica Neue',Arial,sans-serif"}`;
+      const maxW=ew*0.92, tw0=lctx.measureText(el.label).width;
+      if(tw0>maxW&&tw0>0){ lsz=Math.max(6,Math.floor(lsz*maxW/tw0)); lctx.font=`${lsz}px ${el.labelFont||"'Helvetica Neue',Arial,sans-serif"}`; }
       lctx.fillStyle=el.labelColor||'#fff'; lctx.textBaseline='middle'; lctx.textAlign='center';
       lctx.fillText(el.label,ex+ew/2,ey+eh/2); lctx.restore();
     }
@@ -15690,7 +15707,7 @@ const DEFAULT_PRESETS=[
         boxStyle:'filled',boxColor:'#ee5222',boxOpacity:1,boxPad:8},
       {...gfxDefaultEl('lineup'),id:'bp_lineup',x:0.03,y:0.365,w:0.94,
         items:"FRESCO\nKLARIDUB\nBEEVCOLLECTIVE\nBACKYARD\n'T WEESHUIS",format:'stack',headlinerCount:0,uppercase:true,
-        bodyFont:"'Bebas Neue',Impact,sans-serif",weight:'900',size:2.8,lineHeight:1.42,bodyColor:'#141414',
+        bodyFont:"'Bebas Neue',Impact,sans-serif",weight:'900',size:2.2,lineHeight:1.2,bodyColor:'#141414',
         bars:'solid',barColor:'#ee5222',barPad:0.4,alignMode:'alternate'},
       {...gfxDefaultEl('text'),id:'bp_s1',content:'MUSIC · FOOD BY ART. PEAS',x:0.16,y:0.845,w:0.68,sizeMode:'fit',align:'center',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414'},
@@ -15729,7 +15746,7 @@ const DEFAULT_PRESETS=[
         frameMode:'glyphs',frameChar:'★',frameSize:0.55,frameGap:1.3,frameColor:'#ffd23f',frameSpin:0.4},
       {...gfxDefaultEl('text'),id:'df_addr',content:'42 RUE NOTRE DAME DE NAZARETH\n75003 PARIS, FRANCE',x:0.06,y:0.63,w:0.88,sizeMode:'fit',align:'center',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',lineHeight:1.25,color:'#ffd23f',strokeMode:'both',strokeColor:'#141414',strokeWidth:2,
-        effects:[{id:'df_px3',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
+        effects:[{id:'df_px3',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:3}}]},
       {...gfxDefaultEl('text'),id:'df_d1',content:'JUNE 21',x:0.03,y:0.885,w:0.34,sizeMode:'fit',align:'center',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:8,
         effects:[{id:'df_px4',type:'pixelate',on:true,blend:'normal',fxOpacity:1,params:{size:5}}]},
@@ -15750,21 +15767,21 @@ const DEFAULT_PRESETS=[
         effects:[{id:'fq_duo',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#181410',highlight:'#f6e7cf',contrast:1.2,levels:0,opacity:1}}]},
       {...gfxDefaultEl('text'),id:'fq_tag',content:'DONTKILLOURVIBE.MP3',x:0.03,y:0.022,w:0.5,sizeMode:'fit',align:'center',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:7},
-      {...gfxDefaultEl('text'),id:'fq_pres',content:'PRESENTS',x:0.55,y:0.03,w:0.42,sizeMode:'fixed',size:2.2,align:'center',
+      {...gfxDefaultEl('text'),id:'fq_pres',content:'PRESENTS',x:0.55,y:0.035,w:0.42,sizeMode:'fixed',size:0.3,align:'center',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#f6e7cf',curve:38},
-      {...gfxDefaultEl('text'),id:'fq_title',content:'FRE\nQUEN\nSHE',x:0.6,y:0.075,w:0.37,sizeMode:'fixed',size:4.6,align:'right',
+      {...gfxDefaultEl('text'),id:'fq_title',content:'FRE\nQUEN\nSHE',x:0.6,y:0.075,w:0.37,sizeMode:'fixed',size:1.35,align:'right',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.06,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:8},
-      {...gfxDefaultEl('text'),id:'fq_date',content:'MAY\n29',x:0.06,y:0.43,w:0.22,sizeMode:'fixed',size:3.6,align:'left',
+      {...gfxDefaultEl('text'),id:'fq_date',content:'MAY\n29',x:0.06,y:0.43,w:0.22,sizeMode:'fixed',size:1.1,align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.06,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:7},
-      {...gfxDefaultEl('text'),id:'fq_time',content:'10PM\nTIL\n4AM',x:0.13,y:0.565,w:0.14,sizeMode:'fixed',size:1.5,align:'left',
+      {...gfxDefaultEl('text'),id:'fq_time',content:'10PM\nTIL\n4AM',x:0.13,y:0.565,w:0.14,sizeMode:'fixed',size:0.42,align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',lineHeight:1.1,color:'#141414'},
-      {...gfxDefaultEl('text'),id:'fq_gyal',content:'MUSIC 4 DI GYAL DEM\nBY DI GYAL DEM',x:0.57,y:0.445,w:0.4,sizeMode:'fixed',size:1.35,align:'justify',
+      {...gfxDefaultEl('text'),id:'fq_gyal',content:'MUSIC 4 DI GYAL DEM\nBY DI GYAL DEM',x:0.57,y:0.445,w:0.4,sizeMode:'fixed',size:0.37,align:'justify',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.4,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:6},
-      {...gfxDefaultEl('text'),id:'fq_venue',content:'CAFE ERZULIE\n894 BROADWAY\nBROOKLYN NY',x:0.04,y:0.885,w:0.24,sizeMode:'fixed',size:1.15,align:'justify',
+      {...gfxDefaultEl('text'),id:'fq_venue',content:'CAFE ERZULIE\n894 BROADWAY\nBROOKLYN NY',x:0.04,y:0.85,w:0.24,sizeMode:'fixed',size:0.32,align:'justify',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
-      {...gfxDefaultEl('text'),id:'fq_all',content:'ALL WOMEN MUSIC OF\nANY GENRE ALL\nNIGHT LONG',x:0.32,y:0.885,w:0.3,sizeMode:'fixed',size:1.15,align:'justify',
+      {...gfxDefaultEl('text'),id:'fq_all',content:'ALL WOMEN MUSIC OF\nANY GENRE ALL\nNIGHT LONG',x:0.32,y:0.85,w:0.3,sizeMode:'fixed',size:0.32,align:'justify',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
-      {...gfxDefaultEl('text'),id:'fq_djs',content:'SOUNDS BY:\nKILLSING\nSAILOR GOON\nMISS MONROE\nDJ SPINELLI',x:0.66,y:0.815,w:0.31,sizeMode:'fixed',size:1.35,align:'right',
+      {...gfxDefaultEl('text'),id:'fq_djs',content:'SOUNDS BY:\nKILLSING\nSAILOR GOON\nMISS MONROE\nDJ SPINELLI',x:0.66,y:0.79,w:0.31,sizeMode:'fixed',size:0.37,align:'right',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.25,color:'#f6e7cf'},
     ]}]},
 
@@ -15780,15 +15797,15 @@ const DEFAULT_PRESETS=[
         effects:[{id:'vs_duo1',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#200604',highlight:'#e83a22',contrast:1.3,levels:0,opacity:1}}]},
       {...gfxDefaultEl('image'),id:'vs_p2',x:0.025,y:0.555,w:0.45,h:0.27,fit:'fill',radius:0.16,
         effects:[{id:'vs_duo2',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#200604',highlight:'#e83a22',contrast:1.3,levels:0,opacity:1}}]},
-      {...gfxDefaultEl('image'),id:'vs_p3',x:0.5,y:0.675,w:0.475,h:0.15,fit:'fill',radius:0.3,
+      {...gfxDefaultEl('image'),id:'vs_p3',x:0.5,y:0.72,w:0.475,h:0.12,fit:'fill',radius:0.3,
         effects:[{id:'vs_duo3',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#200604',highlight:'#e83a22',contrast:1.3,levels:0,opacity:1}}]},
-      {...gfxDefaultEl('text'),id:'vs_date',content:'MAY 10\n22 : 00',x:0.5,y:0.555,w:0.46,sizeMode:'fixed',size:3.4,align:'center',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.1,color:'#efefe9',
+      {...gfxDefaultEl('text'),id:'vs_date',content:'MAY 10\n22 : 00',x:0.5,y:0.555,w:0.46,sizeMode:'fixed',size:0.95,align:'center',
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.0,color:'#efefe9',
         effects:[{id:'vs_r2',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:4,detail:5}}]},
       {...gfxDefaultEl('text'),id:'vs_dj',content:'DJ ROOS',x:0.025,y:0.845,w:0.46,sizeMode:'fit',align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
         effects:[{id:'vs_r3',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:5,detail:5}}]},
-      {...gfxDefaultEl('text'),id:'vs_jam',content:'*CLASSIC JAM\nSCKETCH BATTLE',x:0.55,y:0.855,w:0.42,sizeMode:'fixed',size:1.7,align:'right',
+      {...gfxDefaultEl('text'),id:'vs_jam',content:'*CLASSIC JAM\nSCKETCH BATTLE',x:0.55,y:0.855,w:0.42,sizeMode:'fixed',size:0.55,align:'right',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.05,color:'#efefe9'},
       {...gfxDefaultEl('text'),id:'vs_gen',content:'HIP-HOP/BOMBAP/FUNK',x:0.02,y:0.925,w:0.96,sizeMode:'fit',align:'justify',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
@@ -15820,7 +15837,6 @@ const DEFAULT_PRESETS=[
         label:'More Info',labelColor:'#141414',labelFont:"'Helvetica Neue',Arial,sans-serif",labelSize:1.3},
       {...gfxDefaultEl('box'),id:'rd_pill4',x:0.42,y:0.87,w:0.3,h:0.045,fillColor:'#8a5b2a',fillOpacity:1,strokeWeight:0,radius:40,
         label:'Tickets',labelColor:'#efefe9',labelFont:"'Helvetica Neue',Arial,sans-serif",labelSize:1.3},
-      {...gfxDefaultEl('glyphs'),id:'rd_gl',x:0.05,y:0.32,w:0.9,h:0.62},
     ]}]},
 ];
 
