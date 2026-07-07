@@ -3110,7 +3110,7 @@ function gfxDefaultEl(type){
     kSelOn:false,kSelOrder:'lr',kSelRange:0.4,kSelOffset:0,kSelAnim:'sweep',kSelSpeed:1,kSelEase:'smooth',
     kSelX:0,kSelY:0,kSelScale:0,kSelRot:0,kSelOpacity:0,kSelTrack:0,
     kSelColMode:'none',kSelCol:'#ff3b6b',kSelCol2:'#ffd166',kSelReveal:'none',kSelScrambleSet:'symbols',kSelScrambleCustom:'',
-    boxStyle:'none',boxColor:'#ffffff',boxOpacity:0.15,boxPad:10};
+    boxStyle:'none',boxColor:'#ffffff',boxOpacity:0.15,boxPad:10,boxRadius:0.06};
   if(type==='lineup') return{...base,y:0.45,items:'Artist 1\nArtist 2\nArtist 3',bodyFont:"'Helvetica Neue',Arial,sans-serif",headFont:"'Bebas Neue',Impact,sans-serif",size:1.2,headlinerCount:1,format:'stack',sep:' · ',headColor:'#ff4466',bodyColor:'#cccccc',lineHeight:1.1,chips:false,uppercase:true,
     bars:'none',barColor:'#ff5a1f',barPad:0.35,alignMode:'left',weight:''};
   if(type==='info') return{...base,y:0.35,date:'',time:'',location:'',extra:'',font:"'Helvetica Neue',Arial,sans-serif",size:0.9,align:'left',color:'#cccccc',accentColor:'#ff4466',pills:false,boxStyle:'none',boxColor:'#000000',boxOpacity:0.85,boxPad:14};
@@ -3909,7 +3909,8 @@ function renderGfxEl(lctx,el,layer,W,H){
       if(el.boxStyle&&el.boxStyle!=='none'){
         const btw=isJustify?ew:o.tw;
         const bx=isJustify?ex-(el.boxPad||10):align==='center'?ex+ew/2-o.tw/2-(el.boxPad||10):align==='right'?ex+ew-o.tw-(el.boxPad||10):ex-(el.boxPad||10)/2;
-        drawBoxBehind(bx,cy-(el.boxPad||10)*0.3,btw+(el.boxPad||10)*2,o.sz+(el.boxPad||10)*0.6,el.boxStyle,el.boxColor||'#fff',el.boxOpacity||0.15,o.sz*0.06);
+        const brad=(el.boxRadius!=null?parseFloat(el.boxRadius):0.06)*o.sz;
+        drawBoxBehind(bx,cy-(el.boxPad||10)*0.3,btw+(el.boxPad||10)*2,o.sz+(el.boxPad||10)*0.6,el.boxStyle,el.boxColor||'#fff',el.boxOpacity||0.15,brad);
       }
       cy+=o.lh;
     }
@@ -3978,8 +3979,12 @@ function renderGfxEl(lctx,el,layer,W,H){
       }
 
       // SHADOW / GLOW applied to the main fill
+      // STICKER CASE: hard shadow + fill&stroke type — a canvas shadow of the fill
+      // alone reads as a hollow ghost. Draw a solid offset silhouette of the FULL
+      // letterform instead (see below), and skip the canvas shadow entirely.
+      const sticker = el.shadowOn && !el.glowOn && strokeMode==='both' && !(parseFloat(el.shadowBlur)>0);
       if(el.glowOn){ lctx.shadowColor=el.glowColor||'#ff4466'; lctx.shadowBlur=(parseFloat(el.glowRadius)||20); lctx.shadowOffsetX=0; lctx.shadowOffsetY=0; }
-      else if(el.shadowOn){ lctx.shadowColor=el.shadowColor||'#000'; lctx.shadowBlur=parseFloat(el.shadowBlur)||0; lctx.shadowOffsetX=parseFloat(el.shadowX)||0; lctx.shadowOffsetY=parseFloat(el.shadowY)||0; }
+      else if(el.shadowOn && !sticker){ lctx.shadowColor=el.shadowColor||'#000'; lctx.shadowBlur=parseFloat(el.shadowBlur)||0; lctx.shadowOffsetX=parseFloat(el.shadowX)||0; lctx.shadowOffsetY=parseFloat(el.shadowY)||0; }
 
       if(curve!==0){
         // per-character arc layout (uses solid color only for simplicity)
@@ -4039,6 +4044,16 @@ function renderGfxEl(lctx,el,layer,W,H){
           }
         }
         lctx.restore(); cy+=lh; continue;
+      }
+
+      // STICKER SHADOW — solid offset copy of the full letterform (fill + stroke)
+      if(sticker){
+        const sdx=parseFloat(el.shadowX)||0, sdy=parseFloat(el.shadowY)||0;
+        lctx.save(); lctx.shadowColor='transparent'; lctx.shadowBlur=0;
+        lctx.fillStyle=el.shadowColor||'#000'; lctx.strokeStyle=el.shadowColor||'#000';
+        lctx.lineWidth=parseFloat(el.strokeWidth)||3; lctx.lineJoin='round';
+        lctx.fillText(line,tx+sdx,cy+sdy); lctx.strokeText(line,tx+sdx,cy+sdy);
+        lctx.restore();
       }
 
       // FILL
@@ -15766,11 +15781,11 @@ const DEFAULT_PRESETS=[
       {...gfxDefaultEl('text'),id:'df_tag',content:'FÊTE DE LA MUSIQUE',x:0.05,y:0.018,w:0.72,sizeMode:'fit',align:'center',
         font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9},
       {...gfxDefaultEl('text'),id:'df_h1',content:'DAMSIDE',x:0.02,y:0.075,w:0.82,sizeMode:'fit',align:'left',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#141414',
-        strokeMode:'both',strokeColor:'#ffd23f',strokeWidth:4,shadowOn:true,shadowX:9,shadowY:9,shadowBlur:0,shadowColor:'#0d3a1c'},
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#ffd23f',
+        strokeMode:'both',strokeColor:'#141414',strokeWidth:4,shadowOn:true,shadowX:8,shadowY:8,shadowBlur:0,shadowColor:'#0e2d17'},
       {...gfxDefaultEl('text'),id:'df_h2',content:'BLOCKPARTY',x:0.02,y:0.215,w:0.96,sizeMode:'fit',align:'left',
-        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#141414',
-        strokeMode:'both',strokeColor:'#ffd23f',strokeWidth:4,shadowOn:true,shadowX:9,shadowY:9,shadowBlur:0,shadowColor:'#0d3a1c'},
+        font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:0.92,color:'#ffd23f',
+        strokeMode:'both',strokeColor:'#141414',strokeWidth:4,shadowOn:true,shadowX:8,shadowY:8,shadowBlur:0,shadowColor:'#0e2d17'},
       {...gfxDefaultEl('text'),id:'df_pow',content:'POWERED BY Y&Y&',x:0.24,y:0.365,w:0.62,sizeMode:'fit',align:'center',
         font:"'Silkscreen',monospace",weight:'700',color:'#ffd23f',boxStyle:'filled',boxColor:'#e8442a',boxOpacity:1,boxPad:9},
       {...gfxDefaultEl('box'),id:'df_paris',x:0.1,y:0.455,w:0.8,h:0.13,fillColor:'#ffd23f',fillOpacity:1,strokeColor:'#141414',strokeWeight:2,radius:4,
@@ -15795,21 +15810,21 @@ const DEFAULT_PRESETS=[
       {...gfxDefaultEl('image'),id:'fq_img',x:0,y:0.08,w:1,h:0.78,fit:'fill',
         effects:[{id:'fq_duo',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#181410',highlight:'#f6e7cf',contrast:1.2,levels:0,opacity:1}}]},
       {...gfxDefaultEl('text'),id:'fq_tag',content:'DONTKILLOURVIBE.MP3',x:0.03,y:0.022,w:0.5,sizeMode:'fit',align:'center',
-        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:7},
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#141414',boxStyle:'filled',boxRadius:0.35,boxColor:'#9fe6c6',boxOpacity:1,boxPad:7},
       {...gfxDefaultEl('text'),id:'fq_pres',content:'PRESENTS',x:0.55,y:0.035,w:0.42,sizeMode:'fixed',size:0.3,align:'center',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',color:'#f6e7cf',curve:38},
       {...gfxDefaultEl('text'),id:'fq_title',content:'FRE\nQUEN\nSHE',x:0.6,y:0.075,w:0.37,sizeMode:'fixed',size:1.0,align:'right',
-        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:8},
+        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxRadius:0.28,boxColor:'#8ef0a7',boxOpacity:1,boxPad:8},
       {...gfxDefaultEl('text'),id:'fq_date',content:'MAY\n29',x:0.06,y:0.43,w:0.22,sizeMode:'fixed',size:0.85,align:'left',
-        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:7},
+        font:"'Shrikhand',serif",weight:'400',lineHeight:1.18,color:'#141414',boxStyle:'filled',boxRadius:0.28,boxColor:'#8ef0a7',boxOpacity:1,boxPad:7},
       {...gfxDefaultEl('text'),id:'fq_time',content:'10PM\nTIL\n4AM',x:0.13,y:0.65,w:0.14,sizeMode:'fixed',size:0.42,align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'800',lineHeight:1.1,color:'#141414'},
       {...gfxDefaultEl('text'),id:'fq_gyal',content:'MUSIC 4 DI GYAL DEM\nBY DI GYAL DEM',x:0.57,y:0.445,w:0.4,sizeMode:'fixed',size:0.37,align:'justify',
-        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.4,color:'#141414',boxStyle:'filled',boxColor:'#8ef0a7',boxOpacity:1,boxPad:6},
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.4,color:'#141414',boxStyle:'filled',boxRadius:0.35,boxColor:'#8ef0a7',boxOpacity:1,boxPad:6},
       {...gfxDefaultEl('text'),id:'fq_venue',content:'CAFE ERZULIE\n894 BROADWAY\nBROOKLYN NY',x:0.04,y:0.85,w:0.24,sizeMode:'fixed',size:0.32,align:'justify',
-        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxRadius:0.35,boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
       {...gfxDefaultEl('text'),id:'fq_all',content:'ALL WOMEN MUSIC OF\nANY GENRE ALL\nNIGHT LONG',x:0.32,y:0.85,w:0.3,sizeMode:'fixed',size:0.32,align:'justify',
-        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
+        font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.35,color:'#141414',boxStyle:'filled',boxRadius:0.35,boxColor:'#9fe6c6',boxOpacity:1,boxPad:6},
       {...gfxDefaultEl('text'),id:'fq_djs',content:'SOUNDS BY:\nKILLSING\nSAILOR GOON\nMISS MONROE\nDJ SPINELLI',x:0.66,y:0.79,w:0.31,sizeMode:'fixed',size:0.37,align:'right',
         font:"'Helvetica Neue',Arial,sans-serif",weight:'800',lineHeight:1.25,color:'#f6e7cf'},
     ]}]},
@@ -15821,7 +15836,7 @@ const DEFAULT_PRESETS=[
     gfxElements:[
       {...gfxDefaultEl('text'),id:'vs_h1',content:'VINYL SESSION',x:0.02,y:0.008,w:0.96,sizeMode:'fit',align:'justify',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
-        effects:[{id:'vs_r1',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:6,detail:5}}]},
+        effects:[{id:'vs_r1',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:2,detail:5}}]},
       {...gfxDefaultEl('image'),id:'vs_p1',x:0.025,y:0.115,w:0.95,h:0.42,fit:'fill',radius:0.12,
         effects:[{id:'vs_duo1',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#200604',highlight:'#e83a22',contrast:1.3,levels:0,opacity:1}}]},
       {...gfxDefaultEl('image'),id:'vs_p2',x:0.025,y:0.555,w:0.45,h:0.27,fit:'fill',radius:0.16,
@@ -15830,15 +15845,15 @@ const DEFAULT_PRESETS=[
         effects:[{id:'vs_duo3',type:'duotone',on:true,blend:'normal',fxOpacity:1,params:{shadow:'#200604',highlight:'#e83a22',contrast:1.3,levels:0,opacity:1}}]},
       {...gfxDefaultEl('text'),id:'vs_date',content:'MAY 10\n22 : 00',x:0.5,y:0.555,w:0.46,sizeMode:'fixed',size:0.95,align:'center',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.0,color:'#efefe9',
-        effects:[{id:'vs_r2',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:4,detail:5}}]},
+        effects:[{id:'vs_r2',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:2,detail:5}}]},
       {...gfxDefaultEl('text'),id:'vs_dj',content:'DJ ROOS',x:0.025,y:0.835,w:0.42,sizeMode:'fit',align:'left',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
-        effects:[{id:'vs_r3',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:5,detail:5}}]},
+        effects:[{id:'vs_r3',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:2,detail:5}}]},
       {...gfxDefaultEl('text'),id:'vs_jam',content:'*CLASSIC JAM\nSCKETCH BATTLE',x:0.55,y:0.855,w:0.42,sizeMode:'fixed',size:0.55,align:'right',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.05,color:'#efefe9'},
       {...gfxDefaultEl('text'),id:'vs_gen',content:'HIP-HOP/BOMBAP/FUNK',x:0.02,y:0.94,w:0.96,sizeMode:'fit',align:'justify',
         font:"'Bebas Neue',Impact,sans-serif",weight:'900',color:'#efefe9',
-        effects:[{id:'vs_r4',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:5,detail:5}}]},
+        effects:[{id:'vs_r4',type:'roughen',on:true,blend:'normal',fxOpacity:1,params:{amount:2,detail:5}}]},
     ]}]},
 
   // Ref I — Riddle: swiss/acid schedule — pill labels, tab-row listings, scattered accents.
@@ -18135,7 +18150,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
         const fn=document.getElementById('gfx-p-fillimgname'); if(fn)fn.textContent=el._fillImgName||'none';
       }
       setV('gfx-p-sw',el.strokeWidth);setV('gfx-p-box',el.boxStyle);setV('gfx-p-bxcol',el.boxColor);
-      setV('gfx-p-bxop',el.boxOpacity);setV('gfx-p-bxpad',el.boxPad);
+      setV('gfx-p-bxop',el.boxOpacity);setV('gfx-p-bxpad',el.boxPad);setV('gfx-p-tbxrad',el.boxRadius==null?0.06:el.boxRadius);
     } else if(el.type==='lineup'){
       setV('gfx-p-items',el.items);setV('gfx-p-lup',el.uppercase);setV('gfx-p-lfmt',el.format);
       setV('gfx-p-lhead',el.headlinerCount);setV('gfx-p-lsep',el.sep);setV('gfx-p-lchips',el.chips);
@@ -18257,7 +18272,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-kselx','kSelX','num'],['gfx-p-ksely','kSelY','num'],['gfx-p-kselscale','kSelScale','num'],['gfx-p-kselrot','kSelRot','num'],['gfx-p-kselopacity','kSelOpacity','num'],['gfx-p-kseltrack','kSelTrack','num'],
     ['gfx-p-kselcolmode','kSelColMode','str'],['gfx-p-kselcol','kSelCol','str'],['gfx-p-kselcol2','kSelCol2','str'],['gfx-p-kselreveal','kSelReveal','str'],['gfx-p-kselscrset','kSelScrambleSet','str'],['gfx-p-kselscrcustom','kSelScrambleCustom','str'],
     ['gfx-p-sw','strokeWidth','num'],['gfx-p-box','boxStyle','str'],['gfx-p-bxcol','boxColor','str'],
-    ['gfx-p-bxop','boxOpacity','num'],['gfx-p-bxpad','boxPad','num'],
+    ['gfx-p-bxop','boxOpacity','num'],['gfx-p-bxpad','boxPad','num'],['gfx-p-tbxrad','boxRadius','num'],
     ['gfx-p-items','items','str'],['gfx-p-lup','uppercase','bool'],['gfx-p-lfmt','format','str'],
     ['gfx-p-lbars','bars','str'],['gfx-p-lbarcol','barColor','str'],['gfx-p-lbarpad','barPad','num'],['gfx-p-lalignmode','alignMode','str'],['gfx-p-lweight','weight','str'],
     ['gfx-p-lhead','headlinerCount','num'],['gfx-p-lsep','sep','str'],['gfx-p-lchips','chips','bool'],
