@@ -3142,6 +3142,7 @@ function gfxDefaultEl(type){
     simSpeed:1,centerX:0.5,centerY:0.5,
     rotateBodies:false,spinRate:0,rotJitter:0,bodyShape:'text',seed:1,bounds:'region',
     bgOn:false,bg:'#0a0a0a'};
+  if(type==='gootype') return{...base,x:0.05,y:0.28,w:0.9,h:0.44,text:'GOO',caseMode:'upper',font:"'Bebas Neue',Impact,sans-serif",weight:'900',gooSize:1.4,lineHeight:1.02,align:'center',tracking:0,gooMerge:0.45,gooThresh:0.42,gooSmooth:0.06,gooQuality:0.5,gooSpread:0.35,gooSpreadAnim:'breathe',gooSpreadSpeed:1,gooSpeed:1,gooWobble:0.12,gooWobbleSpeed:1,gooInflate:0.25,gooMelt:0,gooShade:0.35,gooOutline:0,gooOutlineColor:'#0c0c0e',colorMode:'solid',color:'#8ef0a7',color2:'#2bff88',bgOn:false,bg:'#0c0c0e'};
   if(type==='textfill') return{...base,x:0.05,y:0.1,w:0.9,h:0.7,
     text:'MUMBAI\nDELHI\nTOKYO\nLAGOS\nPARIS\nSEOUL',sep:'  ',caseMode:'upper',
     font:"'Helvetica Neue',Arial,sans-serif",weight:'800',fontSize:0.9,lineHeight:1.05,
@@ -4104,6 +4105,174 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
   }
   lctx.restore();
 }
+// ══════════════════════════════════════════════════════════════
+// GOO TYPE — metaball / SDF typography. Glyphs are rendered into a scalar
+// field, blurred so neighbouring letters' fields SUM, then thresholded: where
+// the summed field crosses the surface level the letters fuse into one skin,
+// with strands stretching between them as they pull apart. Optional melt
+// (drips), gel shading from the field gradient, and an iso-contour outline.
+// All motion is a pure function of globalT so it scrubs/exports deterministically.
+// ══════════════════════════════════════════════════════════════
+let _gooOutImg=null;
+let _gooFieldCv=null,_gooFieldCx=null,_gooBlurCv=null,_gooBlurCx=null,_gooOutCv=null,_gooOutCx=null;
+function _gooCanvas(which,w,h){
+  const mk=(cv,cx)=>{ if(!cv){ cv=document.createElement('canvas'); cx=cv.getContext('2d',{willReadFrequently:true}); }
+    if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; } return [cv,cx]; };
+  if(which==='field'){ const r=mk(_gooFieldCv,_gooFieldCx); _gooFieldCv=r[0]; _gooFieldCx=r[1]; return r; }
+  if(which==='blur'){ const r=mk(_gooBlurCv,_gooBlurCx); _gooBlurCv=r[0]; _gooBlurCx=r[1]; return r; }
+  const r=mk(_gooOutCv,_gooOutCx); _gooOutCv=r[0]; _gooOutCx=r[1]; return r;
+}
+function _gfxGooType(lctx,el,ex,ey,ew,eh,unit){
+  const cm=el.caseMode||'upper';
+  let raw=String(el.text||'GOO');
+  if(cm==='upper') raw=raw.toUpperCase(); else if(cm==='lower') raw=raw.toLowerCase();
+  const lines=raw.split('\n');
+  const fam=el.font||"'Bebas Neue',Impact,sans-serif", wt=el.weight||'900';
+  const sz=Math.max(6, unit*(parseFloat(el.gooSize)||1.4)*2);
+  const lhM=parseFloat(el.lineHeight)||1.02;
+  const align=el.align||'center';
+  const t=(globalT||0)/60*Math.max(0,(el.gooSpeed==null?1:el.gooSpeed));
+
+  const merge=Math.max(0,Math.min(1,(el.gooMerge==null?0.45:el.gooMerge)));
+  const blurPx=merge*sz*0.42;                       // how far a letter reaches for its neighbour
+  const thresh=Math.max(0.02,Math.min(0.98,(el.gooThresh==null?0.42:el.gooThresh)));
+  const smooth=Math.max(0.001,(el.gooSmooth==null?0.06:el.gooSmooth));
+  const spread=(el.gooSpread==null?0:el.gooSpread);
+  const spreadAnim=el.gooSpreadAnim||'breathe';
+  const spreadSpd=Math.max(0.05,(el.gooSpreadSpeed==null?1:el.gooSpreadSpeed));
+  const wob=(el.gooWobble==null?0.12:el.gooWobble), wobSpd=Math.max(0.05,(el.gooWobbleSpeed==null?1:el.gooWobbleSpeed));
+  const inflate=(el.gooInflate==null?0:el.gooInflate);
+  const melt=Math.max(0,Math.min(1,(el.gooMelt==null?0:el.gooMelt)));
+  const shade=Math.max(0,Math.min(1,(el.gooShade==null?0.35:el.gooShade)));
+  const outlineW=Math.max(0,(el.gooOutline==null?0:el.gooOutline));
+  const trackBase=(parseFloat(el.tracking)||0);
+
+  // animated separation — letters drift apart then fuse back together
+  let sepAmt=spread;
+  if(spreadAnim==='breathe') sepAmt=spread*(0.5+0.5*Math.sin(t*1.2*spreadSpd));
+  else if(spreadAnim==='pulse') sepAmt=spread*Math.max(0,Math.sin(t*1.6*spreadSpd));
+
+  const pad=Math.ceil(blurPx*2.2+sz*0.5+8);
+  let q=Math.max(0.2,Math.min(1,(el.gooQuality==null?0.5:el.gooQuality)));   // field resolution
+  const fullW=ew+pad*2, fullH=eh+pad*2;
+  const CAP=210000;                                           // keep the per-pixel passes interactive
+  if(fullW*fullH*q*q>CAP) q=Math.sqrt(CAP/(fullW*fullH));
+  const fw=Math.max(4,Math.ceil(fullW*q)), fh=Math.max(4,Math.ceil(fullH*q));
+  const fA=_gooCanvas('field',fw,fh), fcv=fA[0], fcx=fA[1];
+  fcx.setTransform(1,0,0,1,0,0); fcx.clearRect(0,0,fw,fh);
+  fcx.setTransform(q,0,0,q,pad*q,pad*q);
+  fcx.font=wt+' '+sz+'px '+fam; fcx.textAlign='left'; fcx.textBaseline='middle';
+  fcx.fillStyle='#fff';
+
+  // ── lay out + draw each glyph into the field, with per-glyph motion ──
+  const lineH=sz*lhM;
+  const totalH=lineH*lines.length;
+  let cy=(eh-totalH)/2+lineH/2;
+  let gi=0;
+  for(const line of lines){
+    const chars=Array.from(line);
+    const adv=chars.map(c=>fcx.measureText(c).width);
+    const extra=trackBase+sepAmt*sz*0.55;
+    const lineW=adv.reduce((a,b)=>a+b,0)+extra*Math.max(0,chars.length-1);
+    let gx = align==='right' ? (ew-lineW) : align==='left' ? 0 : (ew-lineW)/2;
+    for(let k=0;k<chars.length;k++){
+      const c=chars[k];
+      if(c!==' '){
+        const n1=_mnNoise(gi*0.7, t*wobSpd*0.6, 0.0);
+        const n2=_mnNoise(gi*0.7+31.7, t*wobSpd*0.6, 5.0);
+        const dx=(n1-0.5)*wob*sz*0.9, dy=(n2-0.5)*wob*sz*0.9;
+        const pulse=1+inflate*0.35*Math.sin(t*1.9+gi*0.9);
+        fcx.save();
+        fcx.translate(gx+adv[k]/2+dx, cy+dy);
+        if(pulse!==1) fcx.scale(pulse,pulse);
+        fcx.fillText(c,-adv[k]/2,0);
+        fcx.restore();
+      }
+      gx+=adv[k]+extra; gi++;
+    }
+    cy+=lineH;
+  }
+
+  // ── blur so neighbouring fields sum, then read back the scalar field ──
+  const bA=_gooCanvas('blur',fw,fh), bcv=bA[0], bcx=bA[1];
+  bcx.setTransform(1,0,0,1,0,0); bcx.clearRect(0,0,fw,fh);
+  bcx.filter = blurPx>0.3 ? ('blur('+(blurPx*q)+'px)') : 'none';
+  bcx.drawImage(fcv,0,0);
+  bcx.filter='none';
+  const img=bcx.getImageData(0,0,fw,fh); const d=img.data;
+  const N=fw*fh;
+  const F=new Float32Array(N);
+  for(let i=0,p=3;i<N;i++,p+=4) F[i]=d[p]/255;
+
+  // ── MELT: smear the field downward with decay so the skin drips ──
+  if(melt>0){
+    // drip length is expressed directly in rows so the effect is visible and tunable:
+    // each column gets its own length (noise) so the skin forms uneven stalactites.
+    for(let x=0;x<fw;x++){
+      const len=melt*fh*0.42*(0.25+0.95*_mnNoise(x*0.035,7.3,t*0.22));
+      if(len<1) continue;
+      const dec=(1-thresh)/len;                 // reach exactly len rows before dropping below the surface
+      let carry=0;
+      for(let y=0;y<fh;y++){
+        const i=y*fw+x;
+        carry=carry-dec;
+        if(F[i]>carry) carry=F[i]; else F[i]=carry;
+      }
+    }
+  }
+
+  // ── threshold the field into a skin, shade it, colour it ──
+  const oA=_gooCanvas('out',fw,fh), ocv=oA[0], ocx=oA[1];
+  if(!_gooOutImg || _gooOutImg.width!==fw || _gooOutImg.height!==fh) _gooOutImg=ocx.createImageData(fw,fh);
+  else _gooOutImg.data.fill(0);
+  const out=_gooOutImg; const o=out.data;
+  const cA=hexToRgb(el.color||'#8ef0a7'), cB=hexToRgb(el.color2||'#2bff88');
+  const grad=(el.colorMode||'solid')==='gradient';
+  const oCol=hexToRgb(el.gooOutlineColor||'#0c0c0e');
+  const half=Math.max(0.004, outlineW*0.02);        // outline band, in field units
+  const invS=1/smooth, invRim=1/(smooth*2.2), invHalf=1/half;
+  const shadeOn=shade>0, outOn=outlineW>0, rimK=shade*90, lamK=shade*0.55;
+  for(let y=0;y<fh;y++){
+    // gradient only varies down the element — resolve it once per row, not per pixel
+    let rr,gg,bb;
+    if(grad){ const f=y/fh; rr=cA[0]+(cB[0]-cA[0])*f; gg=cA[1]+(cB[1]-cA[1])*f; bb=cA[2]+(cB[2]-cA[2])*f; }
+    else { rr=cA[0]; gg=cA[1]; bb=cA[2]; }
+    const row=y*fw;
+    for(let x=0;x<fw;x++){
+      const i=row+x, v=F[i];
+      let a=(v-thresh)*invS+0.5;                    // smoothstep across the surface
+      if(a<=0.002) continue;
+      if(a>1) a=1;
+      let r=rr,g=gg,b=bb;
+      if(shadeOn){
+        // fake normal from the field gradient → gel-like lambert + rim light
+        const xr=x<fw-1?F[i+1]:v, xl=x>0?F[i-1]:v;
+        const yd=y<fh-1?F[i+fw]:v, yu=y>0?F[i-fw]:v;
+        let lam=(-(xr-xl)*0.6-(yd-yu)*0.8)*7;
+        if(lam<-1)lam=-1; else if(lam>1)lam=1;
+        const k=1+lam*lamK;
+        r*=k; g*=k; b*=k;
+        let e=1-Math.abs(v-thresh)*invRim; if(e<0)e=0;
+        const rim=e*e*e*rimK;
+        r+=rim; g+=rim; b+=rim;
+      }
+      if(outOn){
+        const band=v>thresh?v-thresh:thresh-v;
+        if(band<half){ const m=1-band*invHalf; r=r+(oCol[0]-r)*m; g=g+(oCol[1]-g)*m; b=b+(oCol[2]-b)*m; }
+      }
+      const p=i*4;
+      o[p]=r<0?0:r>255?255:r; o[p+1]=g<0?0:g>255?255:g; o[p+2]=b<0?0:b>255?255:b; o[p+3]=a*255;
+    }
+  }
+  ocx.putImageData(out,0,0);
+
+  lctx.save();
+  if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
+  lctx.imageSmoothingEnabled=true;
+  lctx.drawImage(ocv, ex-pad, ey-pad, ew+pad*2, eh+pad*2);
+  lctx.restore();
+  return true;
+}
 function renderGfxEl(lctx,el,layer,W,H){
   if(!el||el.visible===false) return null;
   lctx.save();
@@ -4737,6 +4906,11 @@ function renderGfxEl(lctx,el,layer,W,H){
     bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+eh)/H};
   }
 
+  else if(el.type==='gootype'){
+    const ehG=Math.round((el.h||0.44)*H);
+    _gfxGooType(lctx,el,ex,ey,ew,ehG,unit);
+    bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
+  }
   else if(el.type==='textfill'){
     const ehG=Math.round((el.h||0.5)*H);
     // NEW: type-in-motion modes — the layout itself travels through space.
@@ -18218,7 +18392,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=isGrid?'block':'none';
   }
 
-  const EL_ICON={text:'T',lineup:'≡',info:'i',image:'▣',divider:'—',box:'□',shape:'◆',pattern:'⁘',glyphs:'A',mosaic:'▦',textfill:'¶',physics:'⚛',fluid:'◍',ticker:'⇄',counter:'⏱',barcode:'▥'};
+  const EL_ICON={text:'T',lineup:'≡',info:'i',image:'▣',divider:'—',box:'□',shape:'◆',pattern:'⁘',glyphs:'A',mosaic:'▦',textfill:'¶',gootype:'ᛙ',physics:'⚛',fluid:'◍',ticker:'⇄',counter:'⏱',barcode:'▥'};
 
   // ── Appearance effect stack UI ──
   // Route an appearance-effect param via LFO or audio band
@@ -18433,7 +18607,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const props=document.getElementById('gfx-props'); if(!props) return;
     const l=gfxLayer(); if(!l){ props.style.display='none'; return; }
     props.style.display='block';
-    ['text','lineup','info','image','divider','box','shape','pattern','glyphs','mosaic','textfill','physics','fluid','ticker','counter','barcode'].forEach(t=>{ const d=document.getElementById('gfx-pp-'+t); if(d) d.style.display='none'; });
+    ['text','lineup','info','image','divider','box','shape','pattern','glyphs','mosaic','textfill','gootype','physics','fluid','ticker','counter','barcode'].forEach(t=>{ const d=document.getElementById('gfx-pp-'+t); if(d) d.style.display='none'; });
     const el=gfxSel();
     const empty=document.getElementById('gfx-pp-empty');
     const appear=document.getElementById('gfx-appearance');
@@ -18532,6 +18706,15 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-moscolor',el.color);setV('gfx-p-moscolor2',el.color2);setV('gfx-p-mosbgon',el.bgOn);setV('gfx-p-mosbg',el.bg);
       const nm=document.getElementById('gfx-p-mosname'); if(nm) nm.textContent=el._srcName||'no source';
       const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(el.mosaicMode==='text')?'flex':'none';
+    } else if(el.type==='gootype'){
+      setV('gfx-p-gootext',el.text);setV('gfx-p-goocase',el.caseMode);setV('gfx-p-goofont',el.font);setV('gfx-p-gooweight',el.weight);
+      setV('gfx-p-goosize',el.gooSize);setV('gfx-p-goolh',el.lineHeight);setV('gfx-p-gooalign',el.align);
+      setV('gfx-p-goomerge',el.gooMerge);setV('gfx-p-goothresh',el.gooThresh);setV('gfx-p-goosmooth',el.gooSmooth);
+      setV('gfx-p-goomelt',el.gooMelt);setV('gfx-p-gooshade',el.gooShade);setV('gfx-p-gooquality',el.gooQuality);
+      setV('gfx-p-goospread',el.gooSpread);setV('gfx-p-goospreadanim',el.gooSpreadAnim);setV('gfx-p-goospreadspeed',el.gooSpreadSpeed);
+      setV('gfx-p-goowobble',el.gooWobble);setV('gfx-p-goowobblespeed',el.gooWobbleSpeed);setV('gfx-p-gooinflate',el.gooInflate);setV('gfx-p-goospeed',el.gooSpeed);
+      setV('gfx-p-goocmode',el.colorMode);setV('gfx-p-goocol',el.color);setV('gfx-p-goocol2',el.color2);
+      setV('gfx-p-goooutline',el.gooOutline);setV('gfx-p-goooutlinecol',el.gooOutlineColor);setV('gfx-p-goobgon',el.bgOn);setV('gfx-p-goobg',el.bg);
     } else if(el.type==='textfill'){
       setV('gfx-p-tftext',el.text);setV('gfx-p-tfsep',el.sep);setV('gfx-p-tfcase',el.caseMode);
       setV('gfx-p-tffont',el.font);setV('gfx-p-tfweight',el.weight);setV('gfx-p-tfsize',el.fontSize);setV('gfx-p-tflh',el.lineHeight);
@@ -18645,6 +18828,14 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tffont','font','str'],['gfx-p-tfweight','weight','str'],['gfx-p-tfsize','fontSize','num'],['gfx-p-tflh','lineHeight','num'],
     ['gfx-p-tfjustify','justify','str'],['gfx-p-tfalt','altMode','str'],['gfx-p-tfcmode','colorMode','str'],
     ['gfx-p-tfcol','color','str'],['gfx-p-tfcol2','color2','str'],
+    ['gfx-p-gootext','text','str'],['gfx-p-goocase','caseMode','str'],['gfx-p-goofont','font','str'],['gfx-p-gooweight','weight','str'],
+    ['gfx-p-goosize','gooSize','num'],['gfx-p-goolh','lineHeight','num'],['gfx-p-gooalign','align','str'],
+    ['gfx-p-goomerge','gooMerge','num'],['gfx-p-goothresh','gooThresh','num'],['gfx-p-goosmooth','gooSmooth','num'],
+    ['gfx-p-goomelt','gooMelt','num'],['gfx-p-gooshade','gooShade','num'],['gfx-p-gooquality','gooQuality','num'],
+    ['gfx-p-goospread','gooSpread','num'],['gfx-p-goospreadanim','gooSpreadAnim','str'],['gfx-p-goospreadspeed','gooSpreadSpeed','num'],
+    ['gfx-p-goowobble','gooWobble','num'],['gfx-p-goowobblespeed','gooWobbleSpeed','num'],['gfx-p-gooinflate','gooInflate','num'],['gfx-p-goospeed','gooSpeed','num'],
+    ['gfx-p-goocmode','colorMode','str'],['gfx-p-goocol','color','str'],['gfx-p-goocol2','color2','str'],
+    ['gfx-p-goooutline','gooOutline','num'],['gfx-p-goooutlinecol','gooOutlineColor','str'],['gfx-p-goobgon','bgOn','bool'],['gfx-p-goobg','bg','str'],
     ['gfx-p-tfmode','tfMode','str'],['gfx-p-tfcols','tfCols','num'],['gfx-p-tfrows','tfRows','num'],['gfx-p-tfgap','tfGap','num'],['gfx-p-tfanim','tfAnim','str'],['gfx-p-tfpattern','tfPattern','str'],['gfx-p-tfstyle','tfStyle','str'],['gfx-p-tfscrset','tfScrambleSet','str'],['gfx-p-tfhold','tfHold','num'],['gfx-p-tftrans','tfTrans','num'],['gfx-p-tfstagger','tfStagger','num'],['gfx-p-tfspeed','tfSpeed','num'],['gfx-p-tfcellmode','tfCellMode','str'],
     ['gfx-p-tfoutline','tfOutline','num'],['gfx-p-tfpanx','tfPanX','num'],['gfx-p-tfpany','tfPanY','num'],
     ['gfx-p-tfhion','tfHiOn','bool'],['gfx-p-tfhicolor','tfHiColor','str'],['gfx-p-tfhitext','tfHiText','str'],['gfx-p-tfhihold','tfHiHold','num'],['gfx-p-tfhislide','tfHiSlide','num'],['gfx-p-tfhimove','tfHiMove','str'],
@@ -18708,7 +18899,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     });
   });
 
-  const ADD={'gfx-add-text':'text','gfx-add-lineup':'lineup','gfx-add-info':'info','gfx-add-image':'image','gfx-add-divider':'divider','gfx-add-box':'box','gfx-add-shape':'shape','gfx-add-pattern':'pattern','gfx-add-glyphs':'glyphs','gfx-add-mosaic':'mosaic','gfx-add-textfill':'textfill','gfx-add-physics':'physics','gfx-add-fluid':'fluid','gfx-add-ticker':'ticker','gfx-add-counter':'counter','gfx-add-barcode':'barcode'};
+  const ADD={'gfx-add-text':'text','gfx-add-lineup':'lineup','gfx-add-info':'info','gfx-add-image':'image','gfx-add-divider':'divider','gfx-add-box':'box','gfx-add-shape':'shape','gfx-add-pattern':'pattern','gfx-add-glyphs':'glyphs','gfx-add-mosaic':'mosaic','gfx-add-textfill':'textfill','gfx-add-gootype':'gootype','gfx-add-physics':'physics','gfx-add-fluid':'fluid','gfx-add-ticker':'ticker','gfx-add-counter':'counter','gfx-add-barcode':'barcode'};
   Object.entries(ADD).forEach(([bid,type])=>{
     document.getElementById(bid)?.addEventListener('click',()=>{
       const l=gfxLayer(); if(!l) return;
