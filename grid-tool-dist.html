@@ -3122,13 +3122,18 @@ TOKYO</textarea></div>
             <div class="row"><label>line height</label><input type="range" id="gfx-p-goolh" min="0.6" max="2" value="1.02" step="0.01"><span class="val" id="gfx-p-goolh-v">1.02</span></div>
             <div class="row"><label>align</label><select id="gfx-p-gooalign"><option value="left">left</option><option value="center" selected>center</option><option value="right">right</option></select></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">the goo</div>
-            <div class="row"><label>merge</label><input type="range" id="gfx-p-goomerge" min="0" max="1" value="0.45" step="0.01"><span class="val" id="gfx-p-goomerge-v">0.45</span></div>
-            <div class="row"><label>surface</label><input type="range" id="gfx-p-goothresh" min="0.05" max="0.95" value="0.42" step="0.01"><span class="val" id="gfx-p-goothresh-v">0.42</span></div>
+            <div class="row"><label>bridge</label><input type="range" id="gfx-p-goobridge" min="0" max="1" value="0.35" step="0.01"><span class="val" id="gfx-p-goobridge-v">0.35</span></div>
+            <div class="row"><label>weight</label><input type="range" id="gfx-p-gooweightv" min="-1" max="1" value="0" step="0.02"><span class="val" id="gfx-p-gooweightv-v">0.00</span></div>
+            <div class="row"><label>contour rings</label><input type="range" id="gfx-p-goorings" min="0" max="12" value="0" step="1"><span class="val" id="gfx-p-goorings-v">0</span></div>
+            <div class="row"><label>ring gap</label><input type="range" id="gfx-p-gooringgap" min="3" max="40" value="10" step="1"><span class="val" id="gfx-p-gooringgap-v">10</span></div>
             <div class="row"><label>edge soft</label><input type="range" id="gfx-p-goosmooth" min="0.005" max="0.4" value="0.06" step="0.005"><span class="val" id="gfx-p-goosmooth-v">0.060</span></div>
             <div class="row"><label>melt / drip</label><input type="range" id="gfx-p-goomelt" min="0" max="1" value="0" step="0.02"><span class="val" id="gfx-p-goomelt-v">0.00</span></div>
             <div class="row"><label>gel shading</label><input type="range" id="gfx-p-gooshade" min="0" max="1" value="0.35" step="0.02"><span class="val" id="gfx-p-gooshade-v">0.35</span></div>
             <div class="row"><label>quality</label><input type="range" id="gfx-p-gooquality" min="0.25" max="1" value="0.6" step="0.05"><span class="val" id="gfx-p-gooquality-v">0.60</span></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">motion</div>
+            <div class="row"><label>animation</label><select id="gfx-p-gooanim"><option value="none">none</option><option value="weight">weight breathe (thin↔black)</option><option value="bridge">bridge (connect↔release)</option><option value="reveal">reveal (grow on)</option><option value="dissolve">dissolve (erode away)</option><option value="morph">morph to 2nd text</option><option value="rings">radiating contours</option></select></div>
+            <div class="row"><label>morph target</label><input type="text" id="gfx-p-gootext2" value="MELT" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+            <div class="row"><label>weight swing</label><input type="range" id="gfx-p-gooweightamp" min="0" max="1" value="0.5" step="0.02"><span class="val" id="gfx-p-gooweightamp-v">0.50</span></div>
             <div class="row"><label>separation</label><input type="range" id="gfx-p-goospread" min="0" max="2" value="0.35" step="0.05"><span class="val" id="gfx-p-goospread-v">0.35</span></div>
             <div class="row"><label>↳ anim</label><select id="gfx-p-goospreadanim"><option value="breathe">breathe (merge↔split)</option><option value="pulse">pulse</option><option value="none">static</option></select></div>
             <div class="row"><label>↳ rate</label><input type="range" id="gfx-p-goospreadspeed" min="0.05" max="4" value="1" step="0.05"><span class="val" id="gfx-p-goospreadspeed-v">1.00</span></div>
@@ -7712,7 +7717,7 @@ function gfxDefaultEl(type){
     simSpeed:1,centerX:0.5,centerY:0.5,
     rotateBodies:false,spinRate:0,rotJitter:0,bodyShape:'text',seed:1,bounds:'region',
     bgOn:false,bg:'#0a0a0a'};
-  if(type==='gootype') return{...base,x:0.05,y:0.28,w:0.9,h:0.44,text:'GOO',caseMode:'upper',font:"'Bebas Neue',Impact,sans-serif",weight:'900',gooSize:1.4,lineHeight:1.02,align:'center',tracking:0,gooMerge:0.45,gooThresh:0.42,gooSmooth:0.06,gooQuality:0.5,gooSpread:0.35,gooSpreadAnim:'breathe',gooSpreadSpeed:1,gooSpeed:1,gooWobble:0.12,gooWobbleSpeed:1,gooInflate:0.25,gooMelt:0,gooShade:0.35,gooOutline:0,gooOutlineColor:'#0c0c0e',colorMode:'solid',color:'#8ef0a7',color2:'#2bff88',bgOn:false,bg:'#0c0c0e'};
+  if(type==='gootype') return{...base,x:0.05,y:0.28,w:0.9,h:0.44,text:'GOO',caseMode:'upper',font:"'Bebas Neue',Impact,sans-serif",weight:'900',gooSize:1.4,lineHeight:1.02,align:'center',tracking:0,gooBridge:0.35,gooWeight:0,gooWeightAmp:0.5,gooAnim:'none',gooText2:'MELT',gooRings:0,gooRingGap:10,gooThresh:0.42,gooSmooth:0.06,gooQuality:0.55,gooSpread:0.35,gooSpreadAnim:'breathe',gooSpreadSpeed:1,gooSpeed:1,gooWobble:0.12,gooWobbleSpeed:1,gooInflate:0.25,gooMelt:0,gooShade:0.35,gooOutline:0,gooOutlineColor:'#0c0c0e',colorMode:'solid',color:'#8ef0a7',color2:'#2bff88',bgOn:false,bg:'#0c0c0e'};
   if(type==='textfill') return{...base,x:0.05,y:0.1,w:0.9,h:0.7,
     text:'MUMBAI\nDELHI\nTOKYO\nLAGOS\nPARIS\nSEOUL',sep:'  ',caseMode:'upper',
     font:"'Helvetica Neue',Arial,sans-serif",weight:'800',fontSize:0.9,lineHeight:1.05,
@@ -8676,171 +8681,293 @@ function _gfxTextPack(lctx,el,ex,ey,ew,eh,unit){
   lctx.restore();
 }
 // ══════════════════════════════════════════════════════════════
-// GOO TYPE — metaball / SDF typography. Glyphs are rendered into a scalar
-// field, blurred so neighbouring letters' fields SUM, then thresholded: where
-// the summed field crosses the surface level the letters fuse into one skin,
-// with strands stretching between them as they pull apart. Optional melt
-// (drips), gel shading from the field gradient, and an iso-contour outline.
-// All motion is a pure function of globalT so it scrubs/exports deterministically.
+// GOO TYPE — SDF typography built on a TRUE Euclidean distance transform
+// (Felzenszwalb O(n)), not a blur. That distinction is what keeps it
+// typographic: thresholding an exact distance field reproduces the letterform
+// perfectly, so counters and thin joins survive, edges stay crisp at any
+// resolution, and offsetting the surface is a precise optical-weight change.
+//
+// Letters connect via morphological CLOSING (dilate r, erode r) — neighbours
+// bridge with real fillets while stroke weight and counters are preserved,
+// instead of blurring into lumps.
 // ══════════════════════════════════════════════════════════════
-let _gooOutImg=null;
-let _gooFieldCv=null,_gooFieldCx=null,_gooBlurCv=null,_gooBlurCx=null,_gooOutCv=null,_gooOutCx=null;
+const _GOO_INF=1e20;
+function _edt1dRow(F,off,d,v,z,n){
+  let k=0; v[0]=0; z[0]=-_GOO_INF; z[1]=_GOO_INF;
+  for(let q=1;q<n;q++){
+    const fq=F[off+q]+q*q;
+    let s=(fq-(F[off+v[k]]+v[k]*v[k]))/(2*q-2*v[k]);
+    while(s<=z[k]){ k--; s=(fq-(F[off+v[k]]+v[k]*v[k]))/(2*q-2*v[k]); }
+    k++; v[k]=q; z[k]=s; z[k+1]=_GOO_INF;
+  }
+  k=0;
+  for(let q=0;q<n;q++){ while(z[k+1]<q) k++; const dq=q-v[k]; d[q]=dq*dq+F[off+v[k]]; }
+  for(let q=0;q<n;q++) F[off+q]=d[q];
+}
+// blocked transpose — the column pass of an EDT strides the array and misses cache on
+// every access, which dominated the cost; transposing lets both passes run contiguously.
+function _gooTranspose(src,dst,w,h){
+  const B=32;
+  for(let y0=0;y0<h;y0+=B){
+    const ym=y0+B<h?y0+B:h;
+    for(let x0=0;x0<w;x0+=B){
+      const xm=x0+B<w?x0+B:w;
+      for(let y=y0;y<ym;y++){ const so=y*w; for(let x=x0;x<xm;x++) dst[x*h+y]=src[so+x]; }
+    }
+  }
+}
+// squared euclidean distance transform, in place (F: 0 at seeds, INF elsewhere)
+function _edt2d(F,w,h,S){
+  for(let y=0;y<h;y++) _edt1dRow(F,y*w,S.d,S.v,S.z,w);
+  _gooTranspose(F,S.t,w,h);
+  for(let x=0;x<w;x++) _edt1dRow(S.t,x*h,S.d,S.v,S.z,h);
+  _gooTranspose(S.t,F,h,w);
+}
+// signed distance (px, negative inside) from a binary mask
+function _gooSDF(mask,w,h,scratch,out){
+  const N=w*h, A=scratch.a, B=scratch.b;
+  for(let i=0;i<N;i++){ A[i]=mask[i]?0:_GOO_INF; B[i]=mask[i]?_GOO_INF:0; }
+  _edt2d(A,w,h,scratch); _edt2d(B,w,h,scratch);
+  for(let i=0;i<N;i++) out[i]= mask[i] ? -Math.sqrt(B[i]) : Math.sqrt(A[i]);
+  return out;
+}
+let _gooS=null;
+const _gooCache=new Map();   // el.id -> {sig, cv} so a static field is computed once
+function _gooScratch(w,h){
+  const N=w*h, n=Math.max(w,h);
+  if(!_gooS || _gooS.N<N || _gooS.n<n){
+    _gooS={ N,n,
+      f:new Float64Array(n), d:new Float64Array(n), v:new Int32Array(n), z:new Float64Array(n+1),
+      a:new Float64Array(N), b:new Float64Array(N), t:new Float64Array(N),
+      sd:new Float32Array(N), sd2:new Float32Array(N), mask:new Uint8Array(N), mask2:new Uint8Array(N) };
+  }
+  return _gooS;
+}
+let _gooFieldCv=null,_gooFieldCx=null,_gooOutCv=null,_gooOutCx=null,_gooOutImg=null;
 function _gooCanvas(which,w,h){
   const mk=(cv,cx)=>{ if(!cv){ cv=document.createElement('canvas'); cx=cv.getContext('2d',{willReadFrequently:true}); }
     if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; } return [cv,cx]; };
   if(which==='field'){ const r=mk(_gooFieldCv,_gooFieldCx); _gooFieldCv=r[0]; _gooFieldCx=r[1]; return r; }
-  if(which==='blur'){ const r=mk(_gooBlurCv,_gooBlurCx); _gooBlurCv=r[0]; _gooBlurCx=r[1]; return r; }
   const r=mk(_gooOutCv,_gooOutCx); _gooOutCv=r[0]; _gooOutCx=r[1]; return r;
 }
 function _gfxGooType(lctx,el,ex,ey,ew,eh,unit){
   const cm=el.caseMode||'upper';
-  let raw=String(el.text||'GOO');
-  if(cm==='upper') raw=raw.toUpperCase(); else if(cm==='lower') raw=raw.toLowerCase();
-  const lines=raw.split('\n');
+  const casefn=(s)=> cm==='upper'?s.toUpperCase() : cm==='lower'?s.toLowerCase() : s;
   const fam=el.font||"'Bebas Neue',Impact,sans-serif", wt=el.weight||'900';
   const sz=Math.max(6, unit*(parseFloat(el.gooSize)||1.4)*2);
   const lhM=parseFloat(el.lineHeight)||1.02;
   const align=el.align||'center';
   const t=(globalT||0)/60*Math.max(0,(el.gooSpeed==null?1:el.gooSpeed));
+  const anim=el.gooAnim||'none';
 
-  const merge=Math.max(0,Math.min(1,(el.gooMerge==null?0.45:el.gooMerge)));
-  const blurPx=merge*sz*0.42;                       // how far a letter reaches for its neighbour
-  const thresh=Math.max(0.02,Math.min(0.98,(el.gooThresh==null?0.42:el.gooThresh)));
-  const smooth=Math.max(0.001,(el.gooSmooth==null?0.06:el.gooSmooth));
+  // ── animatable amounts ──────────────────────────────────────
+  const osc=(p)=>0.5+0.5*Math.sin(t*p);                   // 0..1
+  const saw=(p)=>{ const u=(t*p)%1; return u<0?u+1:u; };   // 0..1 ramp
+  let bridgeAmt=(el.gooBridge==null?(el.gooMerge==null?0.35:el.gooMerge):el.gooBridge);
+  let weightAmt=(el.gooWeight==null?0:el.gooWeight);
+  let morphT=0;
+  if(anim==='bridge')   bridgeAmt*=osc(1.1);
+  else if(anim==='weight') weightAmt=weightAmt+ (el.gooWeightAmp==null?0.5:el.gooWeightAmp)*(osc(1.2)*2-1);
+  else if(anim==='reveal')  weightAmt=weightAmt-(1-osc(0.6))*1.1;   // grows in from nothing
+  else if(anim==='dissolve') weightAmt=weightAmt-osc(0.6)*1.1;      // thins away to nothing
+  else if(anim==='morph')   morphT=osc(0.7);
+  const bridgePx=Math.max(0,bridgeAmt)*sz*0.30;
+  const weightPx=weightAmt*sz*0.16;
+
   const spread=(el.gooSpread==null?0:el.gooSpread);
-  const spreadAnim=el.gooSpreadAnim||'breathe';
+  const spreadAnim=el.gooSpreadAnim||'none';
   const spreadSpd=Math.max(0.05,(el.gooSpreadSpeed==null?1:el.gooSpreadSpeed));
-  const wob=(el.gooWobble==null?0.12:el.gooWobble), wobSpd=Math.max(0.05,(el.gooWobbleSpeed==null?1:el.gooWobbleSpeed));
+  let sepAmt=spread;
+  if(spreadAnim==='breathe') sepAmt=spread*osc(1.2*spreadSpd);
+  else if(spreadAnim==='pulse') sepAmt=spread*Math.max(0,Math.sin(t*1.6*spreadSpd));
+  const wob=(el.gooWobble==null?0:el.gooWobble), wobSpd=Math.max(0.05,(el.gooWobbleSpeed==null?1:el.gooWobbleSpeed));
   const inflate=(el.gooInflate==null?0:el.gooInflate);
   const melt=Math.max(0,Math.min(1,(el.gooMelt==null?0:el.gooMelt)));
   const shade=Math.max(0,Math.min(1,(el.gooShade==null?0.35:el.gooShade)));
-  const outlineW=Math.max(0,(el.gooOutline==null?0:el.gooOutline));
+  const aaPx=Math.max(0.4,(el.gooSmooth==null?1:el.gooSmooth)*3);
   const trackBase=(parseFloat(el.tracking)||0);
 
-  // animated separation — letters drift apart then fuse back together
-  let sepAmt=spread;
-  if(spreadAnim==='breathe') sepAmt=spread*(0.5+0.5*Math.sin(t*1.2*spreadSpd));
-  else if(spreadAnim==='pulse') sepAmt=spread*Math.max(0,Math.sin(t*1.6*spreadSpd));
-
-  const pad=Math.ceil(blurPx*2.2+sz*0.5+8);
-  let q=Math.max(0.2,Math.min(1,(el.gooQuality==null?0.5:el.gooQuality)));   // field resolution
+  const pad=Math.ceil(bridgePx*2+Math.abs(weightPx)+sz*0.35+10);
+  let q=Math.max(0.2,Math.min(1,(el.gooQuality==null?0.55:el.gooQuality)));
   const fullW=ew+pad*2, fullH=eh+pad*2;
-  const CAP=210000;                                           // keep the per-pixel passes interactive
+  const CAP=170000;                                   // EDT is O(n) but not free
   if(fullW*fullH*q*q>CAP) q=Math.sqrt(CAP/(fullW*fullH));
-  const fw=Math.max(4,Math.ceil(fullW*q)), fh=Math.max(4,Math.ceil(fullH*q));
+  const fw=Math.max(8,Math.ceil(fullW*q)), fh=Math.max(8,Math.ceil(fullH*q));
+  const S=_gooScratch(fw,fh), N=fw*fh;
+
   const fA=_gooCanvas('field',fw,fh), fcv=fA[0], fcx=fA[1];
-  fcx.setTransform(1,0,0,1,0,0); fcx.clearRect(0,0,fw,fh);
-  fcx.setTransform(q,0,0,q,pad*q,pad*q);
-  fcx.font=wt+' '+sz+'px '+fam; fcx.textAlign='left'; fcx.textBaseline='middle';
-  fcx.fillStyle='#fff';
-
-  // ── lay out + draw each glyph into the field, with per-glyph motion ──
-  const lineH=sz*lhM;
-  const totalH=lineH*lines.length;
-  let cy=(eh-totalH)/2+lineH/2;
-  let gi=0;
-  for(const line of lines){
-    const chars=Array.from(line);
-    const adv=chars.map(c=>fcx.measureText(c).width);
-    const extra=trackBase+sepAmt*sz*0.55;
-    const lineW=adv.reduce((a,b)=>a+b,0)+extra*Math.max(0,chars.length-1);
-    let gx = align==='right' ? (ew-lineW) : align==='left' ? 0 : (ew-lineW)/2;
-    for(let k=0;k<chars.length;k++){
-      const c=chars[k];
-      if(c!==' '){
-        const n1=_mnNoise(gi*0.7, t*wobSpd*0.6, 0.0);
-        const n2=_mnNoise(gi*0.7+31.7, t*wobSpd*0.6, 5.0);
-        const dx=(n1-0.5)*wob*sz*0.9, dy=(n2-0.5)*wob*sz*0.9;
-        const pulse=1+inflate*0.35*Math.sin(t*1.9+gi*0.9);
-        fcx.save();
-        fcx.translate(gx+adv[k]/2+dx, cy+dy);
-        if(pulse!==1) fcx.scale(pulse,pulse);
-        fcx.fillText(c,-adv[k]/2,0);
-        fcx.restore();
+  // rasterise one string's glyphs (with per-glyph motion) into a binary mask
+  const raster=(str,maskOut)=>{
+    fcx.setTransform(1,0,0,1,0,0); fcx.clearRect(0,0,fw,fh);
+    fcx.setTransform(q,0,0,q,pad*q,pad*q);
+    fcx.font=wt+' '+sz+'px '+fam; fcx.textAlign='left'; fcx.textBaseline='middle'; fcx.fillStyle='#fff';
+    const lines=casefn(String(str||'')).split('\n');
+    const lineH=sz*lhM, totalH=lineH*lines.length;
+    let cy=(eh-totalH)/2+lineH/2, gi=0;
+    for(const line of lines){
+      const chars=Array.from(line);
+      const adv=chars.map(c=>fcx.measureText(c).width);
+      const extra=trackBase+sepAmt*sz*0.55;
+      const lineW=adv.reduce((a,b)=>a+b,0)+extra*Math.max(0,chars.length-1);
+      let gx = align==='right' ? (ew-lineW) : align==='left' ? 0 : (ew-lineW)/2;
+      for(let k=0;k<chars.length;k++){
+        const c=chars[k];
+        if(c!==' '){
+          const dx=wob?(_mnNoise(gi*0.7,t*wobSpd*0.6,0)-0.5)*wob*sz*0.9:0;
+          const dy=wob?(_mnNoise(gi*0.7+31.7,t*wobSpd*0.6,5)-0.5)*wob*sz*0.9:0;
+          const pulse=1+inflate*0.35*Math.sin(t*1.9+gi*0.9);
+          fcx.save(); fcx.translate(gx+adv[k]/2+dx, cy+dy);
+          if(pulse!==1) fcx.scale(pulse,pulse);
+          fcx.fillText(c,-adv[k]/2,0); fcx.restore();
+        }
+        gx+=adv[k]+extra; gi++;
       }
-      gx+=adv[k]+extra; gi++;
+      cy+=lineH;
     }
-    cy+=lineH;
+    const d=fcx.getImageData(0,0,fw,fh).data;
+    for(let i=0,p=3;i<N;i++,p+=4) maskOut[i]=d[p]>110?1:0;
+  };
+
+  const sig=[el.text,el.gooText2,fam,wt,sz,lhM,align,trackBase,fw,fh,pad,q,
+    bridgePx.toFixed(2),weightPx.toFixed(2),morphT.toFixed(3),sepAmt.toFixed(3),melt.toFixed(3),
+    wob?t.toFixed(3):0, inflate?t.toFixed(3):0, anim==='rings'?t.toFixed(3):0, anim,
+    shade,aaPx,el.colorMode,el.color,el.color2,el.gooOutline,el.gooOutlineColor,
+    el.gooRings,el.gooRingGap,el.bgOn?1:0,el.bg].join('|');
+  let ent=_gooCache.get(el.id);
+  if(!ent){ ent={sig:null,cv:document.createElement('canvas')}; _gooCache.set(el.id,ent); }
+  if(ent.cv.width!==fw||ent.cv.height!==fh){ ent.cv.width=fw; ent.cv.height=fh; ent.sig=null; }
+  const drawOut=()=>{
+    lctx.save();
+    if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
+    lctx.imageSmoothingEnabled=true;
+    lctx.drawImage(ent.cv, ex-pad, ey-pad, ew+pad*2, eh+pad*2);
+    lctx.restore();
+  };
+  // nothing that shapes the field changed — reuse it (static art & paused timelines are free)
+  if(ent.sig===sig){ drawOut(); return true; }
+
+  // ── build the signed distance field ─────────────────────────
+  raster(el.text||'GOO', S.mask);
+  const bridging=(bridgePx*q)>0.6 && anim!=='morph';
+  if(bridging){
+    // only the outside distance is needed to dilate — skip the inside EDT
+    for(let i=0;i<N;i++) S.a[i]=S.mask[i]?0:_GOO_INF;
+    _edt2d(S.a,fw,fh,S);
+    for(let i=0;i<N;i++) S.sd[i]=S.mask[i]?-1:Math.sqrt(S.a[i]);
+  } else {
+    _gooSDF(S.mask,fw,fh,S,S.sd);
   }
-
-  // ── blur so neighbouring fields sum, then read back the scalar field ──
-  const bA=_gooCanvas('blur',fw,fh), bcv=bA[0], bcx=bA[1];
-  bcx.setTransform(1,0,0,1,0,0); bcx.clearRect(0,0,fw,fh);
-  bcx.filter = blurPx>0.3 ? ('blur('+(blurPx*q)+'px)') : 'none';
-  bcx.drawImage(fcv,0,0);
-  bcx.filter='none';
-  const img=bcx.getImageData(0,0,fw,fh); const d=img.data;
-  const N=fw*fh;
-  const F=new Float32Array(N);
-  for(let i=0,p=3;i<N;i++,p+=4) F[i]=d[p]/255;
-
-  // ── MELT: smear the field downward with decay so the skin drips ──
+  if(anim==='morph' && morphT>0.001){
+    // interpolating two distance fields morphs the SHAPES — clean, not a crossfade
+    raster(el.gooText2||el.text||'GOO', S.mask2);
+    _gooSDF(S.mask2,fw,fh,S,S.sd2);
+    const m=morphT;
+    for(let i=0;i<N;i++) S.sd[i]=S.sd[i]*(1-m)+S.sd2[i]*m;
+  }
+  const SD=S.sd;
+  const rq=bridgePx*q;                                  // closing radius in field px
+  if(rq>0.6 && anim!=='morph'){
+    // Counters (the enclosed holes in a, e, o, G...) are what make a letterform read.
+    // Closing would swallow any hole smaller than the bridge radius, so flood the
+    // background inward from the border first and protect whatever it cannot reach.
+    const reach=S.mask2; reach.fill(0);
+    const stack=[];
+    for(let x=0;x<fw;x++){ stack.push(x); stack.push((fh-1)*fw+x); }
+    for(let y=0;y<fh;y++){ stack.push(y*fw); stack.push(y*fw+fw-1); }
+    while(stack.length){
+      const p=stack.pop();
+      if(p<0||p>=N||reach[p]||SD[p]<=0) continue;
+      reach[p]=1;
+      const x=p%fw, y=(p/fw)|0;
+      if(x>0)stack.push(p-1); if(x<fw-1)stack.push(p+1);
+      if(y>0)stack.push(p-fw); if(y<fh-1)stack.push(p+fw);
+    }
+    const counter=new Uint8Array(N);
+    for(let i=0;i<N;i++) if(SD[i]>0 && !reach[i]) counter[i]=1;
+    // CLOSING: dilate by r then erode by r — neighbours bridge with real fillets and
+    // the erode gives back the stroke weight the dilate ate.
+    for(let i=0;i<N;i++) S.mask[i]= SD[i]<=rq ?1:0;
+    _gooSDF(S.mask,fw,fh,S,S.sd2);
+    for(let i=0;i<N;i++) SD[i]=S.sd2[i]+rq;
+    // re-open the protected counters
+    for(let i=0;i<N;i++) if(counter[i] && SD[i]<aaPx*q) SD[i]=aaPx*q;
+  }
+  // MELT: propagate insideness downward so the skin sags into uneven drips
   if(melt>0){
-    // drip length is expressed directly in rows so the effect is visible and tunable:
-    // each column gets its own length (noise) so the skin forms uneven stalactites.
     for(let x=0;x<fw;x++){
-      const len=melt*fh*0.42*(0.25+0.95*_mnNoise(x*0.035,7.3,t*0.22));
+      const len=melt*fh*0.40*(0.25+0.95*_mnNoise(x*0.035,7.3,t*0.22));
       if(len<1) continue;
-      const dec=(1-thresh)/len;                 // reach exactly len rows before dropping below the surface
-      let carry=0;
+      const inc=1/Math.max(1,len)*aaPx*2;
+      let carry=_GOO_INF;
       for(let y=0;y<fh;y++){
         const i=y*fw+x;
-        carry=carry-dec;
-        if(F[i]>carry) carry=F[i]; else F[i]=carry;
+        carry=carry+inc;
+        if(SD[i]<carry) carry=SD[i]; else SD[i]=carry;
       }
     }
   }
 
-  // ── threshold the field into a skin, shade it, colour it ──
-  const oA=_gooCanvas('out',fw,fh), ocv=oA[0], ocx=oA[1];
+  // ── shade + colour the surface ──────────────────────────────
+  const ocv=ent.cv, ocx=ocv.getContext('2d');
   if(!_gooOutImg || _gooOutImg.width!==fw || _gooOutImg.height!==fh) _gooOutImg=ocx.createImageData(fw,fh);
   else _gooOutImg.data.fill(0);
-  const out=_gooOutImg; const o=out.data;
+  const o=_gooOutImg.data;
   const cA=hexToRgb(el.color||'#8ef0a7'), cB=hexToRgb(el.color2||'#2bff88');
   const grad=(el.colorMode||'solid')==='gradient';
   const oCol=hexToRgb(el.gooOutlineColor||'#0c0c0e');
-  const half=Math.max(0.004, outlineW*0.02);        // outline band, in field units
-  const invS=1/smooth, invRim=1/(smooth*2.2), invHalf=1/half;
-  const shadeOn=shade>0, outOn=outlineW>0, rimK=shade*90, lamK=shade*0.55;
+  const lineW=Math.max(0,(el.gooOutline==null?0:el.gooOutline))*q;
+  const rings=Math.max(0,Math.round(el.gooRings==null?0:el.gooRings));
+  const ringGap=Math.max(2,(el.gooRingGap==null?10:el.gooRingGap))*q;
+  const ringPhase=(anim==='rings')? saw(0.25)*ringGap : 0;
+  const surf=weightPx*q;                                // surface level (+ = fatter, - = thinner)
+  const aa=aaPx*q, invAA=1/(2*aa);
+  const shadeOn=shade>0, lamK=shade*0.55, rimK=shade*70;
   for(let y=0;y<fh;y++){
-    // gradient only varies down the element — resolve it once per row, not per pixel
     let rr,gg,bb;
     if(grad){ const f=y/fh; rr=cA[0]+(cB[0]-cA[0])*f; gg=cA[1]+(cB[1]-cA[1])*f; bb=cA[2]+(cB[2]-cA[2])*f; }
     else { rr=cA[0]; gg=cA[1]; bb=cA[2]; }
     const row=y*fw;
     for(let x=0;x<fw;x++){
-      const i=row+x, v=F[i];
-      let a=(v-thresh)*invS+0.5;                    // smoothstep across the surface
-      if(a<=0.002) continue;
+      const i=row+x, v=SD[i]-surf;                      // <0 inside the surface
+      let a=0.5-v*invAA;                                // exact 1px antialiased edge
+      if(a<=0.004){
+        // outside the skin — but iso-contour rings may still draw here
+        if(rings>0 && v>0){
+          const band=((v+ringPhase)%ringGap+ringGap)%ringGap;
+          const dist=Math.min(band,ringGap-band);
+          if(dist<lineW*0.5 && v<ringGap*rings){
+            const m=1-dist/(lineW*0.5);
+            const p=i*4;
+            o[p]=oCol[0]; o[p+1]=oCol[1]; o[p+2]=oCol[2]; o[p+3]=m*255*0.85;
+          }
+        }
+        continue;
+      }
       if(a>1) a=1;
       let r=rr,g=gg,b=bb;
       if(shadeOn){
-        // fake normal from the field gradient → gel-like lambert + rim light
-        const xr=x<fw-1?F[i+1]:v, xl=x>0?F[i-1]:v;
-        const yd=y<fh-1?F[i+fw]:v, yu=y>0?F[i-fw]:v;
-        let lam=(-(xr-xl)*0.6-(yd-yu)*0.8)*7;
+        // |grad SD| == 1 for a true distance field, so this normal is real
+        const xr=x<fw-1?SD[i+1]:SD[i], xl=x>0?SD[i-1]:SD[i];
+        const yd=y<fh-1?SD[i+fw]:SD[i], yu=y>0?SD[i-fw]:SD[i];
+        let lam=(-(xr-xl)*0.5-(yd-yu)*0.85);
         if(lam<-1)lam=-1; else if(lam>1)lam=1;
         const k=1+lam*lamK;
         r*=k; g*=k; b*=k;
-        let e=1-Math.abs(v-thresh)*invRim; if(e<0)e=0;
+        let e=1+v/(sz*q*0.22); if(e<0)e=0; else if(e>1)e=1;   // rim near the edge
         const rim=e*e*e*rimK;
         r+=rim; g+=rim; b+=rim;
       }
-      if(outOn){
-        const band=v>thresh?v-thresh:thresh-v;
-        if(band<half){ const m=1-band*invHalf; r=r+(oCol[0]-r)*m; g=g+(oCol[1]-g)*m; b=b+(oCol[2]-b)*m; }
+      if(lineW>0){
+        const dist=v<0?-v:v;
+        if(dist<lineW*0.5){ const m=1-dist/(lineW*0.5); r=r+(oCol[0]-r)*m; g=g+(oCol[1]-g)*m; b=b+(oCol[2]-b)*m; }
       }
       const p=i*4;
       o[p]=r<0?0:r>255?255:r; o[p+1]=g<0?0:g>255?255:g; o[p+2]=b<0?0:b>255?255:b; o[p+3]=a*255;
     }
   }
-  ocx.putImageData(out,0,0);
-
-  lctx.save();
-  if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
-  lctx.imageSmoothingEnabled=true;
-  lctx.drawImage(ocv, ex-pad, ey-pad, ew+pad*2, eh+pad*2);
-  lctx.restore();
+  ocx.putImageData(_gooOutImg,0,0);
+  ent.sig=sig;
+  drawOut();
   return true;
 }
 function renderGfxEl(lctx,el,layer,W,H){
@@ -23279,7 +23406,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     } else if(el.type==='gootype'){
       setV('gfx-p-gootext',el.text);setV('gfx-p-goocase',el.caseMode);setV('gfx-p-goofont',el.font);setV('gfx-p-gooweight',el.weight);
       setV('gfx-p-goosize',el.gooSize);setV('gfx-p-goolh',el.lineHeight);setV('gfx-p-gooalign',el.align);
-      setV('gfx-p-goomerge',el.gooMerge);setV('gfx-p-goothresh',el.gooThresh);setV('gfx-p-goosmooth',el.gooSmooth);
+      setV('gfx-p-goobridge',el.gooBridge);setV('gfx-p-gooweightv',el.gooWeight);setV('gfx-p-goorings',el.gooRings);setV('gfx-p-gooringgap',el.gooRingGap);setV('gfx-p-gooanim',el.gooAnim);setV('gfx-p-gootext2',el.gooText2);setV('gfx-p-gooweightamp',el.gooWeightAmp);setV('gfx-p-goosmooth',el.gooSmooth);
       setV('gfx-p-goomelt',el.gooMelt);setV('gfx-p-gooshade',el.gooShade);setV('gfx-p-gooquality',el.gooQuality);
       setV('gfx-p-goospread',el.gooSpread);setV('gfx-p-goospreadanim',el.gooSpreadAnim);setV('gfx-p-goospreadspeed',el.gooSpreadSpeed);
       setV('gfx-p-goowobble',el.gooWobble);setV('gfx-p-goowobblespeed',el.gooWobbleSpeed);setV('gfx-p-gooinflate',el.gooInflate);setV('gfx-p-goospeed',el.gooSpeed);
@@ -23400,7 +23527,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfcol','color','str'],['gfx-p-tfcol2','color2','str'],
     ['gfx-p-gootext','text','str'],['gfx-p-goocase','caseMode','str'],['gfx-p-goofont','font','str'],['gfx-p-gooweight','weight','str'],
     ['gfx-p-goosize','gooSize','num'],['gfx-p-goolh','lineHeight','num'],['gfx-p-gooalign','align','str'],
-    ['gfx-p-goomerge','gooMerge','num'],['gfx-p-goothresh','gooThresh','num'],['gfx-p-goosmooth','gooSmooth','num'],
+    ['gfx-p-goobridge','gooBridge','num'],['gfx-p-gooweightv','gooWeight','num'],['gfx-p-goorings','gooRings','num'],['gfx-p-gooringgap','gooRingGap','num'],['gfx-p-gooanim','gooAnim','str'],['gfx-p-gootext2','gooText2','str'],['gfx-p-gooweightamp','gooWeightAmp','num'],['gfx-p-goosmooth','gooSmooth','num'],
     ['gfx-p-goomelt','gooMelt','num'],['gfx-p-gooshade','gooShade','num'],['gfx-p-gooquality','gooQuality','num'],
     ['gfx-p-goospread','gooSpread','num'],['gfx-p-goospreadanim','gooSpreadAnim','str'],['gfx-p-goospreadspeed','gooSpreadSpeed','num'],
     ['gfx-p-goowobble','gooWobble','num'],['gfx-p-goowobblespeed','gooWobbleSpeed','num'],['gfx-p-gooinflate','gooInflate','num'],['gfx-p-goospeed','gooSpeed','num'],

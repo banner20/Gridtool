@@ -2725,13 +2725,18 @@ TOKYO</textarea></div>
             <div class="row"><label>line height</label><input type="range" id="gfx-p-goolh" min="0.6" max="2" value="1.02" step="0.01"><span class="val" id="gfx-p-goolh-v">1.02</span></div>
             <div class="row"><label>align</label><select id="gfx-p-gooalign"><option value="left">left</option><option value="center" selected>center</option><option value="right">right</option></select></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">the goo</div>
-            <div class="row"><label>merge</label><input type="range" id="gfx-p-goomerge" min="0" max="1" value="0.45" step="0.01"><span class="val" id="gfx-p-goomerge-v">0.45</span></div>
-            <div class="row"><label>surface</label><input type="range" id="gfx-p-goothresh" min="0.05" max="0.95" value="0.42" step="0.01"><span class="val" id="gfx-p-goothresh-v">0.42</span></div>
+            <div class="row"><label>bridge</label><input type="range" id="gfx-p-goobridge" min="0" max="1" value="0.35" step="0.01"><span class="val" id="gfx-p-goobridge-v">0.35</span></div>
+            <div class="row"><label>weight</label><input type="range" id="gfx-p-gooweightv" min="-1" max="1" value="0" step="0.02"><span class="val" id="gfx-p-gooweightv-v">0.00</span></div>
+            <div class="row"><label>contour rings</label><input type="range" id="gfx-p-goorings" min="0" max="12" value="0" step="1"><span class="val" id="gfx-p-goorings-v">0</span></div>
+            <div class="row"><label>ring gap</label><input type="range" id="gfx-p-gooringgap" min="3" max="40" value="10" step="1"><span class="val" id="gfx-p-gooringgap-v">10</span></div>
             <div class="row"><label>edge soft</label><input type="range" id="gfx-p-goosmooth" min="0.005" max="0.4" value="0.06" step="0.005"><span class="val" id="gfx-p-goosmooth-v">0.060</span></div>
             <div class="row"><label>melt / drip</label><input type="range" id="gfx-p-goomelt" min="0" max="1" value="0" step="0.02"><span class="val" id="gfx-p-goomelt-v">0.00</span></div>
             <div class="row"><label>gel shading</label><input type="range" id="gfx-p-gooshade" min="0" max="1" value="0.35" step="0.02"><span class="val" id="gfx-p-gooshade-v">0.35</span></div>
             <div class="row"><label>quality</label><input type="range" id="gfx-p-gooquality" min="0.25" max="1" value="0.6" step="0.05"><span class="val" id="gfx-p-gooquality-v">0.60</span></div>
             <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">motion</div>
+            <div class="row"><label>animation</label><select id="gfx-p-gooanim"><option value="none">none</option><option value="weight">weight breathe (thin↔black)</option><option value="bridge">bridge (connect↔release)</option><option value="reveal">reveal (grow on)</option><option value="dissolve">dissolve (erode away)</option><option value="morph">morph to 2nd text</option><option value="rings">radiating contours</option></select></div>
+            <div class="row"><label>morph target</label><input type="text" id="gfx-p-gootext2" value="MELT" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+            <div class="row"><label>weight swing</label><input type="range" id="gfx-p-gooweightamp" min="0" max="1" value="0.5" step="0.02"><span class="val" id="gfx-p-gooweightamp-v">0.50</span></div>
             <div class="row"><label>separation</label><input type="range" id="gfx-p-goospread" min="0" max="2" value="0.35" step="0.05"><span class="val" id="gfx-p-goospread-v">0.35</span></div>
             <div class="row"><label>↳ anim</label><select id="gfx-p-goospreadanim"><option value="breathe">breathe (merge↔split)</option><option value="pulse">pulse</option><option value="none">static</option></select></div>
             <div class="row"><label>↳ rate</label><input type="range" id="gfx-p-goospreadspeed" min="0.05" max="4" value="1" step="0.05"><span class="val" id="gfx-p-goospreadspeed-v">1.00</span></div>
