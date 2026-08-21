@@ -3000,7 +3000,22 @@ UNIT</textarea></div>
 
           <!-- TEXT-PATTERN FILL (Ref C: SAINT LAURENT) -->
           <div id="gfx-pp-textfill" style="display:none;">
-            <div class="row"><label>mode</label><select id="gfx-p-tfmode"><option value="grid">kinetic grid</option><option value="brick">kinetic brick</option><option value="pack">growing word pack</option><option value="wall">type wall (static)</option></select></div>
+            <div class="row"><label>mode</label><select id="gfx-p-tfmode">
+              <optgroup label="cells">
+                <option value="grid">kinetic grid</option>
+                <option value="brick">kinetic brick</option>
+                <option value="pack">growing word pack</option>
+                <option value="wall">type wall (static)</option>
+              </optgroup>
+              <optgroup label="type in motion">
+                <option value="orbit">orbit rings</option>
+                <option value="river">river / wave</option>
+                <option value="carousel">carousel (3D)</option>
+                <option value="ticker">ticker wall</option>
+                <option value="crawl">perspective crawl</option>
+                <option value="cloud">word cloud</option>
+              </optgroup>
+            </select></div>
             <div class="row" style="align-items:flex-start;"><label>words</label><textarea id="gfx-p-tftext" rows="4" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;resize:vertical;" placeholder="one per line — cells cycle through them">MUMBAI
 DELHI
 TOKYO</textarea></div>
@@ -3020,7 +3035,7 @@ TOKYO</textarea></div>
               <div class="row"><label>cell pad</label><input type="range" id="gfx-p-tfgap" min="0" max="0.4" value="0.08" step="0.01"><span class="val" id="gfx-p-tfgap-v">0.08</span></div>
               <div class="row"><label>animate</label><select id="gfx-p-tfanim"><option value="cycle">cycle (transition)</option><option value="off">static</option></select></div>
               <div class="row"><label>pattern</label><select id="gfx-p-tfpattern"><option value="random">random</option><option value="lr">wipe →</option><option value="rl">wipe ←</option><option value="tb">wipe ↓</option><option value="bt">wipe ↑</option><option value="diagonal">diagonal</option><option value="checker">checker</option><option value="center">center → out</option><option value="edges">edges → in</option></select></div>
-              <div class="row"><label>transition</label><select id="gfx-p-tfstyle"><option value="scramble">scramble / decode</option><option value="cut">cut</option><option value="fade">fade</option><option value="wipe">wipe</option><option value="flip">flip</option><option value="slide">slide</option></select></div>
+              <div class="row"><label>transition</label><select id="gfx-p-tfstyle"><option value="scramble">scramble / decode</option><option value="anagram">anagram morph</option><option value="splitflap">split-flap board</option><option value="typewriter">typewriter</option><option value="odometer">odometer roll</option><option value="iris">iris reveal</option><option value="glitch">glitch slice</option><option value="dissolve">dissolve</option><option value="cut">cut</option><option value="fade">fade</option><option value="wipe">wipe</option><option value="flip">flip</option><option value="slide">slide</option></select></div>
               <div class="row" id="gfx-tfscr-row"><label>charset</label><select id="gfx-p-tfscrset"><option value="symbols">symbols</option><option value="katakana">katakana</option><option value="binary">binary</option><option value="alpha">A–Z</option><option value="digits">0–9</option></select></div>
               <div class="row"><label>hold (s)</label><input type="range" id="gfx-p-tfhold" min="0" max="6" value="1.4" step="0.1"><span class="val" id="gfx-p-tfhold-v">1.4</span></div>
               <div class="row"><label>transition (s)</label><input type="range" id="gfx-p-tftrans" min="0.05" max="3" value="0.5" step="0.05"><span class="val" id="gfx-p-tftrans-v">0.50</span></div>
@@ -3036,6 +3051,17 @@ TOKYO</textarea></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ text</label><input type="color" id="gfx-p-tfhitext" value="#0c0c0e"></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ hold (s)</label><input type="range" id="gfx-p-tfhihold" min="0.08" max="3" value="0.6" step="0.02"><span class="val" id="gfx-p-tfhihold-v">0.60</span></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ slide</label><input type="range" id="gfx-p-tfhislide" min="0" max="1" value="0.5" step="0.05"><span class="val" id="gfx-p-tfhislide-v">0.50</span></div>
+            </div>
+            <!-- TYPE IN MOTION controls -->
+            <div id="gfx-tfmo-rows" style="display:none;">
+              <div class="tip" id="gfx-tfmo-hint" style="font-size:7px;"></div>
+              <div class="row"><label>size</label><input type="range" id="gfx-p-tfmosize" min="0.15" max="4" value="1" step="0.05"><span class="val" id="gfx-p-tfmosize-v">1.00</span></div>
+              <div class="row" id="gfx-tfmo-count-row"><label>rings / rows</label><input type="range" id="gfx-p-tfmocount" min="1" max="12" value="4" step="1"><span class="val" id="gfx-p-tfmocount-v">4</span></div>
+              <div class="row" id="gfx-tfmo-radius-row"><label>radius</label><input type="range" id="gfx-p-tfmoradius" min="0.1" max="1.6" value="0.8" step="0.05"><span class="val" id="gfx-p-tfmoradius-v">0.80</span></div>
+              <div class="row" id="gfx-tfmo-amp-row"><label>amount</label><input type="range" id="gfx-p-tfmoamp" min="0" max="0.6" value="0.25" step="0.01"><span class="val" id="gfx-p-tfmoamp-v">0.25</span></div>
+              <div class="row" id="gfx-tfmo-freq-row"><label>frequency</label><input type="range" id="gfx-p-tfmofreq" min="0.2" max="6" value="1.5" step="0.1"><span class="val" id="gfx-p-tfmofreq-v">1.5</span></div>
+              <div class="row" id="gfx-tfmo-gap-row"><label>spacing / rate</label><input type="range" id="gfx-p-tfmogap" min="0.2" max="3" value="1" step="0.05"><span class="val" id="gfx-p-tfmogap-v">1.00</span></div>
+              <div class="row" id="gfx-tfmo-alt-row"><label>alternate dir</label><input type="checkbox" id="gfx-p-tfmoalt" checked></div>
             </div>
             <!-- GROWING WORD PACK controls -->
             <div id="gfx-tfpack-rows" style="display:none;">
@@ -7665,7 +7691,9 @@ function gfxDefaultEl(type){
     tfPackRate:0.5,tfPackMax:16,tfPackOrder:'sequence',tfPackHold:1.5,tfPackLoop:true,tfPackSeed:1,
     tfPackStyle:'outline',tfPackNewStyle:'solid',tfPackFit:'stretch',tfPackSplit:'longer',tfPackRatio:0.5,tfPackTarget:'largest',tfPackGrow:'scale',
     tfPackRotate:'auto',tfPackWeight:'equal',tfPackHero:'',tfPackMixWeight:false,tfPackChurn:false,tfPackHeat:0,tfPackMin:0.06,tfPackLayout:'guillotine',
-    tfPackLineW:0,tfPackLineCol:'#3a3a3a',tfPackImgMix:0,tfPackNumMix:0};
+    tfPackLineW:0,tfPackLineCol:'#3a3a3a',tfPackImgMix:0,tfPackNumMix:0,
+    // type-in-motion modes (orbit / river / carousel / ticker / crawl / cloud)
+    tfMoCount:4,tfMoRadius:0.8,tfMoAmp:0.25,tfMoFreq:1.5,tfMoAlt:true,tfMoGap:1,tfMoSize:1};
   if(type==='ticker') return{...base,x:0,y:0.45,w:1,h:0.1,
     text:'BREAKING · NOW PLAYING · LIVE',sep:'   •   ',uppercase:true,
     font:"'Helvetica Neue',Arial,sans-serif",weight:'700',fontSize:0.9,tracking:2,
@@ -7983,6 +8011,12 @@ function _gfxKineticDraw(ctx,line,sz,anchorX,topY,o){
   ctx.globalAlpha=baseAlpha;
 }
 // ── KINETIC WORD GRID (textfill grid mode): a tiled word that transitions cell-by-cell ──
+// per-glyph centers for a string centred on 0 (font must already be set)
+function _gfxGlyphRun(ctx,s){
+  const total=ctx.measureText(s).width; let px=-total/2; const out=[];
+  for(const chr of Array.from(s)){ const w=ctx.measureText(chr).width; out.push({c:chr,x:px+w/2,w}); px+=w; }
+  return out;
+}
 function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSet,t,ci,outlineW){
   ctx.globalAlpha=1;
   const cur=items[idx], next=items[nxt];
@@ -7990,6 +8024,10 @@ function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSe
   const draw=(s,px,py)=>{ fitText(s);
     if(outlineW>0){ ctx.lineWidth=outlineW; ctx.lineJoin='round'; ctx.strokeStyle=col; ctx.strokeText(s,px,py); }
     else { ctx.fillStyle=col; ctx.fillText(s,px,py); } };
+  // draw one glyph at an absolute point WITHOUT refitting (font already set)
+  const glyph=(c,px,py)=>{ if(outlineW>0){ ctx.lineWidth=outlineW; ctx.lineJoin='round'; ctx.strokeStyle=col; ctx.strokeText(c,px,py); } else { ctx.fillStyle=col; ctx.fillText(c,px,py); } };
+  // stable font across a morph: fit whichever string is longer so size never jumps
+  const fitBoth=()=>fitText(cur.length>=next.length?cur:next);
   if(tp<=0){ draw(cur,x,y); ctx.globalAlpha=1; return; }
   if(style==='fade'){ ctx.globalAlpha=1-tp; draw(cur,x,y); ctx.globalAlpha=tp; draw(next,x,y); ctx.globalAlpha=1; }
   else if(style==='scramble'){ const step=Math.floor(t*30+ci*5); const L=Math.max(cur.length,next.length); let out='';
@@ -7998,7 +8036,298 @@ function _gfxTextGridCell(ctx,items,idx,nxt,tp,style,x,y,cw,ch,col,fitText,scrSe
   else if(style==='wipe'){ draw(cur,x,y); ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-ch/2,cw,ch*tp); ctx.clip(); draw(next,x,y); ctx.restore(); }
   else if(style==='flip'){ ctx.save(); ctx.translate(x,y); if(tp<0.5){ ctx.scale(1,Math.max(0.02,1-tp*2)); draw(cur,0,0); } else { ctx.scale(1,Math.max(0.02,(tp-0.5)*2)); draw(next,0,0); } ctx.restore(); }
   else if(style==='slide'){ const dy=ch*0.7; ctx.globalAlpha=1-tp; draw(cur,x,y-dy*tp); ctx.globalAlpha=tp; draw(next,x,y+dy*(1-tp)); ctx.globalAlpha=1; }
+  // ── ANAGRAM MORPH: shared letters TRAVEL from their old slot to their new one ──
+  else if(style==='anagram'){
+    fitBoth();
+    const A=_gfxGlyphRun(ctx,cur), B=_gfxGlyphRun(ctx,next);
+    const usedB=new Array(B.length).fill(false); const pairs=[]; const leaveA=[];
+    for(let a=0;a<A.length;a++){
+      let m=-1;
+      for(let b=0;b<B.length;b++){ if(!usedB[b] && B[b].c===A[a].c){ m=b; break; } }
+      if(m>=0){ usedB[m]=true; pairs.push([a,m]); } else leaveA.push(a);
+    }
+    const e=_gfxSelEase(tp,'smooth');
+    // travellers
+    for(const [a,b] of pairs){
+      const gx=A[a].x+(B[b].x-A[a].x)*e;
+      const arc=Math.sin(e*Math.PI)*ch*0.18*((a%2)?-1:1); // slight arc so paths read
+      glyph(A[a].c, x+gx, y+arc);
+    }
+    // leavers fade+drop, arrivals fade+rise
+    ctx.globalAlpha=Math.max(0,1-tp*1.6);
+    for(const a of leaveA) glyph(A[a].c, x+A[a].x, y+ch*0.25*tp);
+    ctx.globalAlpha=Math.max(0,(tp-0.45)/0.55);
+    for(let b=0;b<B.length;b++) if(!usedB[b]) glyph(B[b].c, x+B[b].x, y-ch*0.25*(1-tp));
+    ctx.globalAlpha=1;
+  }
+  // ── SPLIT-FLAP: mechanical departures board, per-character staged ──
+  else if(style==='splitflap'){
+    fitBoth();
+    const A=_gfxGlyphRun(ctx,cur), B=_gfxGlyphRun(ctx,next);
+    const n=Math.max(A.length,B.length), half=ch*0.5;
+    for(let k=0;k<n;k++){
+      const lp=Math.max(0,Math.min(1,(tp-(k/n)*0.55)/0.45)); // stagger across characters
+      const a=A[k], b=B[k];
+      const ax=a?x+a.x:(b?x+b.x:x), bx=b?x+b.x:ax;
+      // TOP half: flips to the new character at the midpoint
+      ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-half,cw,half); ctx.clip();
+      if(lp<0.5){ if(a) glyph(a.c,ax,y); } else { if(b) glyph(b.c,bx,y); }
+      ctx.restore();
+      // BOTTOM half: old card falls away, new card swings up
+      ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y,cw,half); ctx.clip();
+      ctx.translate(x,y);
+      if(lp<0.5){ const s=Math.max(0.02,1-lp*2); ctx.save(); ctx.scale(1,s); if(a) glyph(a.c,ax-x,0); ctx.restore(); }
+      else { const s=Math.max(0.02,(lp-0.5)*2); ctx.save(); ctx.scale(1,s); if(b) glyph(b.c,bx-x,0); ctx.restore(); }
+      ctx.restore();
+    }
+  }
+  // ── TYPEWRITER: backspace the old word, then type the new one, with a cursor ──
+  else if(style==='typewriter'){
+    fitBoth();
+    const del=Math.min(1,tp/0.45), add=Math.max(0,(tp-0.5)/0.5);
+    let s, showCur=true;
+    if(tp<0.5){ const keep=Math.max(0,Math.round(cur.length*(1-del))); s=cur.slice(0,keep); }
+    else { const keep=Math.max(0,Math.round(next.length*add)); s=next.slice(0,keep); }
+    const blink=(Math.floor(t*3)%2)===0;
+    const run=_gfxGlyphRun(ctx,s+(blink?'_':''));
+    for(const g of run) glyph(g.c,x+g.x,y);
+  }
+  // ── ODOMETER: each character rolls vertically like a counter wheel ──
+  else if(style==='odometer'){
+    fitBoth();
+    const A=_gfxGlyphRun(ctx,cur), B=_gfxGlyphRun(ctx,next);
+    const n=Math.max(A.length,B.length);
+    ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y-ch*0.5,cw,ch); ctx.clip();
+    for(let k=0;k<n;k++){
+      const lp=_gfxSelEase(Math.max(0,Math.min(1,(tp-(k/n)*0.4)/0.6)),'smooth');
+      const a=A[k], b=B[k];
+      if(a) glyph(a.c, x+a.x, y-ch*0.85*lp);
+      if(b) glyph(b.c, x+b.x, y+ch*0.85*(1-lp));
+    }
+    ctx.restore();
+  }
+  // ── IRIS: circular reveal of the new word out of the old ──
+  else if(style==='iris'){
+    draw(cur,x,y);
+    ctx.save(); ctx.beginPath();
+    ctx.arc(x,y,Math.hypot(cw,ch)*0.5*tp,0,Math.PI*2); ctx.clip();
+    draw(next,x,y); ctx.restore();
+  }
+  // ── GLITCH SLICE: horizontal bands displace and swap between the two words ──
+  else if(style==='glitch'){
+    const bands=7;
+    for(let bd=0;bd<bands;bd++){
+      const y0=y-ch*0.5+ch*(bd/bands), bh=ch/bands;
+      const h=_gridHash(bd,ci,Math.floor(t*8));
+      const jit=(h-0.5)*cw*0.5*Math.sin(tp*Math.PI); // max displacement mid-transition
+      ctx.save(); ctx.beginPath(); ctx.rect(x-cw/2,y0,cw,bh); ctx.clip();
+      draw(h<tp?next:cur, x+jit, y);
+      ctx.restore();
+    }
+  }
+  // ── DISSOLVE: block-noise dissolve from old to new ──
+  else if(style==='dissolve'){
+    const bx=8, by=5;
+    for(let gy=0;gy<by;gy++) for(let gx=0;gx<bx;gx++){
+      const h=_gridHash(gx+ci*3,gy,7);
+      ctx.save(); ctx.beginPath();
+      ctx.rect(x-cw/2+cw*(gx/bx), y-ch*0.5+ch*(gy/by), cw/bx+1, ch/by+1); ctx.clip();
+      draw(h<tp?next:cur,x,y);
+      ctx.restore();
+    }
+  }
   else { draw(tp<0.5?cur:next,x,y); } // cut
+}
+// ══════════════════════════════════════════════════════════════
+// TYPE IN MOTION — layout modes where the type itself travels through space
+// (orbit / river / carousel / ticker / crawl / cloud). Shared prelude, one
+// renderer each. All deterministic functions of globalT so exports scrub.
+// ══════════════════════════════════════════════════════════════
+const _GFX_MOTION_MODES=['orbit','river','carousel','ticker','crawl','cloud'];
+const _gfxCloudCache=new Map();
+function _gfxTextMotion(lctx,el,ex,ey,ew,eh,unit,mode){
+  const cm=el.caseMode||'upper';
+  let words=String(el.text||'TEXT').split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!words.length) words=['TEXT'];
+  words=words.map(s=> cm==='upper'?s.toUpperCase() : cm==='lower'?s.toLowerCase() : s);
+  const N=words.length;
+  const fam=el.font||"'Helvetica Neue',Arial,sans-serif", wt=el.weight||'800';
+  const t=(globalT||0)/60*Math.max(0,(el.tfSpeed??1));
+  const colMode=el.colorMode||'solid', colA=el.color||'#ffffff', colB=el.color2||'#ff3b30';
+  const outlineW=Math.max(0,(el.tfOutline||0))*(unit*0.06);
+  const count=Math.max(1,Math.round(el.tfMoCount??4));
+  const radiusF=Math.max(0.05,(el.tfMoRadius??0.8));
+  const amp=(el.tfMoAmp??0.25), freq=Math.max(0.1,(el.tfMoFreq??1.5));
+  const alt=el.tfMoAlt!==false, gapF=Math.max(0.2,(el.tfMoGap??1));
+  const baseSz=Math.max(4, unit*(parseFloat(el.tfMoSize)||1)*1.2);
+  const sep=el.sep||'  •  ';
+  const cx=ex+ew/2, cy=ey+eh/2;
+  const _h2=(h,s,l)=>{ const c=_hsl2rgb(((h%1)+1)%1,s,l); return 'rgb('+c[0]+','+c[1]+','+c[2]+')'; };
+  const colorFor=(i,f)=>{
+    if(colMode==='alt') return (i&1)?colB:colA;
+    if(colMode==='item') return _h2(i/Math.max(1,N),0.72,0.6);
+    if(colMode==='gradient') return _pLerpHex(colA,colB,Math.max(0,Math.min(1,f==null?0.5:f)));
+    if(colMode==='rainbow') return _h2(i*0.13+t*0.05,0.8,0.6);
+    return colA;
+  };
+  const paint=(s,px,py)=>{ if(outlineW>0){ lctx.lineWidth=outlineW; lctx.lineJoin='round'; lctx.strokeText(s,px,py); } else lctx.fillText(s,px,py); };
+  lctx.save(); lctx.beginPath(); lctx.rect(ex,ey,ew,eh); lctx.clip();
+  if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
+  lctx.textAlign='center'; lctx.textBaseline='middle';
+
+  if(mode==='orbit'){
+    // concentric rings of words, each counter-rotating at its own rate
+    const maxR=Math.min(ew,eh)*0.5*radiusF;
+    for(let r=0;r<count;r++){
+      const rr=maxR*(0.32+0.68*((r+1)/count));
+      const sz=baseSz*(0.55+0.45*((r+1)/count))*0.55;
+      lctx.font=wt+' '+sz+'px '+fam;
+      const dir=(alt&&(r&1))?-1:1;
+      const spin=t*0.35*dir*(1+r*0.15);
+      const circ=2*Math.PI*rr;
+      // build a string long enough to wrap the ring
+      let s=''; let guard=0;
+      while(lctx.measureText(s).width<circ && guard++<40) s+=words[(r+guard)%N]+sep;
+      const chars=Array.from(s);
+      let acc=0;
+      for(let k=0;k<chars.length;k++){
+        const w=lctx.measureText(chars[k]).width;
+        const a=spin+(acc+w/2)/rr;
+        if(acc>circ) break;
+        acc+=w;
+        const px=cx+Math.cos(a)*rr, py=cy+Math.sin(a)*rr;
+        lctx.save(); lctx.translate(px,py); lctx.rotate(a+Math.PI/2);
+        lctx.fillStyle=lctx.strokeStyle=colorFor(r,(r+1)/count);
+        paint(chars[k],0,0); lctx.restore();
+      }
+    }
+  }
+  else if(mode==='river'){
+    // one long string flowing along an undulating wave, glyphs tangent to it
+    lctx.font=wt+' '+baseSz+'px '+fam;
+    const A=amp*eh*0.5;
+    const line=words.join(sep)+sep;
+    const lineW=lctx.measureText(line).width||1;
+    const reps=Math.ceil((ew+lineW*2)/lineW)+1;
+    const scroll=(t*baseSz*2*gapF)%lineW;
+    const yOf=(px)=>cy+A*Math.sin((px-ex)/Math.max(1,ew)*freq*Math.PI*2 - t*1.6);
+    for(let rp=0;rp<reps;rp++){
+      let px=ex-lineW+rp*lineW-scroll;
+      for(const chr of Array.from(line)){
+        const w=lctx.measureText(chr).width;
+        if(px>ex-w && px<ex+ew+w){
+          const y0=yOf(px), y1=yOf(px+Math.max(1,w));
+          lctx.save(); lctx.translate(px+w/2,y0); lctx.rotate(Math.atan2(y1-y0,Math.max(1,w)));
+          lctx.fillStyle=lctx.strokeStyle=colorFor(rp,(px-ex)/ew);
+          paint(chr,0,0); lctx.restore();
+        }
+        px+=w;
+      }
+    }
+  }
+  else if(mode==='carousel'){
+    // words wrapped on a cylinder rotating about the horizontal axis (fake 3D)
+    const R=Math.min(eh*0.5*radiusF, eh*0.48);
+    const spin=t*0.5;
+    const order=[];
+    for(let i=0;i<N;i++){
+      const a=spin+(i/N)*Math.PI*2;
+      order.push({i,a,z:Math.cos(a),y:cy+R*Math.sin(a)});
+    }
+    order.sort((p,q)=>p.z-q.z); // far first so near overlaps
+    for(const o of order){
+      const front=Math.max(0,o.z), sq=Math.max(0.08,Math.abs(o.z));
+      const persp=0.72+0.28*o.z;
+      lctx.save();
+      lctx.globalAlpha*=0.22+0.78*front;
+      lctx.translate(cx,o.y); lctx.scale(persp,sq*persp);
+      lctx.font=wt+' '+baseSz+'px '+fam;
+      lctx.fillStyle=lctx.strokeStyle=colorFor(o.i,(o.z+1)/2);
+      paint(words[o.i],0,0);
+      lctx.restore();
+    }
+  }
+  else if(mode==='ticker'){
+    // multi-row marquee, alternate rows running opposite ways at their own speed
+    const rows=count, rh=eh/rows;
+    for(let r=0;r<rows;r++){
+      const sz=Math.min(baseSz, rh*0.72);
+      lctx.font=wt+' '+sz+'px '+fam;
+      const line=words.map((w,i)=>words[(i+r)%N]).join(sep)+sep;
+      const lw=Math.max(1,lctx.measureText(line).width);
+      const dir=(alt&&(r&1))?-1:1;
+      const spd=sz*1.6*gapF*(1+r*0.12);
+      let off=(t*spd*dir)%lw; if(off<0) off+=lw;
+      const y=ey+rh*(r+0.5);
+      const reps=Math.ceil(ew/lw)+2;
+      lctx.fillStyle=lctx.strokeStyle=colorFor(r,r/Math.max(1,rows-1));
+      lctx.textAlign='left';
+      for(let k=-1;k<reps;k++) paint(line, ex-off+k*lw, y);
+      lctx.textAlign='center';
+    }
+  }
+  else if(mode==='crawl'){
+    // words receding toward a vanishing point (perspective tunnel)
+    const vy=ey+eh*(0.5-amp);            // vanishing height
+    const items=Math.max(2,count*2);
+    const list=[];
+    for(let i=0;i<items;i++){
+      let p=((t*0.18*gapF)+i/items)%1;    // 0 = near/big, 1 = far/small
+      list.push({i,p});
+    }
+    list.sort((a,b)=>b.p-a.p);            // far drawn first
+    for(const o of list){
+      const s=Math.pow(1-o.p,1.6);
+      const sz=baseSz*(0.15+s*1.85);
+      if(sz<3) continue;
+      const y=vy+(ey+eh-vy)*Math.pow(1-o.p,1.25);
+      lctx.save();
+      lctx.globalAlpha*=Math.min(1,Math.max(0,(1-o.p)*2.2))*Math.min(1,o.p*6+0.15);
+      lctx.font=wt+' '+sz+'px '+fam;
+      lctx.fillStyle=lctx.strokeStyle=colorFor(o.i%N,1-o.p);
+      paint(words[o.i%N],cx,y);
+      lctx.restore();
+    }
+  }
+  else if(mode==='cloud'){
+    // weighted scatter, spiral-packed with collision avoidance (layout cached),
+    // then each word breathes / drifts so the cloud is alive
+    const sig=[words.join('|'),count,radiusF,gapF,Math.round(ew),Math.round(eh),el.tfMoSize,wt,fam,el.tfPackSeed||1].join('~');
+    let placed=_gfxCloudCache.get(el.id);
+    if(!placed || placed.sig!==sig){
+      const rng=_gfxSeedRng(sig);
+      const boxes=[];
+      const wsorted=words.map((w,i)=>({w,i,len:w.length})).sort((a,b)=>b.len-a.len);
+      for(const item of wsorted){
+        const sz=baseSz*(0.45+0.9*(item.len/Math.max(4,wsorted[0].len)));
+        lctx.font=wt+' '+sz+'px '+fam;
+        const tw=lctx.measureText(item.w).width, th=sz;
+        const rot=(rng()<0.28)?(rng()<0.5?-Math.PI/2:Math.PI/2):0;
+        const bw=rot?th:tw, bh=rot?tw:th;
+        let ok=false,px=0,py=0;
+        for(let step=0;step<520 && !ok;step++){
+          const ang=step*0.55, rad=Math.min(ew,eh)*0.5*radiusF*(step/520);
+          px=cx+Math.cos(ang)*rad+(rng()-0.5)*6;
+          py=cy+Math.sin(ang)*rad*0.75+(rng()-0.5)*6;
+          const pad=6*gapF;
+          ok=true;
+          if(px-bw/2<ex||px+bw/2>ex+ew||py-bh/2<ey||py+bh/2>ey+eh) ok=false;
+          if(ok) for(const b of boxes){ if(Math.abs(px-b.x)<(bw+b.w)/2+pad && Math.abs(py-b.y)<(bh+b.h)/2+pad){ ok=false; break; } }
+        }
+        if(ok) boxes.push({x:px,y:py,w:bw,h:bh,sz,rot,word:item.w,i:item.i,ph:rng()*6.28});
+      }
+      placed={sig,boxes}; _gfxCloudCache.set(el.id,placed);
+    }
+    for(const b of placed.boxes){
+      const br=1+Math.sin(t*1.1+b.ph)*0.06*(amp*4);      // breathe
+      const dx=Math.sin(t*0.5+b.ph)*3*amp*4, dy=Math.cos(t*0.42+b.ph*1.3)*3*amp*4;
+      lctx.save(); lctx.translate(b.x+dx,b.y+dy); if(b.rot) lctx.rotate(b.rot); lctx.scale(br,br);
+      lctx.font=wt+' '+b.sz+'px '+fam;
+      lctx.fillStyle=lctx.strokeStyle=colorFor(b.i,(b.x-ex)/ew);
+      paint(b.word,0,0); lctx.restore();
+    }
+  }
+  lctx.restore();
 }
 function _gfxTextGrid(lctx,el,ex,ey,ew,eh,unit){
   const cols=Math.max(1,Math.round(el.tfCols||6)), rows=Math.max(1,Math.round(el.tfRows||4)), brick=(el.tfMode==='brick');
@@ -8945,6 +9274,12 @@ function renderGfxEl(lctx,el,layer,W,H){
 
   else if(el.type==='textfill'){
     const ehG=Math.round((el.h||0.5)*H);
+    // NEW: type-in-motion modes — the layout itself travels through space.
+    if(_GFX_MOTION_MODES.includes(el.tfMode)){
+      _gfxTextMotion(lctx,el,ex,ey,ew,ehG,unit,el.tfMode);
+      bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
+      lctx.restore(); return {id:el.id,...bbox};
+    }
     // NEW: growing word-pack — a space-filling treemap that builds word by word.
     if((el.tfMode||'wall')==='pack'){
       _gfxTextPack(lctx,el,ex,ey,ew,ehG,unit);
@@ -18291,6 +18626,11 @@ function wireParamInputs(){
     show('sizegrad-params', sizeGradDir!=='none');
   }
   window._updateConditionalUI = updateConditionalUI;
+  // updateConditionalUI is declared inside this closure, but the add-layer helpers and
+  // several panel handlers live at top level and call it by bare name — expose it there
+  // too, or every "add layer" click throws ReferenceError and the panel never switches
+  // to the new layer type's controls.
+  window.updateConditionalUI = updateConditionalUI;
 
   // ── CLICK-TO-EDIT SLIDER VALUES ──────────────────────────────
   // Clicking a .val span makes it an inline input so you can type exact values
@@ -22382,12 +22722,32 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     if(v&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; v.textContent=parseFloat(e.value).toFixed(dec); }
   }
   // textfill: show only the controls relevant to the chosen mode (grid/brick | pack | wall)
+  // per-motion-mode: which of the shared sliders apply, what they're called, and a hint
+  const _GFX_MO_UI={
+    orbit:   {label:'rings',  hint:'Concentric rings of words, each counter-rotating. radius = ring spread.', rows:['count','radius','gap','alt']},
+    river:   {label:'—',      hint:'One long string flowing along a travelling wave. amount = wave height.',  rows:['amp','freq','gap']},
+    carousel:{label:'—',      hint:'Words wrapped on a rotating cylinder. radius = cylinder size.',           rows:['radius']},
+    ticker:  {label:'rows',   hint:'Marquee rows; alternate rows run opposite ways. spacing = speed.',        rows:['count','gap','alt']},
+    crawl:   {label:'density',hint:'Words receding to a vanishing point. amount = horizon height.',           rows:['count','amp','gap']},
+    cloud:   {label:'—',      hint:'Weighted scatter, packed without overlaps. amount = drift/breathe.',      rows:['radius','amp','gap']},
+  };
   function gfxTextfillModeUI(el){
     if(!el) return; const mode=el.tfMode||'wall';
     const isGrid=(mode==='grid'||mode==='brick'), isPack=(mode==='pack'), isWall=(mode==='wall');
+    const isMo=_GFX_MOTION_MODES.includes(mode);
     document.querySelectorAll('#gfx-pp-textfill .gfx-tfwall').forEach(e=>e.style.display=isWall?'flex':'none');
     const gr=document.getElementById('gfx-tfgrid-rows'); if(gr) gr.style.display=isGrid?'block':'none';
     const pk=document.getElementById('gfx-tfpack-rows'); if(pk) pk.style.display=isPack?'block':'none';
+    const mo=document.getElementById('gfx-tfmo-rows'); if(mo) mo.style.display=isMo?'block':'none';
+    if(isMo){
+      const cfg=_GFX_MO_UI[mode]||{rows:[],hint:''};
+      const hint=document.getElementById('gfx-tfmo-hint'); if(hint) hint.textContent=cfg.hint;
+      [['count','gfx-tfmo-count-row'],['radius','gfx-tfmo-radius-row'],['amp','gfx-tfmo-amp-row'],
+       ['freq','gfx-tfmo-freq-row'],['gap','gfx-tfmo-gap-row'],['alt','gfx-tfmo-alt-row']].forEach(([k,id])=>{
+        const r=document.getElementById(id); if(r) r.style.display=cfg.rows.includes(k)?'flex':'none';
+      });
+      const cl=document.querySelector('#gfx-tfmo-count-row label'); if(cl&&cfg.label&&cfg.label!=='—') cl.textContent=cfg.label;
+    }
     const sr=document.getElementById('gfx-tfscr-row'); if(sr) sr.style.display=(isGrid&&(el.tfStyle||'scramble')==='scramble')?'flex':'none';
     document.querySelectorAll('#gfx-pp-textfill .gfx-tfhi').forEach(e=>e.style.display=(isGrid&&el.tfHiOn)?'flex':'none');
     const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=isGrid?'block':'none';
@@ -22724,6 +23084,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-tfpacksplit',el.tfPackSplit||'longer');setV('gfx-p-tfpackratio',el.tfPackRatio==null?0.5:el.tfPackRatio);setV('gfx-p-tfpacktarget',el.tfPackTarget||'largest');setV('gfx-p-tfpackoutline',el.tfOutline==null?1.5:el.tfOutline);setV('gfx-p-tfpackgap',el.tfGap==null?0.04:el.tfGap);
       setV('gfx-p-tfpacklayout',el.tfPackLayout||'guillotine');setV('gfx-p-tfpackrotate',el.tfPackRotate||'auto');setV('gfx-p-tfpackweight',el.tfPackWeight||'equal');setV('gfx-p-tfpackhero',el.tfPackHero||'');setV('gfx-p-tfpackmixweight',!!el.tfPackMixWeight);
       setV('gfx-p-tfpackchurn',!!el.tfPackChurn);setV('gfx-p-tfpackheat',el.tfPackHeat==null?0:el.tfPackHeat);setV('gfx-p-tfpackmin',el.tfPackMin==null?0.06:el.tfPackMin);
+      setV('gfx-p-tfmocount',el.tfMoCount==null?4:el.tfMoCount);setV('gfx-p-tfmoradius',el.tfMoRadius==null?0.8:el.tfMoRadius);setV('gfx-p-tfmoamp',el.tfMoAmp==null?0.25:el.tfMoAmp);
+      setV('gfx-p-tfmofreq',el.tfMoFreq==null?1.5:el.tfMoFreq);setV('gfx-p-tfmogap',el.tfMoGap==null?1:el.tfMoGap);setV('gfx-p-tfmoalt',el.tfMoAlt!==false);setV('gfx-p-tfmosize',el.tfMoSize==null?1:el.tfMoSize);
       setV('gfx-p-tfpacklinew',el.tfPackLineW==null?0:el.tfPackLineW);setV('gfx-p-tfpacklinecol',el.tfPackLineCol||'#3a3a3a');setV('gfx-p-tfpackimgmix',el.tfPackImgMix==null?0:el.tfPackImgMix);setV('gfx-p-tfpacknummix',el.tfPackNumMix==null?0:el.tfPackNumMix);
       { const nm=document.getElementById('gfx-p-tfpackimgname'); if(nm) nm.textContent=el._fillImgName||'none'; }
       gfxTextfillModeUI(el);
@@ -22826,6 +23188,8 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tfpacksplit','tfPackSplit','str'],['gfx-p-tfpackratio','tfPackRatio','num'],['gfx-p-tfpacktarget','tfPackTarget','str'],['gfx-p-tfpackoutline','tfOutline','num'],['gfx-p-tfpackgap','tfGap','num'],
     ['gfx-p-tfpacklayout','tfPackLayout','str'],['gfx-p-tfpackrotate','tfPackRotate','str'],['gfx-p-tfpackweight','tfPackWeight','str'],['gfx-p-tfpackhero','tfPackHero','str'],['gfx-p-tfpackmixweight','tfPackMixWeight','bool'],
     ['gfx-p-tfpackchurn','tfPackChurn','bool'],['gfx-p-tfpackheat','tfPackHeat','num'],['gfx-p-tfpackmin','tfPackMin','num'],
+    ['gfx-p-tfmocount','tfMoCount','num'],['gfx-p-tfmoradius','tfMoRadius','num'],['gfx-p-tfmoamp','tfMoAmp','num'],
+    ['gfx-p-tfmofreq','tfMoFreq','num'],['gfx-p-tfmogap','tfMoGap','num'],['gfx-p-tfmoalt','tfMoAlt','bool'],['gfx-p-tfmosize','tfMoSize','num'],
     ['gfx-p-tfpacklinew','tfPackLineW','num'],['gfx-p-tfpacklinecol','tfPackLineCol','str'],['gfx-p-tfpackimgmix','tfPackImgMix','num'],['gfx-p-tfpacknummix','tfPackNumMix','num'],
     ['gfx-p-tftrack','tracking','num'],['gfx-p-tfbreathe','trackingBreathe','num'],['gfx-p-tfbrspeed','breatheSpeed','num'],
     ['gfx-p-tfscrollx','scrollX','num'],['gfx-p-tfscrolly','scrollY','num'],['gfx-p-tfbgon','bgOn','bool'],['gfx-p-tfbg','bg','str'],

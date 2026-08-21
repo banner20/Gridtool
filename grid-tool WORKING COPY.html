@@ -2603,7 +2603,22 @@ UNIT</textarea></div>
 
           <!-- TEXT-PATTERN FILL (Ref C: SAINT LAURENT) -->
           <div id="gfx-pp-textfill" style="display:none;">
-            <div class="row"><label>mode</label><select id="gfx-p-tfmode"><option value="grid">kinetic grid</option><option value="brick">kinetic brick</option><option value="pack">growing word pack</option><option value="wall">type wall (static)</option></select></div>
+            <div class="row"><label>mode</label><select id="gfx-p-tfmode">
+              <optgroup label="cells">
+                <option value="grid">kinetic grid</option>
+                <option value="brick">kinetic brick</option>
+                <option value="pack">growing word pack</option>
+                <option value="wall">type wall (static)</option>
+              </optgroup>
+              <optgroup label="type in motion">
+                <option value="orbit">orbit rings</option>
+                <option value="river">river / wave</option>
+                <option value="carousel">carousel (3D)</option>
+                <option value="ticker">ticker wall</option>
+                <option value="crawl">perspective crawl</option>
+                <option value="cloud">word cloud</option>
+              </optgroup>
+            </select></div>
             <div class="row" style="align-items:flex-start;"><label>words</label><textarea id="gfx-p-tftext" rows="4" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;resize:vertical;" placeholder="one per line — cells cycle through them">MUMBAI
 DELHI
 TOKYO</textarea></div>
@@ -2623,7 +2638,7 @@ TOKYO</textarea></div>
               <div class="row"><label>cell pad</label><input type="range" id="gfx-p-tfgap" min="0" max="0.4" value="0.08" step="0.01"><span class="val" id="gfx-p-tfgap-v">0.08</span></div>
               <div class="row"><label>animate</label><select id="gfx-p-tfanim"><option value="cycle">cycle (transition)</option><option value="off">static</option></select></div>
               <div class="row"><label>pattern</label><select id="gfx-p-tfpattern"><option value="random">random</option><option value="lr">wipe →</option><option value="rl">wipe ←</option><option value="tb">wipe ↓</option><option value="bt">wipe ↑</option><option value="diagonal">diagonal</option><option value="checker">checker</option><option value="center">center → out</option><option value="edges">edges → in</option></select></div>
-              <div class="row"><label>transition</label><select id="gfx-p-tfstyle"><option value="scramble">scramble / decode</option><option value="cut">cut</option><option value="fade">fade</option><option value="wipe">wipe</option><option value="flip">flip</option><option value="slide">slide</option></select></div>
+              <div class="row"><label>transition</label><select id="gfx-p-tfstyle"><option value="scramble">scramble / decode</option><option value="anagram">anagram morph</option><option value="splitflap">split-flap board</option><option value="typewriter">typewriter</option><option value="odometer">odometer roll</option><option value="iris">iris reveal</option><option value="glitch">glitch slice</option><option value="dissolve">dissolve</option><option value="cut">cut</option><option value="fade">fade</option><option value="wipe">wipe</option><option value="flip">flip</option><option value="slide">slide</option></select></div>
               <div class="row" id="gfx-tfscr-row"><label>charset</label><select id="gfx-p-tfscrset"><option value="symbols">symbols</option><option value="katakana">katakana</option><option value="binary">binary</option><option value="alpha">A–Z</option><option value="digits">0–9</option></select></div>
               <div class="row"><label>hold (s)</label><input type="range" id="gfx-p-tfhold" min="0" max="6" value="1.4" step="0.1"><span class="val" id="gfx-p-tfhold-v">1.4</span></div>
               <div class="row"><label>transition (s)</label><input type="range" id="gfx-p-tftrans" min="0.05" max="3" value="0.5" step="0.05"><span class="val" id="gfx-p-tftrans-v">0.50</span></div>
@@ -2639,6 +2654,17 @@ TOKYO</textarea></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ text</label><input type="color" id="gfx-p-tfhitext" value="#0c0c0e"></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ hold (s)</label><input type="range" id="gfx-p-tfhihold" min="0.08" max="3" value="0.6" step="0.02"><span class="val" id="gfx-p-tfhihold-v">0.60</span></div>
               <div class="row gfx-tfhi" style="display:none;"><label>↳ slide</label><input type="range" id="gfx-p-tfhislide" min="0" max="1" value="0.5" step="0.05"><span class="val" id="gfx-p-tfhislide-v">0.50</span></div>
+            </div>
+            <!-- TYPE IN MOTION controls -->
+            <div id="gfx-tfmo-rows" style="display:none;">
+              <div class="tip" id="gfx-tfmo-hint" style="font-size:7px;"></div>
+              <div class="row"><label>size</label><input type="range" id="gfx-p-tfmosize" min="0.15" max="4" value="1" step="0.05"><span class="val" id="gfx-p-tfmosize-v">1.00</span></div>
+              <div class="row" id="gfx-tfmo-count-row"><label>rings / rows</label><input type="range" id="gfx-p-tfmocount" min="1" max="12" value="4" step="1"><span class="val" id="gfx-p-tfmocount-v">4</span></div>
+              <div class="row" id="gfx-tfmo-radius-row"><label>radius</label><input type="range" id="gfx-p-tfmoradius" min="0.1" max="1.6" value="0.8" step="0.05"><span class="val" id="gfx-p-tfmoradius-v">0.80</span></div>
+              <div class="row" id="gfx-tfmo-amp-row"><label>amount</label><input type="range" id="gfx-p-tfmoamp" min="0" max="0.6" value="0.25" step="0.01"><span class="val" id="gfx-p-tfmoamp-v">0.25</span></div>
+              <div class="row" id="gfx-tfmo-freq-row"><label>frequency</label><input type="range" id="gfx-p-tfmofreq" min="0.2" max="6" value="1.5" step="0.1"><span class="val" id="gfx-p-tfmofreq-v">1.5</span></div>
+              <div class="row" id="gfx-tfmo-gap-row"><label>spacing / rate</label><input type="range" id="gfx-p-tfmogap" min="0.2" max="3" value="1" step="0.05"><span class="val" id="gfx-p-tfmogap-v">1.00</span></div>
+              <div class="row" id="gfx-tfmo-alt-row"><label>alternate dir</label><input type="checkbox" id="gfx-p-tfmoalt" checked></div>
             </div>
             <!-- GROWING WORD PACK controls -->
             <div id="gfx-tfpack-rows" style="display:none;">
