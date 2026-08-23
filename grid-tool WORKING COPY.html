@@ -2261,6 +2261,7 @@ UNIT</textarea></div>
           <button id="gfx-add-mosaic" title="Add image-driven mosaic (text/ascii/dots from an image)">▦</button>
           <button id="gfx-add-textfill" title="Add text-pattern fill (one word repeated + justified to fill a region — SAINT LAURENT style)">¶</button>
           <button id="gfx-add-gootype" title="Add goo type (metaball/SDF letters that fuse and melt into each other)">ᛙ</button>
+          <button id="gfx-add-3d" title="Add 3D type (real extrusion, perspective camera, WebGL)">◧</button>
           <button id="gfx-add-physics" title="Add physics cluster (word bodies attract, collide & clump — Designzentrum style)">⚛</button>
           <button id="gfx-add-fluid" title="Add fluid swirl (packed circles each with a two-tone swirl fill — metaball/fluid style)">◍</button>
           <button id="gfx-add-ticker" title="Add ticker (infinite scrolling marquee strip — news/now-playing band)">⇄</button>
@@ -2714,6 +2715,37 @@ TOKYO</textarea></div>
           </div>
 
           <!-- PHYSICS CLUSTER (Ref D: Designzentrum) -->
+          <!-- 3D TYPE props -->
+          <div id="gfx-pp-3d" style="display:none;">
+            <div class="tip" style="font-size:7px;">Real extrusion rendered in WebGL with a perspective camera and depth buffer — the letterforms are solid volume, not stacked copies.</div>
+            <div class="row" style="align-items:flex-start;"><label>text</label><textarea id="gfx-p-t3text" rows="2" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;resize:vertical;">DEPTH</textarea></div>
+            <div class="row"><label>case</label><select id="gfx-p-t3case"><option value="upper">UPPER</option><option value="lower">lower</option><option value="as-is">as-is</option></select></div>
+            <div class="row"><label>font</label><select id="gfx-p-t3font" class="gfx-font-sel"></select></div>
+            <div class="row"><label>weight</label><select id="gfx-p-t3weight"><option value="400">regular</option><option value="700">bold</option><option value="800">extra bold</option><option value="900" selected>black</option></select></div>
+            <div class="row"><label>line height</label><input type="range" id="gfx-p-t3lh" min="0.6" max="2" value="1" step="0.01"><span class="val" id="gfx-p-t3lh-v">1.00</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">volume</div>
+            <div class="row"><label>size</label><input type="range" id="gfx-p-t3size" min="0.2" max="3" value="1" step="0.02"><span class="val" id="gfx-p-t3size-v">1.00</span></div>
+            <div class="row"><label>depth</label><input type="range" id="gfx-p-t3depth" min="0" max="1.5" value="0.35" step="0.01"><span class="val" id="gfx-p-t3depth-v">0.35</span></div>
+            <div class="row"><label>quality</label><input type="range" id="gfx-p-t3quality" min="0.15" max="1" value="0.6" step="0.05"><span class="val" id="gfx-p-t3quality-v">0.60</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">camera</div>
+            <div class="row"><label>rotate X</label><input type="range" id="gfx-p-t3rotx" min="-90" max="90" value="-12" step="1"><span class="val" id="gfx-p-t3rotx-v">-12</span></div>
+            <div class="row"><label>rotate Y</label><input type="range" id="gfx-p-t3roty" min="-180" max="180" value="24" step="1"><span class="val" id="gfx-p-t3roty-v">24</span></div>
+            <div class="row"><label>rotate Z</label><input type="range" id="gfx-p-t3rotz" min="-180" max="180" value="0" step="1"><span class="val" id="gfx-p-t3rotz-v">0</span></div>
+            <div class="row"><label>field of view</label><input type="range" id="gfx-p-t3fov" min="8" max="110" value="38" step="1"><span class="val" id="gfx-p-t3fov-v">38</span></div>
+            <div class="row"><label>distance</label><input type="range" id="gfx-p-t3dist" min="0.8" max="6" value="2.3" step="0.05"><span class="val" id="gfx-p-t3dist-v">2.30</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">motion</div>
+            <div class="row"><label>animation</label><select id="gfx-p-t3anim"><option value="none">none</option><option value="spin">spin (Y)</option><option value="tumble">tumble</option><option value="pendulum">pendulum</option><option value="wobble">wobble</option><option value="roll">roll (Z)</option></select></div>
+            <div class="row"><label>amount</label><input type="range" id="gfx-p-t3amp" min="0" max="2" value="1" step="0.05"><span class="val" id="gfx-p-t3amp-v">1.00</span></div>
+            <div class="row"><label>speed</label><input type="range" id="gfx-p-t3speed" min="0" max="4" value="1" step="0.05"><span class="val" id="gfx-p-t3speed-v">1.00</span></div>
+            <div style="margin:5px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">material</div>
+            <div class="row"><label>face</label><input type="color" id="gfx-p-t3col" value="#f4f4f4"></div>
+            <div class="row"><label>side</label><input type="color" id="gfx-p-t3col2" value="#7a2bff"></div>
+            <div class="row"><label>depth shade</label><input type="range" id="gfx-p-t3shade" min="0" max="2" value="1" step="0.05"><span class="val" id="gfx-p-t3shade-v">1.00</span></div>
+            <div class="row"><label>light</label><input type="range" id="gfx-p-t3light" min="0" max="1" value="0.25" step="0.01"><span class="val" id="gfx-p-t3light-v">0.25</span></div>
+            <div class="row"><label>light angle</label><input type="range" id="gfx-p-t3lightangle" min="0" max="360" value="45" step="5"><span class="val" id="gfx-p-t3lightangle-v">45</span></div>
+            <div class="row"><label>background</label><input type="checkbox" id="gfx-p-t3bgon"></div>
+            <div class="row"><label>bg color</label><input type="color" id="gfx-p-t3bg" value="#0c0c0e"></div>
+          </div>
           <!-- GOO TYPE props -->
           <div id="gfx-pp-gootype" style="display:none;">
             <div class="tip" style="font-size:7px;">Letters are drawn into a field that gets blurred and re-thresholded — so neighbours <b>fuse into one skin</b> and pull apart with strands. Animate <b>separation</b> to make them merge and split.</div>

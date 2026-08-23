@@ -3143,6 +3143,7 @@ function gfxDefaultEl(type){
     rotateBodies:false,spinRate:0,rotJitter:0,bodyShape:'text',seed:1,bounds:'region',
     bgOn:false,bg:'#0a0a0a'};
   if(type==='gootype') return{...base,x:0.05,y:0.28,w:0.9,h:0.44,text:'GOO',caseMode:'upper',font:"'Bebas Neue',Impact,sans-serif",weight:'900',gooSize:1.4,lineHeight:1.02,align:'center',tracking:0,gooBridge:0.35,gooWeight:0,gooWeightAmp:0.5,gooAnim:'none',gooText2:'MELT',gooRings:0,gooRingGap:10,gooThresh:0.42,gooSmooth:0.06,gooQuality:0.55,gooSpread:0.35,gooSpreadAnim:'breathe',gooSpreadSpeed:1,gooSpeed:1,gooWobble:0.12,gooWobbleSpeed:1,gooInflate:0.25,gooMelt:0,gooShade:0.35,gooOutline:0,gooOutlineColor:'#0c0c0e',colorMode:'solid',color:'#8ef0a7',color2:'#2bff88',bgOn:false,bg:'#0c0c0e'};
+  if(type==='3d') return{...base,x:0.05,y:0.25,w:0.9,h:0.5,text:'DEPTH',caseMode:'upper',font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1.0,t3Size:1,t3Depth:0.35,t3Quality:0.6,t3RotX:-12,t3RotY:24,t3RotZ:0,t3Anim:'none',t3Amp:1,t3Speed:1,t3Fov:38,t3Dist:2.3,t3Shade:1,t3Light:0.25,t3LightAngle:45,color:'#f4f4f4',color2:'#7a2bff',bgOn:false,bg:'#0c0c0e'};
   if(type==='textfill') return{...base,x:0.05,y:0.1,w:0.9,h:0.7,
     text:'MUMBAI\nDELHI\nTOKYO\nLAGOS\nPARIS\nSEOUL',sep:'  ',caseMode:'upper',
     font:"'Helvetica Neue',Arial,sans-serif",weight:'800',fontSize:0.9,lineHeight:1.05,
@@ -4395,6 +4396,185 @@ function _gfxGooType(lctx,el,ex,ey,ew,eh,unit){
   drawOut();
   return true;
 }
+// ══════════════════════════════════════════════════════════════
+// 3D TYPE — real extrusion with a perspective camera, rendered in WebGL and
+// composited back into the 2D layer pipeline. The glyphs are rasterised once
+// into a texture, then drawn as a dense stack of alpha-tested quads along Z
+// with the depth buffer on, so the letterforms read as solid volume from any
+// angle and the extrusion is genuine geometry rather than offset copies.
+// Rendered at 2x and downsampled for clean edges. Deterministic on globalT.
+// ══════════════════════════════════════════════════════════════
+let _t3Cv=null,_t3Gl=null,_t3Prog=null,_t3Buf=null,_t3Tex=null,_t3TexSig='',_t3GeoSig='',_t3Count=0,_t3Loc=null,_t3Fail=false;
+let _t3TextCv=null,_t3TextCx=null;
+function _t3Init(){
+  if(_t3Gl||_t3Fail) return _t3Gl;
+  _t3Cv=document.createElement('canvas');
+  const gl=_t3Cv.getContext('webgl2',{alpha:true,antialias:true,premultipliedAlpha:false})
+        || _t3Cv.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:false});
+  if(!gl){ _t3Fail=true; return null; }
+  const vsrc=
+    'attribute vec3 aPos; attribute vec2 aUv; attribute float aT;'+
+    'uniform mat4 uMVP; varying vec2 vUv; varying float vT;'+
+    'void main(){ vUv=aUv; vT=aT; gl_Position=uMVP*vec4(aPos,1.0); }';
+  const fsrc=
+    'precision mediump float; varying vec2 vUv; varying float vT;'+
+    'uniform sampler2D uTex; uniform vec3 uFace; uniform vec3 uSide;'+
+    'uniform float uShade; uniform vec2 uLight;'+
+    'void main(){ float a=texture2D(uTex,vUv).a; if(a<0.42) discard;'+
+    '  vec3 c=mix(uFace,uSide,clamp(vT*uShade,0.0,1.0));'+
+    '  float lit=1.0+uLight.x*(vUv.x-0.5)+uLight.y*(0.5-vUv.y);'+
+    '  gl_FragColor=vec4(clamp(c*lit,0.0,1.0),1.0); }';
+  const mk=(t,s)=>{ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
+    if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){ console.warn('type3d shader',gl.getShaderInfoLog(o)); return null; } return o; };
+  const v=mk(gl.VERTEX_SHADER,vsrc), f=mk(gl.FRAGMENT_SHADER,fsrc);
+  if(!v||!f){ _t3Fail=true; return null; }
+  const p=gl.createProgram(); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ _t3Fail=true; return null; }
+  _t3Prog=p; _t3Buf=gl.createBuffer(); _t3Tex=gl.createTexture();
+  _t3Loc={ pos:gl.getAttribLocation(p,'aPos'), uv:gl.getAttribLocation(p,'aUv'), t:gl.getAttribLocation(p,'aT'),
+    mvp:gl.getUniformLocation(p,'uMVP'), tex:gl.getUniformLocation(p,'uTex'),
+    face:gl.getUniformLocation(p,'uFace'), side:gl.getUniformLocation(p,'uSide'),
+    shade:gl.getUniformLocation(p,'uShade'), light:gl.getUniformLocation(p,'uLight') };
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  _t3Gl=gl; return gl;
+}
+// ── tiny mat4 helpers (column-major, GL order) ──
+function _m4mul(a,b,o){
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++){
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  }
+  return o;
+}
+function _m4persp(fovDeg,aspect,near,far,o){
+  const f=1/Math.tan(fovDeg*Math.PI/360), nf=1/(near-far);
+  o.fill(0); o[0]=f/aspect; o[5]=f; o[10]=(far+near)*nf; o[11]=-1; o[14]=2*far*near*nf; return o;
+}
+function _m4rot(rx,ry,rz,tz,o){
+  const cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz);
+  // R = Ry * Rx * Rz
+  const m00=cy*cz+sy*sx*sz, m01=-cy*sz+sy*sx*cz, m02=sy*cx;
+  const m10=cx*sz,          m11=cx*cz,           m12=-sx;
+  const m20=-sy*cz+cy*sx*sz,m21=sy*sz+cy*sx*cz,  m22=cy*cx;
+  o[0]=m00; o[1]=m10; o[2]=m20; o[3]=0;
+  o[4]=m01; o[5]=m11; o[6]=m21; o[7]=0;
+  o[8]=m02; o[9]=m12; o[10]=m22; o[11]=0;
+  o[12]=0;  o[13]=0;  o[14]=tz;  o[15]=1;
+  return o;
+}
+const _t3A=new Float32Array(16),_t3B=new Float32Array(16),_t3M=new Float32Array(16);
+function _gfxType3D(lctx,el,ex,ey,ew,eh,unit){
+  const gl=_t3Init();
+  if(!gl) return false;
+  const cm=el.caseMode||'upper';
+  let raw=String(el.text||'3D');
+  if(cm==='upper') raw=raw.toUpperCase(); else if(cm==='lower') raw=raw.toLowerCase();
+  const lines=raw.split('\n');
+  const fam=el.font||"'Bebas Neue',Impact,sans-serif", wt=el.weight||'900';
+  const t=(globalT||0)/60*Math.max(0,(el.t3Speed==null?1:el.t3Speed));
+
+  // ── rasterise the glyphs into a texture (cached by content) ──
+  const tsz=180;                                   // texture-space font size
+  const lh=tsz*(parseFloat(el.lineHeight)||1.0);
+  if(!_t3TextCv){ _t3TextCv=document.createElement('canvas'); _t3TextCx=_t3TextCv.getContext('2d'); }
+  const mcx=_t3TextCx;
+  mcx.font=wt+' '+tsz+'px '+fam;
+  let tw=8; for(const L of lines) tw=Math.max(tw,mcx.measureText(L).width);
+  const pad=Math.ceil(tsz*0.25);
+  const TW=Math.min(4096,Math.ceil(tw)+pad*2), TH=Math.min(4096,Math.ceil(lh*lines.length)+pad*2);
+  const texSig=raw+'|'+fam+'|'+wt+'|'+TW+'x'+TH+'|'+(el.lineHeight||1);
+  if(texSig!==_t3TexSig){
+    _t3TextCv.width=TW; _t3TextCv.height=TH;
+    mcx.clearRect(0,0,TW,TH);
+    mcx.font=wt+' '+tsz+'px '+fam; mcx.fillStyle='#fff';
+    mcx.textAlign='center'; mcx.textBaseline='middle';
+    for(let i=0;i<lines.length;i++) mcx.fillText(lines[i],TW/2,pad+lh*(i+0.5));
+    gl.bindTexture(gl.TEXTURE_2D,_t3Tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,_t3TextCv);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    _t3TexSig=texSig;
+  }
+
+  // ── extruded slice geometry ──
+  const depth=Math.max(0,(el.t3Depth==null?0.35:el.t3Depth));
+  const quality=Math.max(0.15,Math.min(1,(el.t3Quality==null?0.6:el.t3Quality)));
+  const slices=Math.max(1,Math.min(160,Math.round(depth*220*quality)+1));
+  const aspect=TH/TW;
+  const geoSig=slices+'|'+aspect.toFixed(4)+'|'+depth.toFixed(3);
+  if(geoSig!==_t3GeoSig){
+    const hw=0.5, hh=0.5*aspect;
+    const arr=new Float32Array(slices*6*6);
+    let o=0;
+    for(let i=0;i<slices;i++){
+      const st=slices>1?i/(slices-1):0;
+      const z=(st-0.5)*depth;
+      const quad=[[-hw,-hh,0,0],[hw,-hh,1,0],[hw,hh,1,1],[-hw,-hh,0,0],[hw,hh,1,1],[-hw,hh,0,1]];
+      for(const q of quad){ arr[o++]=q[0]; arr[o++]=q[1]; arr[o++]=z; arr[o++]=q[2]; arr[o++]=1-q[3]; arr[o++]=st; }
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER,_t3Buf);
+    gl.bufferData(gl.ARRAY_BUFFER,arr,gl.STATIC_DRAW);
+    _t3Count=slices*6; _t3GeoSig=geoSig;
+  }
+
+  // ── camera / animation ──
+  let rx=(el.t3RotX==null?-12:el.t3RotX)*Math.PI/180;
+  let ry=(el.t3RotY==null?24:el.t3RotY)*Math.PI/180;
+  let rz=(el.t3RotZ==null?0:el.t3RotZ)*Math.PI/180;
+  const anim=el.t3Anim||'none', amp=(el.t3Amp==null?1:el.t3Amp);
+  if(anim==='spin') ry+=t*1.1;
+  else if(anim==='tumble'){ ry+=t*0.9; rx+=Math.sin(t*0.7)*0.5*amp; }
+  else if(anim==='pendulum') ry+=Math.sin(t*1.1)*0.9*amp;
+  else if(anim==='wobble'){ rx+=Math.sin(t*1.3)*0.28*amp; ry+=Math.cos(t*0.9)*0.34*amp; }
+  else if(anim==='roll') rz+=t*0.8;
+  const fov=Math.max(8,Math.min(110,(el.t3Fov==null?38:el.t3Fov)));
+  // DOLLY-COMPENSATED FOV: a raw fov change rescales the subject, which makes the
+  // control useless for design. Move the camera so apparent size is preserved and fov
+  // only alters perspective character — a long lens vs a wide lens, not a zoom.
+  const REF=38;
+  const dolly=Math.tan(REF*Math.PI/360)/Math.tan(fov*Math.PI/360);
+  const dist=Math.max(0.35,(el.t3Dist==null?2.3:el.t3Dist)*dolly);
+  const scale=Math.max(0.05,(el.t3Size==null?1:el.t3Size));
+
+  // ── size the render target (2x supersample) to the element box ──
+  const SS=2;
+  const W=Math.max(8,Math.min(2048,Math.round(ew*SS))), H=Math.max(8,Math.min(2048,Math.round(eh*SS)));
+  if(_t3Cv.width!==W||_t3Cv.height!==H){ _t3Cv.width=W; _t3Cv.height=H; }
+  gl.viewport(0,0,W,H);
+  gl.useProgram(_t3Prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER,_t3Buf);
+  const stride=6*4;
+  gl.enableVertexAttribArray(_t3Loc.pos); gl.vertexAttribPointer(_t3Loc.pos,3,gl.FLOAT,false,stride,0);
+  gl.enableVertexAttribArray(_t3Loc.uv);  gl.vertexAttribPointer(_t3Loc.uv,2,gl.FLOAT,false,stride,12);
+  gl.enableVertexAttribArray(_t3Loc.t);   gl.vertexAttribPointer(_t3Loc.t,1,gl.FLOAT,false,stride,20);
+  _m4persp(fov,W/H,0.05,50,_t3A);
+  _m4rot(rx,ry,rz,-dist,_t3B);
+  // fold the object scale into the model matrix
+  _t3B[0]*=scale; _t3B[1]*=scale; _t3B[2]*=scale;
+  _t3B[4]*=scale; _t3B[5]*=scale; _t3B[6]*=scale;
+  _t3B[8]*=scale; _t3B[9]*=scale; _t3B[10]*=scale;
+  _m4mul(_t3A,_t3B,_t3M);
+  gl.uniformMatrix4fv(_t3Loc.mvp,false,_t3M);
+  const fc=hexToRgb(el.color||'#f4f4f4'), sc=hexToRgb(el.color2||'#7a2bff');
+  gl.uniform3f(_t3Loc.face,fc[0]/255,fc[1]/255,fc[2]/255);
+  gl.uniform3f(_t3Loc.side,sc[0]/255,sc[1]/255,sc[2]/255);
+  gl.uniform1f(_t3Loc.shade,(el.t3Shade==null?1:el.t3Shade));
+  const la=(el.t3LightAngle==null?45:el.t3LightAngle)*Math.PI/180, li=(el.t3Light==null?0.25:el.t3Light);
+  gl.uniform2f(_t3Loc.light,Math.cos(la)*li,Math.sin(la)*li);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,_t3Tex); gl.uniform1i(_t3Loc.tex,0);
+  gl.clearColor(0,0,0,0); gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES,0,_t3Count);
+
+  lctx.save();
+  if(el.bgOn){ lctx.fillStyle=el.bg||'#0c0c0e'; lctx.fillRect(ex,ey,ew,eh); }
+  lctx.imageSmoothingEnabled=true;
+  lctx.drawImage(_t3Cv,ex,ey,ew,eh);
+  lctx.restore();
+  return true;
+}
 function renderGfxEl(lctx,el,layer,W,H){
   if(!el||el.visible===false) return null;
   lctx.save();
@@ -5031,6 +5211,11 @@ function renderGfxEl(lctx,el,layer,W,H){
   else if(el.type==='gootype'){
     const ehG=Math.round((el.h||0.44)*H);
     _gfxGooType(lctx,el,ex,ey,ew,ehG,unit);
+    bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
+  }
+  else if(el.type==='3d'){
+    const ehG=Math.round((el.h||0.5)*H);
+    _gfxType3D(lctx,el,ex,ey,ew,ehG,unit);
     bbox={x1:ex/W,y1:ey/H,x2:(ex+ew)/W,y2:(ey+ehG)/H};
   }
   else if(el.type==='textfill'){
@@ -18514,7 +18699,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const hint=document.getElementById('gfx-tfgridhint'); if(hint) hint.style.display=isGrid?'block':'none';
   }
 
-  const EL_ICON={text:'T',lineup:'≡',info:'i',image:'▣',divider:'—',box:'□',shape:'◆',pattern:'⁘',glyphs:'A',mosaic:'▦',textfill:'¶',gootype:'ᛙ',physics:'⚛',fluid:'◍',ticker:'⇄',counter:'⏱',barcode:'▥'};
+  const EL_ICON={text:'T',lineup:'≡',info:'i',image:'▣',divider:'—',box:'□',shape:'◆',pattern:'⁘',glyphs:'A',mosaic:'▦',textfill:'¶',gootype:'ᛙ','3d':'◧',physics:'⚛',fluid:'◍',ticker:'⇄',counter:'⏱',barcode:'▥'};
 
   // ── Appearance effect stack UI ──
   // Route an appearance-effect param via LFO or audio band
@@ -18729,7 +18914,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     const props=document.getElementById('gfx-props'); if(!props) return;
     const l=gfxLayer(); if(!l){ props.style.display='none'; return; }
     props.style.display='block';
-    ['text','lineup','info','image','divider','box','shape','pattern','glyphs','mosaic','textfill','gootype','physics','fluid','ticker','counter','barcode'].forEach(t=>{ const d=document.getElementById('gfx-pp-'+t); if(d) d.style.display='none'; });
+    ['text','lineup','info','image','divider','box','shape','pattern','glyphs','mosaic','textfill','gootype','3d','physics','fluid','ticker','counter','barcode'].forEach(t=>{ const d=document.getElementById('gfx-pp-'+t); if(d) d.style.display='none'; });
     const el=gfxSel();
     const empty=document.getElementById('gfx-pp-empty');
     const appear=document.getElementById('gfx-appearance');
@@ -18828,6 +19013,13 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
       setV('gfx-p-moscolor',el.color);setV('gfx-p-moscolor2',el.color2);setV('gfx-p-mosbgon',el.bgOn);setV('gfx-p-mosbg',el.bg);
       const nm=document.getElementById('gfx-p-mosname'); if(nm) nm.textContent=el._srcName||'no source';
       const cr=document.getElementById('gfx-p-moscharset-row'); if(cr) cr.style.display=(el.mosaicMode==='text')?'flex':'none';
+    } else if(el.type==='3d'){
+      setV('gfx-p-t3text',el.text);setV('gfx-p-t3case',el.caseMode);setV('gfx-p-t3font',el.font);setV('gfx-p-t3weight',el.weight);setV('gfx-p-t3lh',el.lineHeight);
+      setV('gfx-p-t3size',el.t3Size);setV('gfx-p-t3depth',el.t3Depth);setV('gfx-p-t3quality',el.t3Quality);
+      setV('gfx-p-t3rotx',el.t3RotX);setV('gfx-p-t3roty',el.t3RotY);setV('gfx-p-t3rotz',el.t3RotZ);setV('gfx-p-t3fov',el.t3Fov);setV('gfx-p-t3dist',el.t3Dist);
+      setV('gfx-p-t3anim',el.t3Anim);setV('gfx-p-t3amp',el.t3Amp);setV('gfx-p-t3speed',el.t3Speed);
+      setV('gfx-p-t3col',el.color);setV('gfx-p-t3col2',el.color2);setV('gfx-p-t3shade',el.t3Shade);setV('gfx-p-t3light',el.t3Light);setV('gfx-p-t3lightangle',el.t3LightAngle);
+      setV('gfx-p-t3bgon',el.bgOn);setV('gfx-p-t3bg',el.bg);
     } else if(el.type==='gootype'){
       setV('gfx-p-gootext',el.text);setV('gfx-p-goocase',el.caseMode);setV('gfx-p-goofont',el.font);setV('gfx-p-gooweight',el.weight);
       setV('gfx-p-goosize',el.gooSize);setV('gfx-p-goolh',el.lineHeight);setV('gfx-p-gooalign',el.align);
@@ -18950,6 +19142,12 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     ['gfx-p-tffont','font','str'],['gfx-p-tfweight','weight','str'],['gfx-p-tfsize','fontSize','num'],['gfx-p-tflh','lineHeight','num'],
     ['gfx-p-tfjustify','justify','str'],['gfx-p-tfalt','altMode','str'],['gfx-p-tfcmode','colorMode','str'],
     ['gfx-p-tfcol','color','str'],['gfx-p-tfcol2','color2','str'],
+    ['gfx-p-t3text','text','str'],['gfx-p-t3case','caseMode','str'],['gfx-p-t3font','font','str'],['gfx-p-t3weight','weight','str'],['gfx-p-t3lh','lineHeight','num'],
+    ['gfx-p-t3size','t3Size','num'],['gfx-p-t3depth','t3Depth','num'],['gfx-p-t3quality','t3Quality','num'],
+    ['gfx-p-t3rotx','t3RotX','num'],['gfx-p-t3roty','t3RotY','num'],['gfx-p-t3rotz','t3RotZ','num'],['gfx-p-t3fov','t3Fov','num'],['gfx-p-t3dist','t3Dist','num'],
+    ['gfx-p-t3anim','t3Anim','str'],['gfx-p-t3amp','t3Amp','num'],['gfx-p-t3speed','t3Speed','num'],
+    ['gfx-p-t3col','color','str'],['gfx-p-t3col2','color2','str'],['gfx-p-t3shade','t3Shade','num'],['gfx-p-t3light','t3Light','num'],['gfx-p-t3lightangle','t3LightAngle','num'],
+    ['gfx-p-t3bgon','bgOn','bool'],['gfx-p-t3bg','bg','str'],
     ['gfx-p-gootext','text','str'],['gfx-p-goocase','caseMode','str'],['gfx-p-goofont','font','str'],['gfx-p-gooweight','weight','str'],
     ['gfx-p-goosize','gooSize','num'],['gfx-p-goolh','lineHeight','num'],['gfx-p-gooalign','align','str'],
     ['gfx-p-goobridge','gooBridge','num'],['gfx-p-gooweightv','gooWeight','num'],['gfx-p-goorings','gooRings','num'],['gfx-p-gooringgap','gooRingGap','num'],['gfx-p-gooanim','gooAnim','str'],['gfx-p-gootext2','gooText2','str'],['gfx-p-gooweightamp','gooWeightAmp','num'],['gfx-p-goosmooth','gooSmooth','num'],
@@ -19021,7 +19219,7 @@ window._syncLayerUIPatched=function(){_baseSyncLayerUI();buildDitherPreview();};
     });
   });
 
-  const ADD={'gfx-add-text':'text','gfx-add-lineup':'lineup','gfx-add-info':'info','gfx-add-image':'image','gfx-add-divider':'divider','gfx-add-box':'box','gfx-add-shape':'shape','gfx-add-pattern':'pattern','gfx-add-glyphs':'glyphs','gfx-add-mosaic':'mosaic','gfx-add-textfill':'textfill','gfx-add-gootype':'gootype','gfx-add-physics':'physics','gfx-add-fluid':'fluid','gfx-add-ticker':'ticker','gfx-add-counter':'counter','gfx-add-barcode':'barcode'};
+  const ADD={'gfx-add-text':'text','gfx-add-lineup':'lineup','gfx-add-info':'info','gfx-add-image':'image','gfx-add-divider':'divider','gfx-add-box':'box','gfx-add-shape':'shape','gfx-add-pattern':'pattern','gfx-add-glyphs':'glyphs','gfx-add-mosaic':'mosaic','gfx-add-textfill':'textfill','gfx-add-gootype':'gootype','gfx-add-3d':'3d','gfx-add-physics':'physics','gfx-add-fluid':'fluid','gfx-add-ticker':'ticker','gfx-add-counter':'counter','gfx-add-barcode':'barcode'};
   Object.entries(ADD).forEach(([bid,type])=>{
     document.getElementById(bid)?.addEventListener('click',()=>{
       const l=gfxLayer(); if(!l) return;
