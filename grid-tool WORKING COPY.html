@@ -23,6 +23,7 @@
     <div class="ptab" data-tab="media" id="ptab-media" style="display:none;color:#44ccff;">▣</div>
     <div class="ptab" data-tab="blobby" id="ptab-blobby" style="display:none;color:#ff8ad4;">🫧</div>
     <div class="ptab" data-tab="marble" id="ptab-marble" style="display:none;color:#66d9c2;">🫟</div>
+    <div class="ptab" data-tab="three" id="ptab-three" style="display:none;color:#8fd0ff;">◩</div>
     <div class="ptab" data-tab="gesture" id="ptab-gesture" style="display:none;color:#7af0ff;">🩰</div>
     <div class="ptab" data-tab="vision" id="ptab-vision" style="display:none;color:#46ff8c;">⊹</div>
     <div class="ptab" data-tab="particles" id="ptab-particles" style="display:none;color:#ff9d4d;">✸</div>
@@ -41,6 +42,7 @@
           <button id="btn-add-media-layer" title="Add a media layer (image or video)" style="color:#44ccff;border-color:#335566;">▣ media</button>
           <button id="btn-add-blobby-layer" title="Add a Blobby tool layer — paint interactive vector blobs, connect & label them" style="color:#ff8ad4;border-color:#663355;">🫧 blobby</button>
           <button id="btn-add-marble-layer" title="Add a Marbling layer — drop inks on water, comb & swirl them (suminagashi/ebru)" style="color:#66d9c2;border-color:#2e5f54;">🫟 marble</button>
+          <button id="btn-add-three-layer" title="Add a 3D layer — real meshes, lighting and a perspective camera" style="color:#8fd0ff;border-color:#2e5470;">◩ 3D</button>
           <button id="btn-add-gesture-layer" title="Add a Gesture loop layer — record canvas gestures, they replay forever, BPM-synced" style="color:#7af0ff;border-color:#2e5566;">🩰 gesture</button>
           <button id="btn-add-vision-layer" title="Add a Vision layer — perceives the layers below (or an image) and re-renders what it finds: blob/motion tracking, HUD, dots, constellations" style="color:#46ff8c;border-color:#2e6644;">⊹ vision</button>
           <button id="btn-add-particle-layer" title="Add a Particle layer — continuous emitter-based particle systems: emit from a point/shape/text, push with gravity/turbulence/attractors, render as points/streaks/trails" style="color:#ff9d4d;border-color:#6a4628;">✸ particles</button>
@@ -1888,6 +1890,69 @@
     </div>
 
     <!-- 🫟 MARBLING PANEL -->
+    <div data-section="three" style="display:none">
+      <div class="st" style="color:#8fd0ff;">◩ 3D scene</div>
+      <div class="tip" style="font-size:7px;margin-bottom:4px;">Real meshes with vertex normals, lit and depth-sorted in one shared scene. Text is genuinely extruded — the outline is traced and swept into side walls.</div>
+      <div style="margin:4px 0 2px;font-size:7px;color:#888;text-transform:uppercase;letter-spacing:.1em;">objects</div>
+      <div class="gfx-add-btns" style="margin-bottom:4px;">
+        <button id="g3-add-box" title="Add box">▢</button>
+        <button id="g3-add-sphere" title="Add sphere">●</button>
+        <button id="g3-add-torus" title="Add torus">◎</button>
+        <button id="g3-add-cylinder" title="Add cylinder">▮</button>
+        <button id="g3-add-cone" title="Add cone">▲</button>
+        <button id="g3-add-plane" title="Add plane">▬</button>
+        <button id="g3-add-text" title="Add extruded 3D text">T</button>
+        <button id="g3-add-obj" title="Import an .obj model">⤒</button>
+        <input type="file" id="g3-obj-input" accept=".obj" style="display:none">
+      </div>
+      <div id="g3-obj-list" style="min-height:18px;max-height:150px;overflow-y:auto;margin-bottom:4px;"></div>
+      <div id="g3-obj-props" style="display:none;">
+        <div class="row g3-textonly"><label>text</label><input type="text" id="g3-text" style="flex:1;font-size:9px;background:#080808;color:#ddd;border:1px solid #222;border-radius:3px;padding:2px 5px;"></div>
+        <div class="row g3-textonly"><label>font</label><select id="g3-font" class="gfx-font-sel"></select></div>
+        <div class="row g3-textonly"><label>weight</label><select id="g3-weight"><option value="400">regular</option><option value="700">bold</option><option value="800">extra bold</option><option value="900" selected>black</option></select></div>
+        <div class="row g3-textonly"><label>extrude depth</label><input type="range" id="g3-depth" min="0.02" max="1.5" value="0.3" step="0.01"><span class="val" id="g3-depth-v">0.30</span></div>
+        <div class="row g3-segonly"><label>segments</label><input type="range" id="g3-seg" min="3" max="64" value="24" step="1"><span class="val" id="g3-seg-v">24</span></div>
+        <div class="row g3-torusonly"><label>thickness</label><input type="range" id="g3-r2" min="0.05" max="1" value="0.5" step="0.01"><span class="val" id="g3-r2-v">0.50</span></div>
+        <div style="margin:4px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">transform</div>
+        <div class="row"><label>x</label><input type="range" id="g3-x" min="-3" max="3" value="0" step="0.02"><span class="val" id="g3-x-v">0.00</span></div>
+        <div class="row"><label>y</label><input type="range" id="g3-y" min="-3" max="3" value="0" step="0.02"><span class="val" id="g3-y-v">0.00</span></div>
+        <div class="row"><label>z</label><input type="range" id="g3-z" min="-3" max="3" value="0" step="0.02"><span class="val" id="g3-z-v">0.00</span></div>
+        <div class="row"><label>scale</label><input type="range" id="g3-scale" min="0.05" max="4" value="1" step="0.01"><span class="val" id="g3-scale-v">1.00</span></div>
+        <div class="row"><label>rotate X</label><input type="range" id="g3-rx" min="-180" max="180" value="0" step="1"><span class="val" id="g3-rx-v">0</span></div>
+        <div class="row"><label>rotate Y</label><input type="range" id="g3-ry" min="-180" max="180" value="0" step="1"><span class="val" id="g3-ry-v">0</span></div>
+        <div class="row"><label>rotate Z</label><input type="range" id="g3-rz" min="-180" max="180" value="0" step="1"><span class="val" id="g3-rz-v">0</span></div>
+        <div style="margin:4px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">material</div>
+        <div class="row"><label>colour</label><input type="color" id="g3-color" value="#cccccc"></div>
+        <div class="row"><label>specular</label><input type="range" id="g3-spec" min="0" max="1.5" value="0.35" step="0.01"><span class="val" id="g3-spec-v">0.35</span></div>
+        <div class="row"><label>shininess</label><input type="range" id="g3-shine" min="2" max="128" value="32" step="1"><span class="val" id="g3-shine-v">32</span></div>
+        <div class="row"><label>rim light</label><input type="range" id="g3-rim" min="0" max="1" value="0.12" step="0.01"><span class="val" id="g3-rim-v">0.12</span></div>
+        <div class="row"><label>opacity</label><input type="range" id="g3-opacity" min="0.05" max="1" value="1" step="0.01"><span class="val" id="g3-opacity-v">1.00</span></div>
+        <div style="margin:4px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">object motion</div>
+        <div class="row"><label>spin</label><input type="range" id="g3-spin" min="-3" max="3" value="0" step="0.02"><span class="val" id="g3-spin-v">0.00</span></div>
+        <div class="row"><label>spin axis</label><select id="g3-spinaxis"><option value="y">Y</option><option value="x">X</option><option value="z">Z</option></select></div>
+        <div class="row"><label>bob</label><input type="range" id="g3-bob" min="0" max="1.5" value="0" step="0.02"><span class="val" id="g3-bob-v">0.00</span></div>
+        <div class="row"><label>phase</label><input type="range" id="g3-phase" min="0" max="6.28" value="0" step="0.05"><span class="val" id="g3-phase-v">0.00</span></div>
+        <div style="display:flex;gap:4px;margin-top:5px;">
+          <button id="g3-dup" style="flex:1;font-size:8px;">⧉ duplicate</button>
+          <button id="g3-del" style="flex:1;font-size:8px;border-color:#7a2b2b;color:#ff9c9c;">✕ delete</button>
+        </div>
+      </div>
+      <div style="margin:6px 0 2px;font-size:7px;color:#888;text-transform:uppercase;letter-spacing:.1em;">camera</div>
+      <div class="row"><label>orbit X</label><input type="range" id="g3-camrx" min="-89" max="89" value="-14" step="1"><span class="val" id="g3-camrx-v">-14</span></div>
+      <div class="row"><label>orbit Y</label><input type="range" id="g3-camry" min="-180" max="180" value="28" step="1"><span class="val" id="g3-camry-v">28</span></div>
+      <div class="row"><label>distance</label><input type="range" id="g3-dist" min="0.8" max="10" value="3" step="0.05"><span class="val" id="g3-dist-v">3.00</span></div>
+      <div class="row"><label>field of view</label><input type="range" id="g3-fov" min="10" max="110" value="40" step="1"><span class="val" id="g3-fov-v">40</span></div>
+      <div class="row"><label>camera anim</label><select id="g3-camanim"><option value="none">none</option><option value="orbit">orbit</option><option value="sway">sway</option><option value="tumble">tumble</option></select></div>
+      <div class="row"><label>speed</label><input type="range" id="g3-speed" min="0" max="4" value="1" step="0.05"><span class="val" id="g3-speed-v">1.00</span></div>
+      <div style="margin:6px 0 2px;font-size:7px;color:#888;text-transform:uppercase;letter-spacing:.1em;">light</div>
+      <div class="row"><label>azimuth</label><input type="range" id="g3-lightaz" min="0" max="360" value="135" step="5"><span class="val" id="g3-lightaz-v">135</span></div>
+      <div class="row"><label>elevation</label><input type="range" id="g3-lightel" min="-89" max="89" value="35" step="1"><span class="val" id="g3-lightel-v">35</span></div>
+      <div class="row"><label>intensity</label><input type="range" id="g3-lightint" min="0" max="2" value="1" step="0.02"><span class="val" id="g3-lightint-v">1.00</span></div>
+      <div class="row"><label>ambient</label><input type="range" id="g3-ambient" min="0" max="1" value="0.25" step="0.01"><span class="val" id="g3-ambient-v">0.25</span></div>
+      <div class="row"><label>quality</label><select id="g3-ss"><option value="1">1x</option><option value="2" selected>2x (crisp)</option></select></div>
+      <div class="row"><label>background</label><input type="checkbox" id="g3-bgon"></div>
+      <div class="row"><label>bg colour</label><input type="color" id="g3-bg" value="#0c0c0e"></div>
+    </div>
     <div data-section="marble" style="display:none">
       <div class="sec">
         <div style="font-size:10px;color:#66d9c2;font-family:monospace;font-weight:700;letter-spacing:.05em;margin-bottom:6px;">🫟 marbling</div>

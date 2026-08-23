@@ -8817,6 +8817,352 @@ function renderBlobbyLayer(lctx,layer,W,H){
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// 3D LAYER — a real mesh renderer. Objects are actual geometry with vertex
+// NORMALS, lit by Blinn-Phong (ambient + diffuse + specular + rim), drawn into
+// one shared scene with a single camera and a depth buffer, so they occlude
+// each other properly. Text is genuinely extruded: the glyph outline is traced
+// with marching squares and swept into side walls with real per-facet normals,
+// capped by the (planar, therefore exact) front and back faces.
+// Renders offscreen in WebGL at 2x, then composites into the 2D layer pipeline.
+// ══════════════════════════════════════════════════════════════
+let _g3Cv=null,_g3Gl=null,_g3P=null,_g3L=null,_g3Fail=false;
+const _g3Meshes=new Map();      // signature -> {vbo,ibo,count,textured,tex}
+// ── mat4 (column-major) ──
+function _g3Ident(o){ o.fill(0); o[0]=o[5]=o[10]=o[15]=1; return o; }
+function _g3Mul(a,b,o){
+  for(let c=0;c<4;c++) for(let r=0;r<4;r++)
+    o[c*4+r]=a[r]*b[c*4]+a[4+r]*b[c*4+1]+a[8+r]*b[c*4+2]+a[12+r]*b[c*4+3];
+  return o;
+}
+function _g3Persp(fovDeg,aspect,near,far,o){
+  const f=1/Math.tan(fovDeg*Math.PI/360), nf=1/(near-far);
+  o.fill(0); o[0]=f/aspect; o[5]=f; o[10]=(far+near)*nf; o[11]=-1; o[14]=2*far*near*nf; return o;
+}
+function _g3Compose(px,py,pz,rx,ry,rz,sx,sy,sz,o){
+  const cx=Math.cos(rx),sxn=Math.sin(rx),cy=Math.cos(ry),syn=Math.sin(ry),cz=Math.cos(rz),szn=Math.sin(rz);
+  const m00=cy*cz+syn*sxn*szn, m01=-cy*szn+syn*sxn*cz, m02=syn*cx;
+  const m10=cx*szn,            m11=cx*cz,              m12=-sxn;
+  const m20=-syn*cz+cy*sxn*szn,m21=syn*szn+cy*sxn*cz,  m22=cy*cx;
+  o[0]=m00*sx; o[1]=m10*sx; o[2]=m20*sx; o[3]=0;
+  o[4]=m01*sy; o[5]=m11*sy; o[6]=m21*sy; o[7]=0;
+  o[8]=m02*sz; o[9]=m12*sz; o[10]=m22*sz;o[11]=0;
+  o[12]=px;    o[13]=py;    o[14]=pz;    o[15]=1;
+  return o;
+}
+// rotation-only copy, for transforming normals (valid for uniform-ish scale)
+function _g3NormalMat(m,o){
+  const l0=Math.hypot(m[0],m[1],m[2])||1, l1=Math.hypot(m[4],m[5],m[6])||1, l2=Math.hypot(m[8],m[9],m[10])||1;
+  o[0]=m[0]/l0; o[1]=m[1]/l0; o[2]=m[2]/l0;  o[3]=0;
+  o[4]=m[4]/l1; o[5]=m[5]/l1; o[6]=m[6]/l1;  o[7]=0;
+  o[8]=m[8]/l2; o[9]=m[9]/l2; o[10]=m[10]/l2;o[11]=0;
+  o[12]=0;o[13]=0;o[14]=0;o[15]=1; return o;
+}
+// ── mesh builders (positions + real normals + uv) ──
+function _g3Mesh(pos,nrm,uv,idx){ return {pos:new Float32Array(pos),nrm:new Float32Array(nrm),uv:new Float32Array(uv),idx:(pos.length/3>65000)?new Uint32Array(idx):new Uint16Array(idx)}; }
+function _g3Box(){
+  const p=[],n=[],u=[],i=[];
+  const faces=[[[1,0,0],[0,0,-1],[0,1,0]],[[-1,0,0],[0,0,1],[0,1,0]],[[0,1,0],[1,0,0],[0,0,1]],
+               [[0,-1,0],[1,0,0],[0,0,-1]],[[0,0,1],[1,0,0],[0,1,0]],[[0,0,-1],[-1,0,0],[0,1,0]]];
+  faces.forEach((f,fi)=>{
+    const [nv,tu,tv]=f;
+    for(const [a,b] of [[-1,-1],[1,-1],[1,1],[-1,1]]){
+      p.push(nv[0]*0.5+tu[0]*a*0.5+tv[0]*b*0.5, nv[1]*0.5+tu[1]*a*0.5+tv[1]*b*0.5, nv[2]*0.5+tu[2]*a*0.5+tv[2]*b*0.5);
+      n.push(nv[0],nv[1],nv[2]); u.push((a+1)/2,(b+1)/2);
+    }
+    const o=fi*4; i.push(o,o+1,o+2,o,o+2,o+3);
+  });
+  return _g3Mesh(p,n,u,i);
+}
+function _g3Sphere(seg){
+  const S=Math.max(4,seg|0), R=Math.max(3,(S/2)|0), p=[],n=[],u=[],i=[];
+  for(let y=0;y<=R;y++){ const v=y/R, phi=v*Math.PI;
+    for(let x=0;x<=S;x++){ const uu=x/S, th=uu*Math.PI*2;
+      const nx=Math.sin(phi)*Math.cos(th), ny=Math.cos(phi), nz=Math.sin(phi)*Math.sin(th);
+      p.push(nx*0.5,ny*0.5,nz*0.5); n.push(nx,ny,nz); u.push(uu,v); } }
+  for(let y=0;y<R;y++) for(let x=0;x<S;x++){ const a=y*(S+1)+x,b=a+S+1; i.push(a,b,a+1,b,b+1,a+1); }
+  return _g3Mesh(p,n,u,i);
+}
+function _g3Torus(seg,rr){
+  const S=Math.max(6,seg|0), T=Math.max(4,(seg/2)|0), R=0.35, r=Math.max(0.02,rr*0.35), p=[],n=[],u=[],i=[];
+  for(let a=0;a<=S;a++){ const th=a/S*Math.PI*2, ct=Math.cos(th), st=Math.sin(th);
+    for(let b=0;b<=T;b++){ const ph=b/T*Math.PI*2, cp=Math.cos(ph), sp=Math.sin(ph);
+      p.push((R+r*cp)*ct,(R+r*cp)*st,r*sp); n.push(cp*ct,cp*st,sp); u.push(a/S,b/T); } }
+  for(let a=0;a<S;a++) for(let b=0;b<T;b++){ const q=a*(T+1)+b, w=q+T+1; i.push(q,w,q+1,w,w+1,q+1); }
+  return _g3Mesh(p,n,u,i);
+}
+function _g3Tube(seg,topR){
+  const S=Math.max(3,seg|0), rt=topR, rb=0.5, h=0.5, p=[],n=[],u=[],i=[];
+  for(let a=0;a<=S;a++){ const th=a/S*Math.PI*2, c=Math.cos(th), s=Math.sin(th);
+    const slope=(rb-rt), nl=Math.hypot(1,slope)||1;
+    p.push(c*rt,h,s*rt); n.push(c/nl,slope/nl,s/nl); u.push(a/S,1);
+    p.push(c*rb,-h,s*rb); n.push(c/nl,slope/nl,s/nl); u.push(a/S,0); }
+  for(let a=0;a<S;a++){ const q=a*2; i.push(q,q+1,q+2,q+1,q+3,q+2); }
+  const base=p.length/3;
+  const cap=(y,r,ny)=>{ const c0=p.length/3; p.push(0,y,0); n.push(0,ny,0); u.push(0.5,0.5);
+    for(let a=0;a<=S;a++){ const th=a/S*Math.PI*2; p.push(Math.cos(th)*r,y,Math.sin(th)*r); n.push(0,ny,0); u.push(0,0); }
+    for(let a=0;a<S;a++){ if(ny>0) i.push(c0,c0+a+1,c0+a+2); else i.push(c0,c0+a+2,c0+a+1); } };
+  if(rt>0.001) cap(h,rt,1);
+  cap(-h,rb,-1);
+  return _g3Mesh(p,n,u,i);
+}
+function _g3Plane(){
+  return _g3Mesh([-0.5,0,-0.5, 0.5,0,-0.5, 0.5,0,0.5, -0.5,0,0.5],[0,1,0, 0,1,0, 0,1,0, 0,1,0],[0,0,1,0,1,1,0,1],[0,1,2,0,2,3]);
+}
+// ── REAL extruded text: marching-squares outline swept into side walls ──
+let _g3TxCv=null,_g3TxCx=null;
+function _g3TextMesh(text,fam,wt,depth,lineHeight){
+  if(!_g3TxCv){ _g3TxCv=document.createElement('canvas'); _g3TxCx=_g3TxCv.getContext('2d',{willReadFrequently:true}); }
+  const cx=_g3TxCx, FS=128, lines=String(text||'3D').split('\n');
+  cx.font=wt+' '+FS+'px '+fam;
+  let tw=8; for(const L of lines) tw=Math.max(tw,cx.measureText(L).width);
+  const lh=FS*(lineHeight||1), pad=24;
+  const W=Math.min(2048,Math.ceil(tw)+pad*2), H=Math.min(2048,Math.ceil(lh*lines.length)+pad*2);
+  _g3TxCv.width=W; _g3TxCv.height=H;
+  cx.clearRect(0,0,W,H); cx.font=wt+' '+FS+'px '+fam; cx.fillStyle='#fff';
+  cx.textAlign='center'; cx.textBaseline='middle';
+  for(let i=0;i<lines.length;i++) cx.fillText(lines[i],W/2,pad+lh*(i+0.5));
+  const img=cx.getImageData(0,0,W,H).data;
+  const A=(x,y)=>(x<0||y<0||x>=W||y>=H)?0:img[(y*W+x)*4+3]/255;
+  // model space: fit width to 1 unit, keep aspect
+  const sc=1/W, ox=-0.5, oy=(H/W)*0.5;
+  const P=(x,y)=>[x*sc+ox, oy-y*sc];
+  const hd=depth*0.5;
+  const pos=[],nrm=[],uv=[],idx=[];
+  const step=2;                                     // contour sampling stride
+  const T=0.5;
+  const lerp=(a,b)=>Math.abs(b-a)<1e-6?0.5:(T-a)/(b-a);
+  const seg=(ax,ay,bx,by)=>{
+    const [x0,y0]=P(ax,ay), [x1,y1]=P(bx,by);
+    let dx=x1-x0, dy=y1-y0; const L=Math.hypot(dx,dy); if(L<1e-7) return;
+    const nx=dy/L, ny=-dx/L;                        // outward normal (CW marching order)
+    const b=pos.length/3;
+    pos.push(x0,y0,hd, x1,y1,hd, x1,y1,-hd, x0,y0,-hd);
+    for(let k=0;k<4;k++){ nrm.push(nx,ny,0); }
+    uv.push(0,0, 1,0, 1,1, 0,1);
+    idx.push(b,b+1,b+2, b,b+2,b+3);
+  };
+  for(let y=0;y<H-step;y+=step){
+    for(let x=0;x<W-step;x+=step){
+      const a0=A(x,y), a1=A(x+step,y), a2=A(x+step,y+step), a3=A(x,y+step);
+      const c=(a0>T?8:0)|(a1>T?4:0)|(a2>T?2:0)|(a3>T?1:0);
+      if(c===0||c===15) continue;
+      const top   =[x+step*lerp(a0,a1), y];
+      const right =[x+step,             y+step*lerp(a1,a2)];
+      const bottom=[x+step*lerp(a3,a2), y+step];
+      const left  =[x,                  y+step*lerp(a0,a3)];
+      const E={1:[[left,bottom]],2:[[bottom,right]],3:[[left,right]],4:[[top,right]],
+        5:[[left,top],[bottom,right]],6:[[top,bottom]],7:[[left,top]],8:[[top,left]],
+        9:[[top,bottom]],10:[[top,right],[bottom,left]],11:[[top,right]],12:[[right,left]],
+        13:[[right,bottom]],14:[[bottom,left]]}[c];
+      if(E) for(const [p0,p1] of E) seg(p0[0],p0[1],p1[0],p1[1]);
+    }
+  }
+  const sides=_g3Mesh(pos,nrm,uv,idx);
+  // caps are planar, so a textured alpha-tested quad at +/-depth/2 is exact geometry
+  const w2=0.5, h2=(H/W)*0.5;
+  const caps=_g3Mesh(
+    [-w2,-h2,hd, w2,-h2,hd, w2,h2,hd, -w2,h2,hd,  -w2,-h2,-hd, w2,-h2,-hd, w2,h2,-hd, -w2,h2,-hd],
+    [0,0,1, 0,0,1, 0,0,1, 0,0,1,  0,0,-1, 0,0,-1, 0,0,-1, 0,0,-1],
+    [0,1, 1,1, 1,0, 0,0,  1,1, 0,1, 0,0, 1,0],
+    [0,1,2, 0,2,3,  4,6,5, 4,7,6]);
+  return {sides,caps,texCanvas:_g3TxCv,texW:W,texH:H};
+}
+// ── OBJ import ──
+function _g3ParseOBJ(src){
+  const V=[],N=[],pos=[],nrm=[],uv=[],idx=[];
+  const lines=String(src).split('\n');
+  for(const raw of lines){
+    const l=raw.trim(); if(!l||l[0]==='#') continue;
+    const t=l.split(/\s+/);
+    if(t[0]==='v') V.push([+t[1],+t[2],+t[3]]);
+    else if(t[0]==='vn') N.push([+t[1],+t[2],+t[3]]);
+    else if(t[0]==='f'){
+      const verts=t.slice(1).map(s=>{ const q=s.split('/'); return {v:parseInt(q[0],10), n:q[2]?parseInt(q[2],10):0}; });
+      for(let k=1;k+1<verts.length;k++){                 // fan-triangulate n-gons
+        for(const vv of [verts[0],verts[k],verts[k+1]]){
+          const vi=vv.v>0?vv.v-1:V.length+vv.v; const p=V[vi]||[0,0,0];
+          const b=pos.length/3; pos.push(p[0],p[1],p[2]);
+          if(vv.n){ const ni=vv.n>0?vv.n-1:N.length+vv.n; const nn=N[ni]||[0,1,0]; nrm.push(nn[0],nn[1],nn[2]); }
+          else nrm.push(0,0,0);
+          uv.push(0,0); idx.push(b);
+        }
+      }
+    }
+  }
+  if(!pos.length) return null;
+  // face normals where the file supplied none
+  for(let i=0;i<idx.length;i+=3){
+    const a=idx[i]*3,b=idx[i+1]*3,c=idx[i+2]*3;
+    if(nrm[a]===0&&nrm[a+1]===0&&nrm[a+2]===0){
+      const ux=pos[b]-pos[a],uy=pos[b+1]-pos[a+1],uz=pos[b+2]-pos[a+2];
+      const vx=pos[c]-pos[a],vy=pos[c+1]-pos[a+1],vz=pos[c+2]-pos[a+2];
+      let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      const L=Math.hypot(nx,ny,nz)||1; nx/=L;ny/=L;nz/=L;
+      for(const o of [a,b,c]){ nrm[o]=nx; nrm[o+1]=ny; nrm[o+2]=nz; }
+    }
+  }
+  // centre and normalise into a unit box
+  let mnx=1e9,mny=1e9,mnz=1e9,mxx=-1e9,mxy=-1e9,mxz=-1e9;
+  for(let i=0;i<pos.length;i+=3){ if(pos[i]<mnx)mnx=pos[i]; if(pos[i]>mxx)mxx=pos[i];
+    if(pos[i+1]<mny)mny=pos[i+1]; if(pos[i+1]>mxy)mxy=pos[i+1];
+    if(pos[i+2]<mnz)mnz=pos[i+2]; if(pos[i+2]>mxz)mxz=pos[i+2]; }
+  const cxm=(mnx+mxx)/2, cym=(mny+mxy)/2, czm=(mnz+mxz)/2;
+  const s=1/Math.max(1e-6,Math.max(mxx-mnx,mxy-mny,mxz-mnz));
+  for(let i=0;i<pos.length;i+=3){ pos[i]=(pos[i]-cxm)*s; pos[i+1]=(pos[i+1]-cym)*s; pos[i+2]=(pos[i+2]-czm)*s; }
+  return _g3Mesh(pos,nrm,uv,idx);
+}
+// ── GL setup ──
+function _g3Init(){
+  if(_g3Gl||_g3Fail) return _g3Gl;
+  _g3Cv=document.createElement('canvas');
+  const gl=_g3Cv.getContext('webgl2',{alpha:true,antialias:true,premultipliedAlpha:false})
+        || _g3Cv.getContext('webgl',{alpha:true,antialias:true,premultipliedAlpha:false});
+  if(!gl){ _g3Fail=true; return null; }
+  const vs='attribute vec3 aPos; attribute vec3 aNrm; attribute vec2 aUv;'+
+    'uniform mat4 uMVP, uNM; varying vec3 vN; varying vec2 vUv; varying vec3 vP;'+
+    'void main(){ vN=(uNM*vec4(aNrm,0.0)).xyz; vUv=aUv; vP=aPos; gl_Position=uMVP*vec4(aPos,1.0); }';
+  const fs='precision mediump float; varying vec3 vN; varying vec2 vUv; varying vec3 vP;'+
+    'uniform vec3 uCol, uLdir, uLcol; uniform float uAmb, uSpec, uShine, uRim, uUseTex, uOpacity;'+
+    'uniform sampler2D uTex;'+
+    'void main(){'+
+    ' if(uUseTex>0.5){ if(texture2D(uTex,vUv).a<0.5) discard; }'+
+    ' vec3 N=normalize(vN); vec3 V=vec3(0.0,0.0,1.0); vec3 L=normalize(uLdir);'+
+    ' float d=max(dot(N,L),0.0);'+
+    ' vec3 H=normalize(L+V); float sp=pow(max(dot(N,H),0.0),max(1.0,uShine))*uSpec;'+
+    ' float rim=pow(1.0-max(dot(N,V),0.0),3.0)*uRim;'+
+    ' vec3 c=uCol*(uAmb+d*uLcol)+vec3(sp)+vec3(rim);'+
+    ' gl_FragColor=vec4(clamp(c,0.0,1.0),uOpacity); }';
+  const mk=(t,s)=>{ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
+    if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){ console.warn('3d shader',gl.getShaderInfoLog(o)); return null; } return o; };
+  const v=mk(gl.VERTEX_SHADER,vs), f=mk(gl.FRAGMENT_SHADER,fs);
+  if(!v||!f){ _g3Fail=true; return null; }
+  const p=gl.createProgram(); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ _g3Fail=true; return null; }
+  _g3P=p;
+  _g3L={ pos:gl.getAttribLocation(p,'aPos'), nrm:gl.getAttribLocation(p,'aNrm'), uv:gl.getAttribLocation(p,'aUv'),
+    mvp:gl.getUniformLocation(p,'uMVP'), nm:gl.getUniformLocation(p,'uNM'), col:gl.getUniformLocation(p,'uCol'),
+    ldir:gl.getUniformLocation(p,'uLdir'), lcol:gl.getUniformLocation(p,'uLcol'), amb:gl.getUniformLocation(p,'uAmb'),
+    spec:gl.getUniformLocation(p,'uSpec'), shine:gl.getUniformLocation(p,'uShine'), rim:gl.getUniformLocation(p,'uRim'),
+    useTex:gl.getUniformLocation(p,'uUseTex'), tex:gl.getUniformLocation(p,'uTex'), opacity:gl.getUniformLocation(p,'uOpacity') };
+  _g3Gl=gl; return gl;
+}
+function _g3Upload(gl,m,texCanvas){
+  const inter=new Float32Array(m.pos.length/3*8);
+  for(let i=0,v=0;i<m.pos.length/3;i++){
+    inter[v++]=m.pos[i*3]; inter[v++]=m.pos[i*3+1]; inter[v++]=m.pos[i*3+2];
+    inter[v++]=m.nrm[i*3]; inter[v++]=m.nrm[i*3+1]; inter[v++]=m.nrm[i*3+2];
+    inter[v++]=m.uv[i*2]||0; inter[v++]=m.uv[i*2+1]||0;
+  }
+  const vbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbo); gl.bufferData(gl.ARRAY_BUFFER,inter,gl.STATIC_DRAW);
+  const ibo=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,m.idx,gl.STATIC_DRAW);
+  const rec={vbo,ibo,count:m.idx.length,u32:m.idx instanceof Uint32Array,tex:null};
+  if(texCanvas){
+    const tx=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tx);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,texCanvas);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    rec.tex=tx;
+  }
+  return rec;
+}
+function _g3GetMesh(gl,o){
+  const kind=o.kind||'box';
+  const sig=[kind,o.seg||24,o.r2||0.5,o.depth||0.3,kind==='text'?(o.text+'|'+o.font+'|'+o.weight+'|'+(o.lineHeight||1)):'',
+    kind==='obj'?(o._objName||''):''].join('~');
+  let rec=_g3Meshes.get(sig);
+  if(rec) return rec;
+  let built=null;
+  if(kind==='sphere') built={main:_g3Sphere(o.seg||24)};
+  else if(kind==='torus') built={main:_g3Torus(o.seg||24,o.r2==null?0.5:o.r2)};
+  else if(kind==='cylinder') built={main:_g3Tube(o.seg||24,0.5)};
+  else if(kind==='cone') built={main:_g3Tube(o.seg||24,0.0)};
+  else if(kind==='plane') built={main:_g3Plane()};
+  else if(kind==='obj') built= o._objMesh?{main:o._objMesh}:{main:_g3Box()};
+  else if(kind==='text'){
+    const t=_g3TextMesh(o.text||'3D',o.font||"'Bebas Neue',Impact,sans-serif",o.weight||'900',o.depth==null?0.3:o.depth,o.lineHeight||1);
+    rec={sides:_g3Upload(gl,t.sides,null), caps:_g3Upload(gl,t.caps,t.texCanvas), isText:true};
+    _g3Meshes.set(sig,rec); return rec;
+  }
+  else built={main:_g3Box()};
+  rec={main:_g3Upload(gl,built.main,null)};
+  _g3Meshes.set(sig,rec); return rec;
+}
+function renderThreeLayer(lctx,layer,W,H){
+  const gl=_g3Init();
+  lctx.clearRect(0,0,W,H);
+  if(!gl) return;
+  const t=(globalT||0)/60*Math.max(0,(layer.g3Speed==null?1:layer.g3Speed));
+  const SS=Math.max(1,Math.min(2,(layer.g3SuperSample==null?2:layer.g3SuperSample)));
+  const CW=Math.max(8,Math.min(2400,Math.round(W*SS))), CH=Math.max(8,Math.min(2400,Math.round(H*SS)));
+  if(_g3Cv.width!==CW||_g3Cv.height!==CH){ _g3Cv.width=CW; _g3Cv.height=CH; }
+  gl.viewport(0,0,CW,CH);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true);
+  gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+  gl.clearColor(0,0,0,0); gl.clearDepth(1);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(_g3P);
+  // camera (orbit) with dolly-compensated fov so the lens changes character, not size
+  let camRX=(layer.g3CamRX==null?-14:layer.g3CamRX)*Math.PI/180;
+  let camRY=(layer.g3CamRY==null?28:layer.g3CamRY)*Math.PI/180;
+  const anim=layer.g3CamAnim||'none';
+  if(anim==='orbit') camRY+=t*0.6;
+  else if(anim==='sway'){ camRY+=Math.sin(t*0.8)*0.5; camRX+=Math.sin(t*0.55)*0.2; }
+  else if(anim==='tumble'){ camRY+=t*0.6; camRX+=Math.sin(t*0.7)*0.4; }
+  const fov=Math.max(10,Math.min(110,(layer.g3Fov==null?40:layer.g3Fov)));
+  const dolly=Math.tan(40*Math.PI/360)/Math.tan(fov*Math.PI/360);
+  const dist=Math.max(0.4,(layer.g3Dist==null?3:layer.g3Dist)*dolly);
+  const P=new Float32Array(16), Vm=new Float32Array(16), VP=new Float32Array(16),
+        M=new Float32Array(16), MVP=new Float32Array(16), NM=new Float32Array(16);
+  _g3Persp(fov,CW/CH,0.05,100,P);
+  _g3Compose(0,0,-dist,camRX,camRY,0,1,1,1,Vm);
+  _g3Mul(P,Vm,VP);
+  const la=(layer.g3LightAz==null?135:layer.g3LightAz)*Math.PI/180;
+  const le=(layer.g3LightEl==null?35:layer.g3LightEl)*Math.PI/180;
+  const li=(layer.g3LightInt==null?1:layer.g3LightInt);
+  gl.uniform3f(_g3L.ldir,Math.cos(le)*Math.cos(la),Math.sin(le),Math.cos(le)*Math.sin(la));
+  gl.uniform3f(_g3L.lcol,li,li,li);
+  gl.uniform1f(_g3L.amb,(layer.g3Ambient==null?0.25:layer.g3Ambient));
+  const objs=layer.g3Objects||[];
+  const stride=8*4;
+  const drawRec=(rec,useTex)=>{
+    gl.bindBuffer(gl.ARRAY_BUFFER,rec.vbo);
+    gl.enableVertexAttribArray(_g3L.pos); gl.vertexAttribPointer(_g3L.pos,3,gl.FLOAT,false,stride,0);
+    gl.enableVertexAttribArray(_g3L.nrm); gl.vertexAttribPointer(_g3L.nrm,3,gl.FLOAT,false,stride,12);
+    gl.enableVertexAttribArray(_g3L.uv);  gl.vertexAttribPointer(_g3L.uv,2,gl.FLOAT,false,stride,24);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,rec.ibo);
+    gl.uniform1f(_g3L.useTex,useTex?1:0);
+    if(useTex&&rec.tex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,rec.tex); gl.uniform1i(_g3L.tex,0); }
+    gl.drawElements(gl.TRIANGLES,rec.count,rec.u32?gl.UNSIGNED_INT:gl.UNSIGNED_SHORT,0);
+  };
+  for(const o of objs){
+    if(o.visible===false) continue;
+    const spin=o.spin||0, spinT=spin*t;
+    const rx=((o.rx||0)*Math.PI/180)+(o.spinAxis==='x'?spinT:0);
+    const ry=((o.ry||0)*Math.PI/180)+((!o.spinAxis||o.spinAxis==='y')?spinT:0);
+    const rz=((o.rz||0)*Math.PI/180)+(o.spinAxis==='z'?spinT:0);
+    const bob=(o.bob||0)*Math.sin(t*1.2+(o.phase||0));
+    const s=(o.scale==null?1:o.scale);
+    _g3Compose(o.x||0,(o.y||0)+bob,o.z||0,rx,ry,rz,s*(o.sx==null?1:o.sx),s*(o.sy==null?1:o.sy),s*(o.sz==null?1:o.sz),M);
+    _g3Mul(VP,M,MVP); _g3NormalMat(M,NM);
+    gl.uniformMatrix4fv(_g3L.mvp,false,MVP);
+    gl.uniformMatrix4fv(_g3L.nm,false,NM);
+    const c=hexToRgb(o.color||'#cccccc');
+    gl.uniform3f(_g3L.col,c[0]/255,c[1]/255,c[2]/255);
+    gl.uniform1f(_g3L.spec,(o.spec==null?0.35:o.spec));
+    gl.uniform1f(_g3L.shine,(o.shine==null?32:o.shine));
+    gl.uniform1f(_g3L.rim,(o.rim==null?0.12:o.rim));
+    gl.uniform1f(_g3L.opacity,(o.opacity==null?1:o.opacity));
+    const rec=_g3GetMesh(gl,o);
+    if(rec.isText){ gl.disable(gl.CULL_FACE); drawRec(rec.sides,false); drawRec(rec.caps,true); gl.enable(gl.CULL_FACE); }
+    else drawRec(rec.main,false);
+  }
+  if(layer.g3BgOn){ lctx.fillStyle=layer.g3Bg||'#0c0c0e'; lctx.fillRect(0,0,W,H); }
+  lctx.imageSmoothingEnabled=true;
+  lctx.drawImage(_g3Cv,0,0,W,H);
+}
 function renderLayer(layer,lc,fbBuf,W,H){
   const lctx=lc.getContext('2d',{willReadFrequently:true});
 
@@ -8873,6 +9219,10 @@ function renderLayer(layer,lc,fbBuf,W,H){
     return;
   }
   // ── PARTICLE LAYER ──────────────────────────────────────────
+  if(layer.layerType==='three'){
+    renderThreeLayer(lctx,layer,W,H);
+    return;
+  }
   if(layer.layerType==='particles'){
     renderParticleLayer(lctx,layer,W,H);
     return;
@@ -13195,7 +13545,7 @@ function renderSeqArrange(){
   layers.forEach((layer,li)=>{
     const row=document.createElement('div'); row.className='seq-layer-row';
     const lbl=document.createElement('div'); lbl.className='seq-layer-label';
-    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':layer.layerType==='vision'?'⊹':layer.layerType==='particles'?'✸':'▦';
+    const badge=layer.layerType==='graphic'?'✦':layer.layerType==='media'?'▣':layer.layerType==='blobby'?'🫧':layer.layerType==='marble'?'🫟':layer.layerType==='gesture'?'🩰':layer.layerType==='vision'?'⊹':layer.layerType==='three'?'◩':layer.layerType==='particles'?'✸':'▦';
     lbl.textContent=badge+' '+(layer.name||('Layer '+(li+1)));
     row.appendChild(lbl);
     const track=document.createElement('div'); track.className='seq-layer-track'; track.dataset.li=li;
@@ -14485,6 +14835,7 @@ function wireParamInputs(){
     const isGesture=layer.layerType==='gesture';
     const isVision=layer.layerType==='vision';
     const isParticles=layer.layerType==='particles';
+    const isThree=layer.layerType==='three';
     if(window._gfxLayersDock) window._gfxLayersDock.style.display=isGraphic?'block':'none';
     const gfxTab=document.getElementById('ptab-graphic');
     const mediaTab=document.getElementById('ptab-media');
@@ -14493,6 +14844,7 @@ function wireParamInputs(){
     const gestureTab=document.getElementById('ptab-gesture');
     const visionTab=document.getElementById('ptab-vision');
     const particlesTab=document.getElementById('ptab-particles');
+    const threeTab=document.getElementById('ptab-three');
     const gridTab=document.getElementById('ptab-grid');
     const colorTab=document.getElementById('ptab-color');
     const motionTab=document.getElementById('ptab-motion');
@@ -14503,7 +14855,8 @@ function wireParamInputs(){
     if(gestureTab) gestureTab.style.display=isGesture?'':'none';
     if(visionTab) visionTab.style.display=isVision?'':'none';
     if(particlesTab) particlesTab.style.display=isParticles?'':'none';
-    const hideGen = isMedia||isBlobby||isMarble||isGesture||isVision||isParticles; // generative grid/color/motion tabs hidden for tool layers
+    if(threeTab) threeTab.style.display=isThree?'':'none';
+    const hideGen = isMedia||isBlobby||isMarble||isGesture||isVision||isParticles||isThree; // generative grid/color/motion tabs hidden for tool layers
     if(gridTab){ gridTab.style.display=hideGen?'none':''; gridTab.textContent=isGraphic?'elements':'grid'; }
     if(colorTab){ colorTab.style.display=hideGen?'none':''; colorTab.textContent=isGraphic?'style':'color'; }
     if(motionTab){ motionTab.style.display=hideGen?'none':''; motionTab.textContent='motion'; }
@@ -14513,6 +14866,7 @@ function wireParamInputs(){
       if(isMedia){ at='media'; }
       else if(isBlobby){ at='blobby'; }
       else if(isMarble){ at='marble'; }
+      else if(isThree){ at='three'; if(window.syncThreeUI) syncThreeUI(layer); }
       else if(isGesture){ at='gesture'; }
       else if(isVision){ at='vision'; }
       else if(isParticles){ at='particles'; }
@@ -15464,6 +15818,160 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
   const bt=document.getElementById('ptab-marble'); if(bt){ bt.style.display=''; bt.classList.add('on'); }
   const bs=document.querySelector('[data-section="marble"]'); if(bs) bs.style.display='block';
   updateConditionalUI(newLayer);
+  snapshotState();
+});
+// ── 3D LAYER UI ───────────────────────────────────────────────
+(function(){
+  const $=id=>document.getElementById(id);
+  const g3Layer=()=>{ const l=layers[selectedLayer]; return (l&&l.layerType==='three')?l:null; };
+  const g3Sel=()=>{ const l=g3Layer(); if(!l) return null; const o=(l.g3Objects||[]).find(x=>x.id===l._g3Sel); return o||(l.g3Objects||[])[0]||null; };
+  const G3_ICON={box:'▢',sphere:'●',torus:'◎',cylinder:'▮',cone:'▲',plane:'▬',text:'T',obj:'⬡'};
+  function g3DefaultObj(kind){
+    return {id:'o_'+Math.random().toString(36).slice(2,7),kind,visible:true,
+      text:'REAL',font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1,depth:0.3,
+      seg:24,r2:0.5,x:0,y:0,z:0,rx:0,ry:0,rz:0,scale:1,
+      color:kind==='text'?'#e8e8ee':'#8fd0ff',spec:0.35,shine:32,rim:0.12,opacity:1,
+      spin:0,spinAxis:'y',bob:0,phase:0};
+  }
+  function renderG3List(){
+    const l=g3Layer(), list=$('g3-obj-list'); if(!list) return;
+    const objs=l?(l.g3Objects||[]):[];
+    list.innerHTML='';
+    if(!objs.length){ list.innerHTML='<div style="font-size:8px;color:#555;padding:4px;">no objects — add one above</div>';
+      const pr=$('g3-obj-props'); if(pr) pr.style.display='none'; return; }
+    if(!l._g3Sel||!objs.some(o=>o.id===l._g3Sel)) l._g3Sel=objs[0].id;
+    objs.forEach(o=>{
+      const row=document.createElement('div');
+      const on=o.id===l._g3Sel;
+      row.style.cssText='display:flex;align-items:center;gap:5px;padding:2px 4px;border-radius:3px;cursor:pointer;font-size:9px;'+
+        (on?'background:rgba(143,208,255,0.16);color:#cfe8ff;':'color:#999;');
+      const label=o.kind==='text'?(o.text||'text'):o.kind;
+      row.innerHTML='<span style="width:12px;text-align:center;">'+(G3_ICON[o.kind]||'?')+'</span>'+
+        '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+label+'</span>'+
+        '<span class="g3-vis" style="opacity:'+(o.visible===false?0.3:1)+';">◉</span>';
+      row.addEventListener('click',e=>{
+        if(e.target.classList.contains('g3-vis')){ o.visible=(o.visible===false); renderG3List(); return; }
+        l._g3Sel=o.id; renderG3List(); syncG3Props();
+      });
+      list.appendChild(row);
+    });
+    syncG3Props();
+  }
+  function setV(id,val){
+    const e=$(id); if(!e) return;
+    if(e.type==='checkbox') e.checked=!!val; else if(val!==undefined&&val!==null) e.value=val;
+    const v=$(id+'-v');
+    if(v&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; v.textContent=parseFloat(e.value).toFixed(dec); }
+  }
+  function syncG3Props(){
+    const o=g3Sel(), pr=$('g3-obj-props'); if(!pr) return;
+    if(!o){ pr.style.display='none'; return; }
+    pr.style.display='block';
+    setV('g3-text',o.text);setV('g3-font',o.font);setV('g3-weight',o.weight);setV('g3-depth',o.depth);
+    setV('g3-seg',o.seg);setV('g3-r2',o.r2);
+    setV('g3-x',o.x);setV('g3-y',o.y);setV('g3-z',o.z);setV('g3-scale',o.scale);
+    setV('g3-rx',o.rx);setV('g3-ry',o.ry);setV('g3-rz',o.rz);
+    setV('g3-color',o.color);setV('g3-spec',o.spec);setV('g3-shine',o.shine);setV('g3-rim',o.rim);setV('g3-opacity',o.opacity);
+    setV('g3-spin',o.spin);setV('g3-spinaxis',o.spinAxis);setV('g3-bob',o.bob);setV('g3-phase',o.phase);
+    const isText=o.kind==='text', hasSeg=['sphere','torus','cylinder','cone'].includes(o.kind), isTorus=o.kind==='torus';
+    document.querySelectorAll('.g3-textonly').forEach(e=>e.style.display=isText?'flex':'none');
+    document.querySelectorAll('.g3-segonly').forEach(e=>e.style.display=hasSeg?'flex':'none');
+    document.querySelectorAll('.g3-torusonly').forEach(e=>e.style.display=isTorus?'flex':'none');
+  }
+  window.syncThreeUI=function(l){
+    if(!l) l=g3Layer(); if(!l) return;
+    setV('g3-camrx',l.g3CamRX);setV('g3-camry',l.g3CamRY);setV('g3-dist',l.g3Dist);setV('g3-fov',l.g3Fov);
+    setV('g3-camanim',l.g3CamAnim);setV('g3-speed',l.g3Speed);
+    setV('g3-lightaz',l.g3LightAz);setV('g3-lightel',l.g3LightEl);setV('g3-lightint',l.g3LightInt);setV('g3-ambient',l.g3Ambient);
+    setV('g3-ss',l.g3SuperSample);setV('g3-bgon',l.g3BgOn);setV('g3-bg',l.g3Bg);
+    renderG3List();
+  };
+  // add-object buttons
+  const ADD={'g3-add-box':'box','g3-add-sphere':'sphere','g3-add-torus':'torus','g3-add-cylinder':'cylinder',
+    'g3-add-cone':'cone','g3-add-plane':'plane','g3-add-text':'text'};
+  Object.entries(ADD).forEach(([bid,kind])=>{
+    $(bid)?.addEventListener('click',()=>{
+      const l=g3Layer(); if(!l) return;
+      if(!l.g3Objects) l.g3Objects=[];
+      const o=g3DefaultObj(kind); l.g3Objects.push(o); l._g3Sel=o.id;
+      renderG3List(); snapshotState();
+    });
+  });
+  $('g3-add-obj')?.addEventListener('click',()=>$('g3-obj-input')?.click());
+  $('g3-obj-input')?.addEventListener('change',e=>{
+    const f=e.target.files[0], l=g3Layer(); if(!f||!l) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const mesh=(typeof _g3ParseOBJ==='function')?_g3ParseOBJ(ev.target.result):null;
+      if(!mesh){ alert('Could not read that .obj — no geometry found.'); return; }
+      if(!l.g3Objects) l.g3Objects=[];
+      const o=g3DefaultObj('obj'); o._objMesh=mesh; o._objName=f.name; o.color='#c8c8d0';
+      l.g3Objects.push(o); l._g3Sel=o.id; renderG3List(); snapshotState();
+    };
+    rd.readAsText(f); e.target.value='';
+  });
+  $('g3-dup')?.addEventListener('click',()=>{
+    const l=g3Layer(), o=g3Sel(); if(!l||!o) return;
+    const mesh=o._objMesh;
+    const c=JSON.parse(JSON.stringify({...o,_objMesh:null}));
+    c.id='o_'+Math.random().toString(36).slice(2,7); c._objMesh=mesh; c.x=(o.x||0)+0.35;
+    l.g3Objects.splice(l.g3Objects.indexOf(o)+1,0,c); l._g3Sel=c.id;
+    renderG3List(); snapshotState();
+  });
+  $('g3-del')?.addEventListener('click',()=>{
+    const l=g3Layer(), o=g3Sel(); if(!l||!o) return;
+    l.g3Objects.splice(l.g3Objects.indexOf(o),1);
+    l._g3Sel=(l.g3Objects[0]||{}).id; renderG3List(); snapshotState();
+  });
+  // per-object controls
+  const OMAP=[['g3-text','text','str'],['g3-font','font','str'],['g3-weight','weight','str'],['g3-depth','depth','num'],
+    ['g3-seg','seg','num'],['g3-r2','r2','num'],['g3-x','x','num'],['g3-y','y','num'],['g3-z','z','num'],['g3-scale','scale','num'],
+    ['g3-rx','rx','num'],['g3-ry','ry','num'],['g3-rz','rz','num'],['g3-color','color','str'],['g3-spec','spec','num'],
+    ['g3-shine','shine','num'],['g3-rim','rim','num'],['g3-opacity','opacity','num'],
+    ['g3-spin','spin','num'],['g3-spinaxis','spinAxis','str'],['g3-bob','bob','num'],['g3-phase','phase','num']];
+  OMAP.forEach(([id,field,kind])=>{
+    const e=$(id); if(!e) return;
+    e.addEventListener('input',()=>{
+      const o=g3Sel(); if(!o) return;
+      o[field]= kind==='num'?parseFloat(e.value) : e.value;
+      const vs=$(id+'-v');
+      if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
+      if(field==='text') renderG3List();
+    });
+  });
+  // scene controls
+  const LMAP=[['g3-camrx','g3CamRX','num'],['g3-camry','g3CamRY','num'],['g3-dist','g3Dist','num'],['g3-fov','g3Fov','num'],
+    ['g3-camanim','g3CamAnim','str'],['g3-speed','g3Speed','num'],['g3-lightaz','g3LightAz','num'],['g3-lightel','g3LightEl','num'],
+    ['g3-lightint','g3LightInt','num'],['g3-ambient','g3Ambient','num'],['g3-ss','g3SuperSample','num'],
+    ['g3-bgon','g3BgOn','bool'],['g3-bg','g3Bg','str']];
+  LMAP.forEach(([id,field,kind])=>{
+    const e=$(id); if(!e) return;
+    e.addEventListener('input',()=>{
+      const l=g3Layer(); if(!l) return;
+      l[field]= kind==='bool'?e.checked : kind==='num'?parseFloat(e.value) : e.value;
+      const vs=$(id+'-v');
+      if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
+    });
+  });
+})();
+document.getElementById('btn-add-three-layer')?.addEventListener('click',()=>{
+  const n=layers.length+1;
+  const newLayer={...defaultLayerParams(),name:'3D '+n,layerType:'three',bg:'#00000000',opacity:1,blend:'source-over'};
+  newLayer.mask=defaultMask();
+  newLayer.g3Objects=[{id:'o1',kind:'text',text:'REAL',font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1,
+    depth:0.3,x:0,y:0,z:0,rx:0,ry:0,rz:0,scale:1.6,color:'#e8e8ee',spec:0.45,shine:40,rim:0.15,spin:0.25,spinAxis:'y',bob:0,opacity:1,visible:true}];
+  newLayer.g3CamRX=-14; newLayer.g3CamRY=28; newLayer.g3Fov=40; newLayer.g3Dist=3;
+  newLayer.g3CamAnim='none'; newLayer.g3Speed=1; newLayer.g3LightAz=135; newLayer.g3LightEl=35;
+  newLayer.g3LightInt=1; newLayer.g3Ambient=0.25; newLayer.g3SuperSample=2; newLayer.g3BgOn=false; newLayer.g3Bg='#0c0c0e';
+  layers.push(newLayer);
+  selectedLayer=layers.length-1;
+  renderLayerList();syncLayerUI();
+  document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('[data-section]').forEach(sec=>sec.style.display='none');
+  const bt=document.getElementById('ptab-three'); if(bt){ bt.style.display=''; bt.classList.add('on'); }
+  const bs=document.querySelector('[data-section="three"]'); if(bs) bs.style.display='block';
+  updateConditionalUI(newLayer);
+  if(window.syncThreeUI) syncThreeUI(newLayer);
   snapshotState();
 });
 document.getElementById('btn-add-gesture-layer')?.addEventListener('click',()=>{
