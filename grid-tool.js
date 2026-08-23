@@ -8935,7 +8935,14 @@ function _g3TextMesh(text,fam,wt,depth,lineHeight){
   const seg=(ax,ay,bx,by)=>{
     const [x0,y0]=P(ax,ay), [x1,y1]=P(bx,by);
     let dx=x1-x0, dy=y1-y0; const L=Math.hypot(dx,dy); if(L<1e-7) return;
-    const nx=dy/L, ny=-dx/L;                        // outward normal (CW marching order)
+    // outward = the side where the glyph field is DARKER; sampling is robust where the
+    // marching-squares case table's winding is not (saddle cases especially)
+    const mx=(ax+bx)/2, my=(ay+by)/2;
+    let rnx=(by-ay), rny=-(bx-ax);
+    const rl=Math.hypot(rnx,rny)||1; rnx/=rl; rny/=rl;
+    const e=Math.max(1.5,step);
+    if(A(Math.round(mx+rnx*e),Math.round(my+rny*e))>A(Math.round(mx-rnx*e),Math.round(my-rny*e))){ rnx=-rnx; rny=-rny; }
+    const nx=rnx, ny=-rny;                          // raster y grows downward, model y up
     const b=pos.length/3;
     pos.push(x0,y0,hd, x1,y1,hd, x1,y1,-hd, x0,y0,-hd);
     for(let k=0;k<4;k++){ nrm.push(nx,ny,0); }
@@ -9023,15 +9030,28 @@ function _g3Init(){
     'uniform mat4 uMVP, uNM; varying vec3 vN; varying vec2 vUv; varying vec3 vP;'+
     'void main(){ vN=(uNM*vec4(aNrm,0.0)).xyz; vUv=aUv; vP=aPos; gl_Position=uMVP*vec4(aPos,1.0); }';
   const fs='precision mediump float; varying vec3 vN; varying vec2 vUv; varying vec3 vP;'+
-    'uniform vec3 uCol, uLdir, uLcol; uniform float uAmb, uSpec, uShine, uRim, uUseTex, uOpacity;'+
-    'uniform sampler2D uTex;'+
+    'uniform vec3 uCol, uCol2, uLdir, uLcol; uniform float uAmb, uSpec, uShine, uRim, uUseTex, uOpacity;'+
+    'uniform float uShader, uBands, uHue; uniform sampler2D uTex;'+
+    'vec3 hue2rgb(float h){ vec3 k=vec3(1.0,2.0/3.0,1.0/3.0);'+
+    '  return clamp(abs(fract(vec3(h)+k)*6.0-3.0)-1.0,0.0,1.0); }'+
     'void main(){'+
     ' if(uUseTex>0.5){ if(texture2D(uTex,vUv).a<0.5) discard; }'+
     ' vec3 N=normalize(vN); vec3 V=vec3(0.0,0.0,1.0); vec3 L=normalize(uLdir);'+
     ' float d=max(dot(N,L),0.0);'+
     ' vec3 H=normalize(L+V); float sp=pow(max(dot(N,H),0.0),max(1.0,uShine))*uSpec;'+
-    ' float rim=pow(1.0-max(dot(N,V),0.0),3.0)*uRim;'+
-    ' vec3 c=uCol*(uAmb+d*uLcol)+vec3(sp)+vec3(rim);'+
+    ' float fres=pow(1.0-max(dot(N,V),0.0),3.0);'+
+    ' vec3 c;'+
+    ' if(uShader<0.5){ c=uCol*(uAmb+d*uLcol)+vec3(sp)+vec3(fres*uRim); }'+          // phong
+    ' else if(uShader<1.5){ float b=max(1.0,uBands);'+                              // toon
+    '   float q=floor(d*b)/b; c=uCol*(uAmb+q*uLcol);'+
+    '   if(fres>0.72) c=mix(c,uCol2,0.85); }'+
+    ' else if(uShader<2.5){ c=N*0.5+0.5; }'+                                        // normals
+    ' else if(uShader<3.5){ c=mix(uCol*(uAmb+d*0.55),uCol2,clamp(fres*1.6,0.0,1.0))+vec3(sp*0.6); }'+ // fresnel glass
+    ' else if(uShader<4.5){ c=mix(uCol,uCol2,clamp(N.y*0.5+0.5,0.0,1.0))+vec3(sp); }'+ // matcap gradient
+    ' else if(uShader<5.5){ c=mix(uCol*(uAmb+d),hue2rgb(fract(fres*1.1+N.x*0.14+N.y*0.09+uHue)),0.78)+vec3(sp*0.5); }'+ // iridescent
+    ' else { float band=fract((N.x+N.y+N.z)*uBands*0.5+uHue);'+                     // contour bands
+    '   float e=smoothstep(0.45,0.5,abs(band-0.5));'+
+    '   c=mix(uCol*(uAmb+d*uLcol),uCol2,e); }'+
     ' gl_FragColor=vec4(clamp(c,0.0,1.0),uOpacity); }';
   const mk=(t,s)=>{ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
     if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){ console.warn('3d shader',gl.getShaderInfoLog(o)); return null; } return o; };
@@ -9041,7 +9061,8 @@ function _g3Init(){
   if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ _g3Fail=true; return null; }
   _g3P=p;
   _g3L={ pos:gl.getAttribLocation(p,'aPos'), nrm:gl.getAttribLocation(p,'aNrm'), uv:gl.getAttribLocation(p,'aUv'),
-    mvp:gl.getUniformLocation(p,'uMVP'), nm:gl.getUniformLocation(p,'uNM'), col:gl.getUniformLocation(p,'uCol'),
+    mvp:gl.getUniformLocation(p,'uMVP'), nm:gl.getUniformLocation(p,'uNM'), col:gl.getUniformLocation(p,'uCol'), col2:gl.getUniformLocation(p,'uCol2'),
+    shader:gl.getUniformLocation(p,'uShader'), bands:gl.getUniformLocation(p,'uBands'), hue:gl.getUniformLocation(p,'uHue'),
     ldir:gl.getUniformLocation(p,'uLdir'), lcol:gl.getUniformLocation(p,'uLcol'), amb:gl.getUniformLocation(p,'uAmb'),
     spec:gl.getUniformLocation(p,'uSpec'), shine:gl.getUniformLocation(p,'uShine'), rim:gl.getUniformLocation(p,'uRim'),
     useTex:gl.getUniformLocation(p,'uUseTex'), tex:gl.getUniformLocation(p,'uTex'), opacity:gl.getUniformLocation(p,'uOpacity') };
@@ -9149,8 +9170,13 @@ function renderThreeLayer(lctx,layer,W,H){
     _g3Mul(VP,M,MVP); _g3NormalMat(M,NM);
     gl.uniformMatrix4fv(_g3L.mvp,false,MVP);
     gl.uniformMatrix4fv(_g3L.nm,false,NM);
-    const c=hexToRgb(o.color||'#cccccc');
+    const c=hexToRgb(o.color||'#cccccc'), c2=hexToRgb(o.color2||'#1b1b22');
     gl.uniform3f(_g3L.col,c[0]/255,c[1]/255,c[2]/255);
+    gl.uniform3f(_g3L.col2,c2[0]/255,c2[1]/255,c2[2]/255);
+    const SH={phong:0,toon:1,normals:2,glass:3,matcap:4,iridescent:5,contour:6};
+    gl.uniform1f(_g3L.shader,SH[o.shader||'phong']||0);
+    gl.uniform1f(_g3L.bands,(o.bands==null?4:o.bands));
+    gl.uniform1f(_g3L.hue,((o.hue==null?0:o.hue)+(o.hueSpin?t*0.15*o.hueSpin:0)));
     gl.uniform1f(_g3L.spec,(o.spec==null?0.35:o.spec));
     gl.uniform1f(_g3L.shine,(o.shine==null?32:o.shine));
     gl.uniform1f(_g3L.rim,(o.rim==null?0.12:o.rim));
@@ -15830,7 +15856,7 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
     return {id:'o_'+Math.random().toString(36).slice(2,7),kind,visible:true,
       text:'REAL',font:"'Bebas Neue',Impact,sans-serif",weight:'900',lineHeight:1,depth:0.3,
       seg:24,r2:0.5,x:0,y:0,z:0,rx:0,ry:0,rz:0,scale:1,
-      color:kind==='text'?'#e8e8ee':'#8fd0ff',spec:0.35,shine:32,rim:0.12,opacity:1,
+      color:kind==='text'?'#e8e8ee':'#8fd0ff',color2:'#1b1b22',shader:'phong',bands:4,hue:0,hueSpin:0,spec:0.35,shine:32,rim:0.12,opacity:1,
       spin:0,spinAxis:'y',bob:0,phase:0};
   }
   function renderG3List(){
@@ -15871,8 +15897,13 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
     setV('g3-seg',o.seg);setV('g3-r2',o.r2);
     setV('g3-x',o.x);setV('g3-y',o.y);setV('g3-z',o.z);setV('g3-scale',o.scale);
     setV('g3-rx',o.rx);setV('g3-ry',o.ry);setV('g3-rz',o.rz);
-    setV('g3-color',o.color);setV('g3-spec',o.spec);setV('g3-shine',o.shine);setV('g3-rim',o.rim);setV('g3-opacity',o.opacity);
+    setV('g3-color',o.color);setV('g3-color2',o.color2);setV('g3-shader',o.shader);setV('g3-bands',o.bands);setV('g3-hue',o.hue);setV('g3-huespin',o.hueSpin);setV('g3-spec',o.spec);setV('g3-shine',o.shine);setV('g3-rim',o.rim);setV('g3-opacity',o.opacity);
     setV('g3-spin',o.spin);setV('g3-spinaxis',o.spinAxis);setV('g3-bob',o.bob);setV('g3-phase',o.phase);
+    const sh=o.shader||'phong';
+    const showBands=(sh==='toon'||sh==='contour'), showHue=(sh==='iridescent'||sh==='contour'), showC2=(sh!=='normals'&&sh!=='phong');
+    document.querySelectorAll('.g3-bandsonly').forEach(e=>e.style.display=showBands?'flex':'none');
+    document.querySelectorAll('.g3-hueonly').forEach(e=>e.style.display=showHue?'flex':'none');
+    document.querySelectorAll('.g3-col2only').forEach(e=>e.style.display=showC2?'flex':'none');
     const isText=o.kind==='text', hasSeg=['sphere','torus','cylinder','cone'].includes(o.kind), isTorus=o.kind==='torus';
     document.querySelectorAll('.g3-textonly').forEach(e=>e.style.display=isText?'flex':'none');
     document.querySelectorAll('.g3-segonly').forEach(e=>e.style.display=hasSeg?'flex':'none');
@@ -15893,7 +15924,20 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
     $(bid)?.addEventListener('click',()=>{
       const l=g3Layer(); if(!l) return;
       if(!l.g3Objects) l.g3Objects=[];
-      const o=g3DefaultObj(kind); l.g3Objects.push(o); l._g3Sel=o.id;
+      const o=g3DefaultObj(kind);
+      // place it in the first FREE grid slot — a blind index formula still collides with
+      // whatever is already there (e.g. the layer's default text sitting at the origin)
+      const taken=(x,z)=>(l.g3Objects||[]).some(e=>Math.abs((e.x||0)-x)<0.45&&Math.abs((e.z||0)-z)<0.45);
+      let placed=false;
+      for(let ring=0;ring<6&&!placed;ring++){
+        for(let c=-1;c<=1&&!placed;c++){
+          const x=c*0.95, z=-ring*0.95;
+          if(!taken(x,z)){ o.x=x; o.z=z; placed=true; }
+        }
+      }
+      if(!placed){ o.x=(Math.random()*2-1)*1.5; o.z=(Math.random()*2-1)*1.5; }
+      if(kind!=='text') o.scale=0.7;
+      l.g3Objects.push(o); l._g3Sel=o.id;
       renderG3List(); snapshotState();
     });
   });
@@ -15926,7 +15970,7 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
   // per-object controls
   const OMAP=[['g3-text','text','str'],['g3-font','font','str'],['g3-weight','weight','str'],['g3-depth','depth','num'],
     ['g3-seg','seg','num'],['g3-r2','r2','num'],['g3-x','x','num'],['g3-y','y','num'],['g3-z','z','num'],['g3-scale','scale','num'],
-    ['g3-rx','rx','num'],['g3-ry','ry','num'],['g3-rz','rz','num'],['g3-color','color','str'],['g3-spec','spec','num'],
+    ['g3-rx','rx','num'],['g3-ry','ry','num'],['g3-rz','rz','num'],['g3-color','color','str'],['g3-color2','color2','str'],['g3-shader','shader','str'],['g3-bands','bands','num'],['g3-hue','hue','num'],['g3-huespin','hueSpin','num'],['g3-spec','spec','num'],
     ['g3-shine','shine','num'],['g3-rim','rim','num'],['g3-opacity','opacity','num'],
     ['g3-spin','spin','num'],['g3-spinaxis','spinAxis','str'],['g3-bob','bob','num'],['g3-phase','phase','num']];
   OMAP.forEach(([id,field,kind])=>{
@@ -15937,6 +15981,7 @@ document.getElementById('btn-add-marble-layer')?.addEventListener('click',()=>{
       const vs=$(id+'-v');
       if(vs&&e.type==='range'){ const dec=(e.step||'1').includes('.')?e.step.split('.')[1].length:0; vs.textContent=parseFloat(e.value).toFixed(dec); }
       if(field==='text') renderG3List();
+      if(field==='shader') syncG3Props();
     });
   });
   // scene controls

@@ -1922,7 +1922,12 @@
         <div class="row"><label>rotate Y</label><input type="range" id="g3-ry" min="-180" max="180" value="0" step="1"><span class="val" id="g3-ry-v">0</span></div>
         <div class="row"><label>rotate Z</label><input type="range" id="g3-rz" min="-180" max="180" value="0" step="1"><span class="val" id="g3-rz-v">0</span></div>
         <div style="margin:4px 0 2px;font-size:7px;color:#555;text-transform:uppercase;letter-spacing:.1em;">material</div>
+        <div class="row"><label>shader</label><select id="g3-shader"><option value="phong">phong (lit)</option><option value="toon">toon / cel</option><option value="normals">normals</option><option value="glass">fresnel glass</option><option value="matcap">matcap gradient</option><option value="iridescent">iridescent</option><option value="contour">contour bands</option></select></div>
         <div class="row"><label>colour</label><input type="color" id="g3-color" value="#cccccc"></div>
+        <div class="row g3-col2only"><label>colour 2</label><input type="color" id="g3-color2" value="#1b1b22"></div>
+        <div class="row g3-bandsonly"><label>bands</label><input type="range" id="g3-bands" min="1" max="12" value="4" step="1"><span class="val" id="g3-bands-v">4</span></div>
+        <div class="row g3-hueonly"><label>hue shift</label><input type="range" id="g3-hue" min="0" max="1" value="0" step="0.01"><span class="val" id="g3-hue-v">0.00</span></div>
+        <div class="row g3-hueonly"><label>hue drift</label><input type="range" id="g3-huespin" min="0" max="3" value="0" step="0.05"><span class="val" id="g3-huespin-v">0.00</span></div>
         <div class="row"><label>specular</label><input type="range" id="g3-spec" min="0" max="1.5" value="0.35" step="0.01"><span class="val" id="g3-spec-v">0.35</span></div>
         <div class="row"><label>shininess</label><input type="range" id="g3-shine" min="2" max="128" value="32" step="1"><span class="val" id="g3-shine-v">32</span></div>
         <div class="row"><label>rim light</label><input type="range" id="g3-rim" min="0" max="1" value="0.12" step="0.01"><span class="val" id="g3-rim-v">0.12</span></div>
